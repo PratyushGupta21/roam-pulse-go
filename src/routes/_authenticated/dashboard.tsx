@@ -158,7 +158,7 @@ export function Dashboard() {
             </Button>
 
             <Button asChild variant="recover" size="sm" className="gap-1.5 shadow-sm text-xs font-semibold">
-              <Link to="/">
+              <Link to="/trips/new">
                 <Plus className="h-4 w-4" />
                 <span>Plan My Trip</span>
               </Link>
@@ -268,7 +268,7 @@ export function Dashboard() {
                 <span>{createDemoMutation.isPending ? "Generating Demo Trip…" : "Create Instant Demo Trip"}</span>
               </Button>
               <Button asChild variant="recover" size="sm" className="gap-1.5 font-semibold">
-                <Link to="/">
+                <Link to="/trips/new">
                   <Plus className="h-4 w-4" />
                   <span>Plan My Trip</span>
                 </Link>
