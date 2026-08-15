@@ -94,7 +94,7 @@ function Home() {
           height={1088}
           fetchPriority="high"
           decoding="async"
-          className="absolute inset-0 -z-20 h-full w-full object-cover object-[68%_center] md:object-center"
+          className="absolute inset-0 -z-20 h-full w-full object-cover object-[62%_38%] md:object-center"
         />
         <div className="hero-scrim absolute inset-0 -z-10 hidden md:block" aria-hidden="true" />
         <div className="hero-scrim-mobile absolute inset-0 -z-10 md:hidden" aria-hidden="true" />
