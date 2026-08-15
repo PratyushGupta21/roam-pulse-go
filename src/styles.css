@@ -256,9 +256,9 @@
   @media (max-width: 767px) {
     background: linear-gradient(
       to bottom,
-      color-mix(in oklab, var(--slate-ink) 80%, transparent) 0%,
-      color-mix(in oklab, var(--slate-ink) 70%, transparent) 50%,
-      color-mix(in oklab, var(--slate-ink) 88%, transparent) 100%
+      color-mix(in oklab, var(--slate-ink) 66%, transparent) 0%,
+      color-mix(in oklab, var(--slate-ink) 52%, transparent) 45%,
+      color-mix(in oklab, var(--slate-ink) 76%, transparent) 100%
     );
   }
 }
