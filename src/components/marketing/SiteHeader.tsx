@@ -41,8 +41,8 @@ export function SiteHeader({ transparent = false }: { transparent?: boolean }) {
       )}
     >
       <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4">
-        <Link to="/" aria-label="RoamPulse home" className={cn(overHero && "text-white")}>
-          <Logo />
+        <Link to="/" aria-label="RoamPulse home">
+          <Logo inverted={overHero} />
         </Link>
 
         <nav className="hidden items-center gap-1 md:flex" aria-label="Main">
