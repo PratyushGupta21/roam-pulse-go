@@ -17,7 +17,7 @@ const TONE: Record<string, string> = {
 
 export function HeroTimeline() {
   return (
-    <div className="rounded-xl border border-border bg-card shadow-panel">
+    <div className="rounded-xl border border-white/25 bg-card/85 shadow-panel ring-1 ring-white/10 backdrop-blur-md">
       <div className="flex items-center justify-between border-b border-border px-4 py-3">
         <div className="flex items-center gap-2">
           <span className="live-dot inline-block h-2 w-2 rounded-full bg-success" aria-hidden="true" />
