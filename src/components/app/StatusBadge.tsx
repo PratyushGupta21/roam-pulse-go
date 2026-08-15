@@ -4,6 +4,8 @@ import { cn } from "@/lib/utils";
 
 const MAP = {
   confirmed: { label: "Confirmed", icon: CalendarCheck, className: "border-primary/30 bg-primary/10 text-primary" },
+  planning: { label: "Planning", icon: CircleDashed, className: "border-primary/30 bg-primary/10 text-primary" },
+  in_progress: { label: "Active", icon: CalendarCheck, className: "border-success/30 bg-success/15 text-success font-semibold" },
   flexible: { label: "Flexible", icon: CircleDashed, className: "border-border bg-muted text-muted-foreground" },
   at_risk: { label: "At risk", icon: AlertTriangle, className: "border-accent/40 bg-accent/15 text-accent-foreground" },
   disrupted: { label: "Disrupted", icon: ShieldAlert, className: "border-destructive/30 bg-destructive/10 text-destructive" },
