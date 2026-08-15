@@ -252,13 +252,14 @@
       transparent 35%,
       color-mix(in oklab, var(--slate-ink) 45%, transparent) 100%
     );
+}
 
-  @media (max-width: 767px) {
-    background: linear-gradient(
-      to bottom,
-      color-mix(in oklab, var(--slate-ink) 66%, transparent) 0%,
-      color-mix(in oklab, var(--slate-ink) 52%, transparent) 45%,
-      color-mix(in oklab, var(--slate-ink) 76%, transparent) 100%
-    );
-  }
+/* Mobile scrim: vertical instead of horizontal so the scene stays visible. */
+@utility hero-scrim-mobile {
+  background: linear-gradient(
+    to bottom,
+    color-mix(in oklab, var(--slate-ink) 68%, transparent) 0%,
+    color-mix(in oklab, var(--slate-ink) 52%, transparent) 45%,
+    color-mix(in oklab, var(--slate-ink) 80%, transparent) 100%
+  );
 }
