@@ -1,6 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { HelpCircle } from "lucide-react";
 
-import { MarketingLayout, PageHeader } from "@/components/marketing/MarketingLayout";
+import { pageBackgrounds } from "@/lib/pageBackgrounds";
+import { MarketingLayout, PageHero } from "@/components/marketing/MarketingLayout";
 import {
   Accordion,
   AccordionContent,
@@ -73,21 +75,41 @@ export const Route = createFileRoute("/faq")({
 
 function Faq() {
   return (
-    <MarketingLayout>
-      <PageHeader
-        eyebrow="FAQ"
-        title="Questions travellers actually ask"
-        lede="Straight answers about detection, automation limits, pricing data and provider outages."
+    <MarketingLayout transparentHeader>
+      <PageHero
+        imageSrc={pageBackgrounds.faq.imageSrc}
+        imageAlt={pageBackgrounds.faq.alt}
+        imagePosition={pageBackgrounds.faq.position}
+        eyebrow="Direct Answers"
+        title="Questions travellers"
+        titleAccent="actually ask"
+        lede="Straight answers about disruption detection, automation boundaries, pricing data, and system reliability."
       />
-      <section className="mx-auto max-w-3xl px-4 py-14">
-        <Accordion type="single" collapsible className="w-full">
-          {FAQS.map((item, i) => (
-            <AccordionItem key={item.q} value={`item-${i}`}>
-              <AccordionTrigger className="text-left">{item.q}</AccordionTrigger>
-              <AccordionContent className="text-muted-foreground">{item.a}</AccordionContent>
-            </AccordionItem>
-          ))}
-        </Accordion>
+
+      <section className="mx-auto max-w-3xl px-4 py-16">
+        <div className="rounded-2xl border border-border bg-card p-6 sm:p-8 shadow-sm">
+          <div className="mb-6 flex items-center gap-2 text-primary">
+            <HelpCircle className="h-5 w-5" />
+            <span className="font-display font-semibold text-foreground">Frequently Asked Questions</span>
+          </div>
+
+          <Accordion type="single" collapsible className="w-full space-y-3">
+            {FAQS.map((item, i) => (
+              <AccordionItem
+                key={item.q}
+                value={`item-${i}`}
+                className="rounded-xl border border-border/80 bg-background/60 px-4 transition-all hover:border-primary/40"
+              >
+                <AccordionTrigger className="text-left font-display font-medium text-foreground hover:text-primary transition-colors py-4">
+                  {item.q}
+                </AccordionTrigger>
+                <AccordionContent className="text-sm leading-relaxed text-muted-foreground pb-4">
+                  {item.a}
+                </AccordionContent>
+              </AccordionItem>
+            ))}
+          </Accordion>
+        </div>
       </section>
     </MarketingLayout>
   );

@@ -254,12 +254,68 @@
     );
 }
 
+/* Subpage hero scrim: centered & balanced for page headers with deep teal and slate blend */
+@utility hero-scrim-subtle {
+  background:
+    linear-gradient(
+      to bottom,
+      color-mix(in oklab, var(--slate-ink) 82%, transparent) 0%,
+      color-mix(in oklab, var(--slate-ink) 65%, color-mix(in oklab, var(--primary) 35%, transparent)) 50%,
+      color-mix(in oklab, var(--slate-ink) 88%, transparent) 100%
+    ),
+    radial-gradient(
+      circle at 20% 30%,
+      color-mix(in oklab, var(--primary) 30%, transparent) 0%,
+      transparent 70%
+    );
+}
+
 /* Mobile scrim: vertical instead of horizontal so the scene stays visible. */
 @utility hero-scrim-mobile {
   background: linear-gradient(
     to bottom,
-    color-mix(in oklab, var(--slate-ink) 68%, transparent) 0%,
-    color-mix(in oklab, var(--slate-ink) 52%, transparent) 45%,
-    color-mix(in oklab, var(--slate-ink) 80%, transparent) 100%
+    color-mix(in oklab, var(--slate-ink) 75%, transparent) 0%,
+    color-mix(in oklab, var(--slate-ink) 60%, transparent) 45%,
+    color-mix(in oklab, var(--slate-ink) 88%, transparent) 100%
   );
 }
+
+/* Auth split-screen hero overlay */
+@utility auth-scrim {
+  background:
+    linear-gradient(
+      to bottom,
+      color-mix(in oklab, var(--slate-ink) 78%, transparent) 0%,
+      color-mix(in oklab, var(--slate-ink) 60%, color-mix(in oklab, var(--primary) 40%, transparent)) 50%,
+      color-mix(in oklab, var(--slate-ink) 92%, transparent) 100%
+    );
+}
+
+/* Level 2: Public marketing content atmosphere with subtle multi-point radial gradients */
+@utility bg-travel-atmosphere {
+  background-color: var(--color-background);
+  background-image:
+    radial-gradient(at 12% 15%, color-mix(in oklab, var(--primary) 6%, transparent) 0px, transparent 48%),
+    radial-gradient(at 88% 30%, color-mix(in oklab, var(--accent) 4%, transparent) 0px, transparent 40%),
+    radial-gradient(at 50% 85%, color-mix(in oklab, var(--primary) 5%, transparent) 0px, transparent 55%);
+}
+
+/* Level 2: Subtle alternating surface */
+@utility bg-travel-subtle {
+  background-color: color-mix(in oklab, var(--primary) 3.5%, var(--color-card));
+  background-image:
+    radial-gradient(at 50% 0%, color-mix(in oklab, var(--primary) 6%, transparent) 0px, transparent 60%);
+}
+
+/* Level 3: Authenticated Application / Dashboard atmosphere */
+@utility bg-app-atmosphere {
+  background-color: color-mix(in oklab, var(--primary) 2.5%, var(--color-background));
+  background-image:
+    radial-gradient(at 10% 10%, color-mix(in oklab, var(--primary) 5%, transparent) 0px, transparent 45%),
+    radial-gradient(at 90% 15%, color-mix(in oklab, var(--accent) 3.5%, transparent) 0px, transparent 40%),
+    radial-gradient(at 50% 90%, color-mix(in oklab, var(--primary) 4%, transparent) 0px, transparent 50%),
+    linear-gradient(to right, oklch(0.29 0.04 258 / 0.02) 1px, transparent 1px),
+    linear-gradient(to bottom, oklch(0.29 0.04 258 / 0.02) 1px, transparent 1px);
+  background-size: auto, auto, auto, 32px 32px, 32px 32px;
+}
+

@@ -60,6 +60,7 @@ function SignupPage() {
 
   return (
     <AuthCard
+      variant="signup"
       title="Create your account"
       lede="Free plan includes one active trip with live monitoring."
       footer={

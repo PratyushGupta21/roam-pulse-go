@@ -34,10 +34,10 @@ export function SiteHeader({ transparent = false }: { transparent?: boolean }) {
   return (
     <header
       className={cn(
-        "sticky top-0 z-40 border-b transition-colors",
+        "sticky top-0 z-40 border-b transition-all duration-200",
         overHero
-          ? "border-white/15 bg-slate-ink/25 backdrop-blur-sm"
-          : "border-border bg-background/90 backdrop-blur",
+          ? "border-white/15 bg-slate-ink/35 backdrop-blur-md shadow-sm"
+          : "border-border/80 bg-background/90 backdrop-blur-md shadow-xs",
       )}
     >
       <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4">
@@ -57,7 +57,9 @@ export function SiteHeader({ transparent = false }: { transparent?: boolean }) {
                   : "text-muted-foreground hover:bg-secondary hover:text-foreground",
               )}
               activeProps={{
-                className: overHero ? "bg-white/15 text-white" : "bg-secondary text-foreground",
+                className: overHero
+                  ? "bg-white/15 text-white ring-1 ring-accent/60"
+                  : "bg-secondary text-foreground font-semibold",
               }}
             >
               {item.label}

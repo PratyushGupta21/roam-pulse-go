@@ -16,7 +16,7 @@ import {
   Wand2,
 } from "lucide-react";
 
-import heroImage from "@/assets/hero-travel.webp";
+import { pageBackgrounds } from "@/lib/pageBackgrounds";
 import { HeroTimeline } from "@/components/marketing/HeroTimeline";
 import { MarketingLayout } from "@/components/marketing/MarketingLayout";
 import { PriceCompare } from "@/components/marketing/PriceCompare";
@@ -88,8 +88,8 @@ function Home() {
       {/* Hero */}
       <section className="relative isolate -mt-16 flex min-h-[650px] items-center overflow-hidden border-b border-border lg:min-h-[88vh]">
         <img
-          src={heroImage}
-          alt="A traveller looking out over a coastal mountain road at sunset"
+          src={pageBackgrounds.home.imageSrc}
+          alt={pageBackgrounds.home.alt}
           width={1920}
           height={1088}
           fetchPriority="high"
