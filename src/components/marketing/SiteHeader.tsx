@@ -73,7 +73,11 @@ export function SiteHeader({ transparent = false }: { transparent?: boolean }) {
             </Button>
           ) : (
             <>
-              <Button asChild variant="ghost">
+              <Button
+                asChild
+                variant="ghost"
+                className={cn(overHero && "text-white hover:bg-white/15 hover:text-white")}
+              >
                 <Link to="/login">Log in</Link>
               </Button>
               <Button asChild>
@@ -86,7 +90,7 @@ export function SiteHeader({ transparent = false }: { transparent?: boolean }) {
         <Button
           variant="ghost"
           size="icon"
-          className="md:hidden"
+          className={cn("md:hidden", overHero && "text-white hover:bg-white/15 hover:text-white")}
           aria-expanded={open}
           aria-label={open ? "Close menu" : "Open menu"}
           onClick={() => setOpen((v) => !v)}
