@@ -83,28 +83,44 @@ const MODES = [
 
 function Home() {
   return (
-    <MarketingLayout>
+    <MarketingLayout transparentHeader>
       {/* Hero */}
-      <section className="grid-paper border-b border-border">
-        <div className="mx-auto grid max-w-6xl gap-10 px-4 py-16 lg:grid-cols-2 lg:items-center lg:py-24">
+      <section className="relative isolate -mt-16 flex min-h-[650px] items-center overflow-hidden border-b border-border lg:min-h-[88vh]">
+        <img
+          src={heroImage}
+          alt="A traveller looking out over a coastal mountain road at sunset"
+          width={1920}
+          height={1088}
+          fetchPriority="high"
+          decoding="async"
+          className="absolute inset-0 -z-20 h-full w-full object-cover object-[68%_center] md:object-center"
+        />
+        <div className="hero-scrim absolute inset-0 -z-10" aria-hidden="true" />
+
+        <div className="mx-auto grid w-full max-w-6xl gap-10 px-4 pb-16 pt-28 lg:grid-cols-2 lg:items-center lg:pb-24 lg:pt-32">
           <div>
-            <span className="inline-flex items-center gap-2 rounded-full border border-border bg-card px-3 py-1 text-xs font-medium text-muted-foreground">
+            <span className="inline-flex items-center gap-2 rounded-full border border-white/25 bg-white/10 px-3 py-1 text-xs font-medium text-white backdrop-blur">
               <span className="live-dot inline-block h-2 w-2 rounded-full bg-success" aria-hidden="true" />
               Real-time trip monitoring
             </span>
-            <h1 className="mt-5 font-display text-4xl font-semibold leading-tight sm:text-5xl">
-              Your Trip Changes. <span className="text-primary">RoamPulse Adapts.</span>
+            <h1 className="mt-5 font-display text-4xl font-semibold leading-tight text-white drop-shadow-sm sm:text-5xl">
+              Your Trip Changes. <span className="text-accent">RoamPulse Adapts.</span>
             </h1>
-            <p className="mt-5 max-w-xl text-lg text-muted-foreground">{DESCRIPTION}</p>
+            <p className="mt-5 max-w-xl text-lg text-white/85">{DESCRIPTION}</p>
             <div className="mt-8 flex flex-wrap gap-3">
-              <Button asChild size="lg">
+              <Button asChild size="lg" variant="recover">
                 <Link to="/signup">Plan My Trip</Link>
               </Button>
-              <Button asChild size="lg" variant="outline">
+              <Button
+                asChild
+                size="lg"
+                variant="outline"
+                className="border-white/40 bg-white/10 text-white backdrop-blur hover:bg-white/20 hover:text-white"
+              >
                 <Link to="/how-it-works">See How It Works</Link>
               </Button>
             </div>
-            <p className="mt-4 text-sm text-muted-foreground">
+            <p className="mt-4 text-sm text-white/70">
               Free plan available · no booking fees · you always authorise spending.
             </p>
           </div>
