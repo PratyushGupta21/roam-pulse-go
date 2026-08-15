@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import type { Json } from "@/integrations/supabase/types";
 import { buildRecovery, type EngineItem } from "./recovery.server";
 import { addMinutes } from "./format";
 import { notifyN8n } from "./providers.server";
@@ -118,7 +119,7 @@ export const triggerDisruption = createServerFn({ method: "POST" })
         .insert({
           trip_id: data.tripId,
           disruption_id: disruption.id,
-          recommendation_data: payload as unknown as Record<string, unknown>,
+          recommendation_data: payload as unknown as Json,
           status: "pending",
         })
         .select("id")
@@ -197,7 +198,7 @@ export const applyRecovery = createServerFn({ method: "POST" })
       trip_id: rec.trip_id,
       event: "Previous itinerary version saved",
       detail: `Snapshot of "${original.title}" before recovery.`,
-      snapshot: original as unknown as Record<string, unknown>,
+      snapshot: original as unknown as Json,
     });
 
     await supabase

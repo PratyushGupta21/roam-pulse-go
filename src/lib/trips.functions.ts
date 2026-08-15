@@ -148,10 +148,10 @@ export const updateItineraryItem = createServerFn({ method: "POST" })
       .parse(data),
   )
   .handler(async ({ data, context }) => {
-    const { error } = await context.supabase
-      .from("itinerary_items")
-      .update(data.patch)
-      .eq("id", data.itemId);
+    const patch = Object.fromEntries(
+      Object.entries(data.patch).filter(([, value]) => value !== undefined),
+    ) as never;
+    const { error } = await context.supabase.from("itinerary_items").update(patch).eq("id", data.itemId);
     if (error) throw new Error("We couldn't update that activity.");
     return { ok: true };
   });
@@ -267,7 +267,10 @@ export const saveProfile = createServerFn({ method: "POST" })
     if (data.name !== undefined) patch["name"] = data.name;
     if (data.homeCurrency !== undefined) patch["home_currency"] = data.homeCurrency;
     if (data.notificationPrefs !== undefined) patch["notification_prefs"] = data.notificationPrefs;
-    const { error } = await context.supabase.from("profiles").update(patch).eq("user_id", context.userId);
+    const { error } = await context.supabase
+      .from("profiles")
+      .update(patch as never)
+      .eq("user_id", context.userId);
     if (error) throw new Error("We couldn't save your settings.");
     return { ok: true };
   });
