@@ -96,7 +96,8 @@ function Home() {
           decoding="async"
           className="absolute inset-0 -z-20 h-full w-full object-cover object-[68%_center] md:object-center"
         />
-        <div className="hero-scrim absolute inset-0 -z-10" aria-hidden="true" />
+        <div className="hero-scrim absolute inset-0 -z-10 hidden md:block" aria-hidden="true" />
+        <div className="hero-scrim-mobile absolute inset-0 -z-10 md:hidden" aria-hidden="true" />
 
         <div className="mx-auto grid w-full max-w-6xl gap-10 px-4 pb-16 pt-28 lg:grid-cols-2 lg:items-center lg:pb-24 lg:pt-32">
           <div>
