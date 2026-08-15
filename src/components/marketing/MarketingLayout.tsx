@@ -3,10 +3,16 @@ import type { ReactNode } from "react";
 import { SiteFooter } from "./SiteFooter";
 import { SiteHeader } from "./SiteHeader";
 
-export function MarketingLayout({ children }: { children: ReactNode }) {
+export function MarketingLayout({
+  children,
+  transparentHeader = false,
+}: {
+  children: ReactNode;
+  transparentHeader?: boolean;
+}) {
   return (
     <div className="min-h-screen bg-background">
-      <SiteHeader />
+      <SiteHeader transparent={transparentHeader} />
       <main id="main">{children}</main>
       <SiteFooter />
     </div>

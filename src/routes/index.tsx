@@ -16,6 +16,7 @@ import {
   Wand2,
 } from "lucide-react";
 
+import heroImage from "@/assets/hero-travel.webp";
 import { HeroTimeline } from "@/components/marketing/HeroTimeline";
 import { MarketingLayout } from "@/components/marketing/MarketingLayout";
 import { PriceCompare } from "@/components/marketing/PriceCompare";
