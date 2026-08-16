@@ -18,6 +18,7 @@ import {
   Loader2,
   MapPin,
   Navigation,
+  Plane,
   Plus,
   RefreshCw,
   RotateCcw,
@@ -43,11 +44,13 @@ import { DuplicateTripModal } from "@/components/trips/DuplicateTripModal";
 import { EditTripModal } from "@/components/trips/EditTripModal";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
-import { daysBetween, formatActivityPrice, formatDate, formatMoney, formatTime } from "@/lib/format";
+import { daysBetween, formatActivityPrice, formatDate, formatMoney, formatTime, relativeTime } from "@/lib/format";
+import { checkTripFlightStatus } from "@/lib/flights/flight.functions";
 import { checkTripWeather } from "@/lib/weather/weather.functions";
 import {
   activeRecoveryQuery,
   disruptionsQuery,
+  flightsQuery,
   historyQuery,
   itineraryQuery,
   tripQuery,
@@ -107,6 +110,22 @@ function TripDetailsPage() {
   const { data: disruptions = [] } = useQuery(disruptionsQuery(tripId));
   const { data: recoveryList = [] } = useQuery(activeRecoveryQuery(tripId));
   const { data: history = [] } = useQuery(historyQuery(tripId));
+  const { data: flights = [] } = useQuery(flightsQuery(tripId));
+
+  const flight = flights[0] ?? null;
+  const flightStatusLabel =
+    flight?.status === "cancelled"
+      ? "Cancelled"
+      : flight?.status === "delayed"
+      ? "Delayed"
+      : flight?.status === "scheduled"
+      ? "On Time"
+      : flight?.status === "landed"
+      ? "Landed"
+      : flight?.status === "active"
+      ? "In Air"
+      : "Unknown";
+  const flightDelayMinutes = Number(flight?.delay_minutes ?? 0);
 
   const pendingRec = useMemo(() => recoveryList.find((r) => r.status === "pending") ?? null, [recoveryList]);
   const appliedRec = useMemo(() => recoveryList.find((r) => r.status === "applied") ?? null, [recoveryList]);
@@ -302,6 +321,26 @@ function TripDetailsPage() {
         source: "weather",
         warning: err.message || "Failed to check Open-Meteo weather forecast.",
       });
+    },
+  });
+
+  const checkFlightMutation = useMutation({
+    mutationFn: async () => {
+      return await checkTripFlightStatus({ data: { tripId } });
+    },
+    onSuccess: (data) => {
+      void queryClient.invalidateQueries({ queryKey: ["flights", tripId] });
+      void queryClient.invalidateQueries({ queryKey: ["disruptions", tripId] });
+      void queryClient.invalidateQueries({ queryKey: ["recovery", tripId] });
+      void queryClient.invalidateQueries({ queryKey: ["history", tripId] });
+      void queryClient.invalidateQueries({ queryKey: ["notifications"] });
+
+      if (data.message) {
+        setNoticeMessage(data.message);
+      }
+    },
+    onError: (err: Error) => {
+      setNoticeMessage(err.message || "Flight status temporarly unavailable.");
     },
   });
 
@@ -1157,6 +1196,98 @@ function TripDetailsPage() {
                   destination={trip.destination}
                   origin={trip.origin || undefined}
                 />
+
+                {/* FLIGHT SENTINEL CARD */}
+                <div className="rounded-2xl border border-border bg-card p-6 shadow-sm space-y-4">
+                  <div className="flex items-center justify-between border-b border-border/80 pb-3">
+                    <div className="flex items-center gap-2">
+                      <Plane className="h-4 w-4 text-primary" />
+                      <h3 className="font-display text-sm font-bold text-foreground">Flight Sentinel</h3>
+                    </div>
+                    <span className="rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-primary">
+                      Aviationstack
+                    </span>
+                  </div>
+
+                  {flight ? (
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="text-muted-foreground">Flight</span>
+                        <span className="font-semibold text-foreground">{flight.flight_number}</span>
+                      </div>
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="text-muted-foreground">Airline</span>
+                        <span className="font-semibold text-foreground">{flight.airline || "Airline"}</span>
+                      </div>
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="text-muted-foreground">Route</span>
+                        <span className="font-semibold text-foreground">
+                          {flight.departure_airport || "-"} → {flight.arrival_airport || "-"}
+                        </span>
+                      </div>
+
+                      <div className="rounded-xl border border-border bg-muted/40 p-3 space-y-2 text-xs">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-muted-foreground">Status</span>
+                          <span
+                            className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 font-bold ${
+                              flight?.status === "cancelled"
+                                ? "bg-red-500/15 text-red-600"
+                                : flight?.status === "delayed"
+                                ? "bg-amber-500/15 text-amber-700 dark:text-amber-300"
+                                : "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300"
+                            }`}
+                          >
+                            {flight?.status === "cancelled" ? "🚨" : flight?.status === "delayed" ? "⚠️" : "✓"} {flightStatusLabel}
+                          </span>
+                        </div>
+                        {flightDelayMinutes > 0 ? (
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-muted-foreground">Delay</span>
+                            <span className="font-semibold text-foreground">{flightDelayMinutes} min</span>
+                          </div>
+                        ) : null}
+                        {flight.estimated_arrival ? (
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-muted-foreground">Estimated arrival</span>
+                            <span className="font-semibold text-foreground">{formatTime(flight.estimated_arrival.slice(11, 16))}</span>
+                          </div>
+                        ) : null}
+                        {flight.last_updated ? (
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-muted-foreground">Last checked</span>
+                            <span className="font-semibold text-foreground">{relativeTime(flight.last_updated)}</span>
+                          </div>
+                        ) : null}
+                      </div>
+
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => checkFlightMutation.mutate()}
+                        disabled={checkFlightMutation.isPending || !flight}
+                        className="w-full gap-2 text-xs font-semibold"
+                      >
+                        {checkFlightMutation.isPending ? (
+                          <>
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            <span>Checking Flight Status…</span>
+                          </>
+                        ) : (
+                          <>
+                            <Plane className="h-3.5 w-3.5 text-primary" />
+                            <span>Check Flight Status</span>
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="space-y-3 text-xs text-muted-foreground">
+                      <p>No flight has been configured for this trip yet.</p>
+                    </div>
+                  )}
+                </div>
 
                 {/* WEATHER SENTINEL CARD (OPEN-METEO) */}
                 <div className="rounded-2xl border border-border bg-card p-6 shadow-sm space-y-4">
