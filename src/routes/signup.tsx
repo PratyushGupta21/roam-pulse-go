@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
+import { getAuthCallbackUrl } from "@/lib/site-url";
 
 const TITLE = "Create your RoamPulse account";
 const DESCRIPTION = "Start planning trips that repair themselves when flights slip and weather turns.";
@@ -51,7 +52,7 @@ function SignupPage() {
       password,
       options: {
         data: { full_name: fullName },
-        emailRedirectTo: `${window.location.origin}/dashboard`,
+        emailRedirectTo: getAuthCallbackUrl(),
       },
     });
     setBusy(false);

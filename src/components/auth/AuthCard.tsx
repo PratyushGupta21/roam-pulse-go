@@ -2,10 +2,11 @@ import { Link } from "@tanstack/react-router";
 import { Compass, Gauge, PlaneTakeoff, ShieldCheck, Sparkles } from "lucide-react";
 import { useState, type ReactNode } from "react";
 
-import { pageBackgrounds } from "@/lib/pageBackgrounds";
 import { Logo } from "@/components/brand/Logo";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
+import { getAuthCallbackUrl } from "@/lib/site-url";
+import { pageBackgrounds } from "@/lib/pageBackgrounds";
 
 export function AuthCard({
   title,
@@ -129,7 +130,7 @@ export function GoogleButton() {
     setBusy(true);
     setError(null);
     try {
-      const callbackUrl = `${window.location.origin}/auth/callback`;
+      const callbackUrl = getAuthCallbackUrl();
       const { error: oauthErr } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {
