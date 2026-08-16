@@ -20,6 +20,7 @@ import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as SignupRouteImport } from './routes/signup'
 import { Route as TermsRouteImport } from './routes/terms'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
+import { Route as AuthCallbackRouteImport } from './routes/auth.callback'
 import { Route as AuthenticatedTripsTripIdRouteImport } from './routes/_authenticated/trips.$tripId'
 import { Route as AuthenticatedTripsNewRouteImport } from './routes/_authenticated/trips.new'
 
@@ -77,6 +78,11 @@ const AuthenticatedDashboardRoute = AuthenticatedDashboardRouteImport.update({
   path: '/dashboard',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthCallbackRoute = AuthCallbackRouteImport.update({
+  id: '/auth/callback',
+  path: '/auth/callback',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AuthenticatedTripsTripIdRoute =
   AuthenticatedTripsTripIdRouteImport.update({
     id: '/trips/$tripId',
@@ -100,6 +106,7 @@ export interface FileRoutesByFullPath {
   '/signup': typeof SignupRoute
   '/terms': typeof TermsRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
+  '/auth/callback': typeof AuthCallbackRoute
   '/trips/$tripId': typeof AuthenticatedTripsTripIdRoute
   '/trips/new': typeof AuthenticatedTripsNewRoute
 }
@@ -114,6 +121,7 @@ export interface FileRoutesByTo {
   '/signup': typeof SignupRoute
   '/terms': typeof TermsRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
+  '/auth/callback': typeof AuthCallbackRoute
   '/trips/$tripId': typeof AuthenticatedTripsTripIdRoute
   '/trips/new': typeof AuthenticatedTripsNewRoute
 }
@@ -130,6 +138,7 @@ export interface FileRoutesById {
   '/signup': typeof SignupRoute
   '/terms': typeof TermsRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
+  '/auth/callback': typeof AuthCallbackRoute
   '/_authenticated/trips/$tripId': typeof AuthenticatedTripsTripIdRoute
   '/_authenticated/trips/new': typeof AuthenticatedTripsNewRoute
 }
@@ -146,6 +155,7 @@ export interface FileRouteTypes {
     | '/signup'
     | '/terms'
     | '/dashboard'
+    | '/auth/callback'
     | '/trips/$tripId'
     | '/trips/new'
   fileRoutesByTo: FileRoutesByTo
@@ -160,6 +170,7 @@ export interface FileRouteTypes {
     | '/signup'
     | '/terms'
     | '/dashboard'
+    | '/auth/callback'
     | '/trips/$tripId'
     | '/trips/new'
   id:
@@ -175,6 +186,7 @@ export interface FileRouteTypes {
     | '/signup'
     | '/terms'
     | '/_authenticated/dashboard'
+    | '/auth/callback'
     | '/_authenticated/trips/$tripId'
     | '/_authenticated/trips/new'
   fileRoutesById: FileRoutesById
@@ -190,6 +202,7 @@ export interface RootRouteChildren {
   PrivacyRoute: typeof PrivacyRoute
   SignupRoute: typeof SignupRoute
   TermsRoute: typeof TermsRoute
+  AuthCallbackRoute: typeof AuthCallbackRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -271,6 +284,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedDashboardRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/auth/callback': {
+      id: '/auth/callback'
+      path: '/auth/callback'
+      fullPath: '/auth/callback'
+      preLoaderRoute: typeof AuthCallbackRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/_authenticated/trips/$tripId': {
       id: '/_authenticated/trips/$tripId'
       path: '/trips/$tripId'
@@ -314,6 +334,7 @@ const rootRouteChildren: RootRouteChildren = {
   PrivacyRoute: PrivacyRoute,
   SignupRoute: SignupRoute,
   TermsRoute: TermsRoute,
+  AuthCallbackRoute: AuthCallbackRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

@@ -34,6 +34,8 @@ export const tripInputSchema = z.object({
   extraDestinations: z.array(z.string().max(80)).max(5).default([]),
   startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  arrivalTime: z.string().regex(/^\d{2}:\d{2}$/).default("14:00"),
+  departureTime: z.string().regex(/^\d{2}:\d{2}$/).default("16:00"),
   adults: z.number().int().min(1).max(12),
   children: z.number().int().min(0).max(12),
   budget: z.number().min(0).max(100_000_000),
@@ -72,6 +74,7 @@ export const itineraryItemSchema = z.object({
   weather_suitability: z.enum(["any", "clear_only", "rain_ok"]).default("any"),
   booking_url: z.string().url().nullable().default(null),
   is_locked: z.boolean().default(false),
+  uniqueness_key: z.string().optional(),
 });
 
 export const itineraryResponseSchema = z.object({
@@ -102,28 +105,18 @@ export interface RecoveryAlternative {
 }
 
 export interface RecoveryPayload {
+  disruptionId?: string;
+  tripId?: string;
+  type?: string;
+  severity?: "low" | "medium" | "high" | "critical";
   affectedItemId: string;
   affectedItemTitle: string;
   reason: string;
-  newStartTime: string;
+  newStartTime?: string;
+  proposedAction?: "replace" | "reschedule" | "cancel";
   primary: RecoveryAlternative;
   alternatives: RecoveryAlternative[];
   costDelta: number;
   requiresApproval: boolean;
+  autoExecutable?: boolean;
 }
-
-export const CATEGORY_ICON: Record<string, string> = {
-  food: "🍜",
-  breakfast: "☕",
-  culture: "🏯",
-  history: "🏛️",
-  nature: "🌿",
-  adventure: "🥾",
-  nightlife: "🌃",
-  shopping: "🛍️",
-  transport: "🚆",
-  flight: "✈️",
-  accommodation: "🏨",
-  wellness: "🧘",
-  activity: "📍",
-};

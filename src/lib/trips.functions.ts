@@ -2,8 +2,8 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { tripInputSchema } from "./domain";
 import { demoFlight, demoItinerary, demoTripPayload } from "./demo.server";
+import { tripInputSchema, type RecoveryMode, type TravelStyle, type TripInput } from "./domain";
 import { generateItinerary } from "./itinerary.server";
 import { fetchPriceOffers, fetchWeather, notifyN8n, providerMode } from "./providers.server";
 
@@ -105,77 +105,144 @@ export const createDemoTrip = createServerFn({ method: "POST" })
       indoor_outdoor: item.indoor_outdoor,
       weather_suitability: item.weather_suitability,
       booking_url: item.booking_url,
-      status: item.is_locked ? "confirmed" : item.indoor_outdoor === "outdoor" ? "flexible" : "confirmed",
+      status: (item as unknown as { status?: string }).status ?? (item.indoor_outdoor === "outdoor" ? "flexible" : "confirmed"),
       is_locked: item.is_locked,
       sort_order: index,
     }));
+
     await supabase.from("itinerary_items").insert(items);
-    await supabase.from("flights").insert(demoFlight(trip.id as string, trip.start_date as string));
-    await supabase.from("trip_history").insert({
-      trip_id: trip.id,
-      event: "Demo trip created",
-      detail: "Tokyo Adventure scenario loaded with demo flight AI-247.",
-    });
+    await supabase.from("flights").insert(demoFlight(trip.id, trip.start_date as string));
     await supabase.from("notifications").insert({
       user_id: userId,
       trip_id: trip.id,
-      type: "booking",
-      title: "Tokyo Adventure is live",
-      message: "Demo trip created. Trigger a flight delay from the trip page to see autonomous recovery.",
+      type: "recovery",
+      title: "Demo trip active",
+      message: "Tokyo Demo Trip is created and connected to live recovery simulation.",
     });
 
-    return { tripId: trip.id as string };
+    return { tripId: trip.id as string, itemCount: items.length };
   });
 
-export const updateItineraryItem = createServerFn({ method: "POST" })
+export const generateTripItinerary = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((data: unknown) =>
-    z
-      .object({
-        itemId: z.string().uuid(),
-        patch: z.object({
-          title: z.string().min(1).max(120).optional(),
-          description: z.string().max(600).optional(),
-          start_time: z.string().regex(/^\d{2}:\d{2}$/).optional(),
-          end_time: z.string().regex(/^\d{2}:\d{2}$/).optional(),
-          day_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
-          location: z.string().max(160).optional(),
-          estimated_cost: z.number().min(0).max(10_000_000).optional(),
-          is_locked: z.boolean().optional(),
-          status: z.string().max(24).optional(),
-        }),
-      })
-      .parse(data),
+    z.object({ tripId: z.string().uuid(), replaceExisting: z.boolean().default(true) }).parse(data),
   )
   .handler(async ({ data, context }) => {
-    const patch = Object.fromEntries(
-      Object.entries(data.patch).filter(([, value]) => value !== undefined),
-    ) as never;
-    const { error } = await context.supabase.from("itinerary_items").update(patch).eq("id", data.itemId);
-    if (error) throw new Error("We couldn't update that activity.");
-    return { ok: true };
+    const { supabase, userId } = context;
+
+    // 1. Verify trip exists and belongs to currently authenticated user via RLS
+    const { data: trip, error: tripErr } = await supabase
+      .from("trips")
+      .select("*")
+      .eq("id", data.tripId)
+      .single();
+
+    if (tripErr || !trip) {
+      throw new Error("Trip not found or access denied.");
+    }
+
+    // 2. Map database trip to TripInput
+    const tripInput: TripInput = {
+      name: trip.name,
+      origin: trip.origin || "",
+      destination: trip.destination,
+      extraDestinations: trip.extra_destinations || [],
+      startDate: trip.start_date,
+      endDate: trip.end_date,
+      arrivalTime: (trip as { arrival_time?: string }).arrival_time || "14:00",
+      departureTime: (trip as { departure_time?: string }).departure_time || "16:00",
+      adults: trip.adults || 1,
+      children: trip.children || 0,
+      budget: Number(trip.budget || 0),
+      currency: trip.currency || "INR",
+      travelStyle: (trip.travel_style as TravelStyle) || "balanced",
+      interests: trip.interests || [],
+      preferences: (trip.preferences as TripInput["preferences"]) || {
+        indoorOutdoor: "balanced",
+        pace: "moderate",
+        transport: "public_transit",
+        accommodation: "budget_hotel",
+      },
+      recoveryMode: (trip.recovery_mode as RecoveryMode) || "assisted",
+      automationSettings: (trip.automation_settings as TripInput["automationSettings"]) || {
+        maxExtraSpend: 2000,
+        autoReplace: ["flexible", "weather_sensitive"],
+        alwaysAsk: ["flights", "hotels", "above_limit"],
+      },
+    };
+
+    // 3. Fetch existing item titles if regenerating to inform the AI to avoid repeating previous titles
+    const { data: existingItems } = await supabase
+      .from("itinerary_items")
+      .select("title")
+      .eq("trip_id", trip.id);
+
+    const previousTitles = (existingItems || []).map((i) => i.title);
+
+    // 4. Call server-side generateItinerary (reuses Lovable AI / fallback architecture with regeneration context!)
+    const generated = await generateItinerary(tripInput, {
+      previousTitles,
+      isRegeneration: previousTitles.length > 0,
+    });
+
+    // 5. Safely clear old itinerary items if replaceExisting is true (prevents duplicates!)
+    if (data.replaceExisting) {
+      await supabase.from("itinerary_items").delete().eq("trip_id", trip.id);
+    }
+
+    // 5. Insert newly generated rows
+    const rows = generated.items.map((item, index) => ({
+      trip_id: trip.id,
+      day_date: item.day_date,
+      start_time: item.start_time,
+      end_time: item.end_time,
+      title: item.title,
+      description: item.description,
+      category: item.category,
+      location: item.location || trip.destination,
+      latitude: item.latitude,
+      longitude: item.longitude,
+      estimated_cost: item.estimated_cost,
+      currency: trip.currency || "INR",
+      travel_minutes: item.travel_minutes,
+      indoor_outdoor: item.indoor_outdoor,
+      weather_suitability: item.weather_suitability,
+      booking_url: item.booking_url,
+      status: item.indoor_outdoor === "outdoor" ? "flexible" : "confirmed",
+      is_locked: item.is_locked,
+      sort_order: index,
+    }));
+
+    const { error: insertErr } = await supabase.from("itinerary_items").insert(rows);
+    if (insertErr) {
+      throw new Error("Failed to save itinerary items to database.");
+    }
+
+    // 6. Log event in trip_history & notification
+    await supabase.from("trip_history").insert({
+      trip_id: trip.id,
+      event: "Itinerary generated",
+      detail: `${rows.length} items created (${generated.source === "ai" ? "AI planner" : "starter template"}).`,
+    });
+
+    return {
+      success: true,
+      tripId: trip.id,
+      count: rows.length,
+      source: generated.source,
+      warning: generated.error,
+    };
   });
 
-export const deleteItineraryItem = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
-  .inputValidator((data: unknown) => z.object({ itemId: z.string().uuid() }).parse(data))
-  .handler(async ({ data, context }) => {
-    const { error } = await context.supabase.from("itinerary_items").delete().eq("id", data.itemId);
-    if (error) throw new Error("We couldn't remove that activity.");
-    return { ok: true };
-  });
-
-export const getTripInsights = createServerFn({ method: "POST" })
+export const loadTripProvidersData = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .inputValidator((data: unknown) => z.object({ tripId: z.string().uuid() }).parse(data))
   .handler(async ({ data, context }) => {
     const { supabase } = context;
-    const { data: trip } = await supabase
-      .from("trips")
-      .select("id, destination, currency, start_date, end_date")
-      .eq("id", data.tripId)
-      .maybeSingle();
-    if (!trip) throw new Error("Trip not found.");
+
+    const { data: trip } = await supabase.from("trips").select("destination, currency").eq("id", data.tripId).single();
+    if (!trip) throw new Error("Trip not found");
 
     const { data: anchor } = await supabase
       .from("itinerary_items")

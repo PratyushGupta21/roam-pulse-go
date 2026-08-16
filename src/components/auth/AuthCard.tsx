@@ -5,6 +5,7 @@ import { useState, type ReactNode } from "react";
 import { pageBackgrounds } from "@/lib/pageBackgrounds";
 import { Logo } from "@/components/brand/Logo";
 import { Button } from "@/components/ui/button";
+import { supabase } from "@/integrations/supabase/client";
 import { lovable } from "@/integrations/lovable/index";
 
 export function AuthCard({
@@ -128,16 +129,22 @@ export function GoogleButton() {
   async function signInWithGoogle() {
     setBusy(true);
     setError(null);
-    const result = await lovable.auth.signInWithOAuth("google", {
-      redirect_uri: window.location.origin,
-    });
-    if (result.error) {
+    try {
+      const callbackUrl = `${window.location.origin}/auth/callback`;
+      const { error: oauthErr } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: {
+          redirectTo: callbackUrl,
+        },
+      });
+      if (oauthErr) {
+        setBusy(false);
+        setError(oauthErr.message || "Google sign-in failed. Please try again.");
+      }
+    } catch {
       setBusy(false);
-      setError("Google sign-in failed. Please try again.");
-      return;
+      setError("An unexpected error occurred during Google sign-in.");
     }
-    if (result.redirected) return;
-    window.location.href = "/dashboard";
   }
 
   return (
