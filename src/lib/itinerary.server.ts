@@ -484,7 +484,7 @@ export function fallbackItinerary(
 }
 
 /**
- * Calls the Lovable AI gateway to generate a highly diverse, destination-specific itinerary.
+ * Calls the RoamPulse AI gateway to generate a highly diverse, destination-specific itinerary.
  */
 export async function generateItinerary(
   input: TripInput,
@@ -493,15 +493,15 @@ export async function generateItinerary(
   const mode = options?.mode || (options?.isRegeneration ? "regenerate" : "initial");
   const genId = options?.generationId || crypto.randomUUID();
 
-  const apiKey = process.env["LOVABLE_API_KEY"];
+  const apiKey = process.env["AI_GATEWAY_API_KEY"] || process.env["LOVABLE_API_KEY"];
   const isKeyConfigured = Boolean(apiKey && apiKey.trim().length > 0);
 
   console.log(`[REGENERATE] request received | destination: ${input.destination} | mode: ${mode} | generationId: ${genId}`);
-  console.log(`[REGENERATE] LOVABLE_API_KEY status: ${isKeyConfigured ? "configured" : "missing"}`);
+  console.log(`[REGENERATE] AI Gateway status: ${isKeyConfigured ? "configured" : "missing"}`);
   console.log(`[REGENERATE] previous titles count: ${options?.previousTitles?.length ?? 0} | locked items count: ${options?.lockedItems?.length ?? 0}`);
 
   if (!apiKey) {
-    console.log(`[REGENERATE] provider: FALLBACK | reason: LOVABLE_API_KEY not configured | generationId: ${genId}`);
+    console.log(`[REGENERATE] provider: FALLBACK | reason: AI_GATEWAY_API_KEY not configured | generationId: ${genId}`);
     const items = fallbackItinerary(input, options);
     console.log(`[REGENERATE] generatedItems: ${items.length} | source: fallback | generationId: ${genId}`);
     return { items, source: "fallback", error: null };

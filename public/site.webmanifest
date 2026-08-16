@@ -1,0 +1,16 @@
+{
+  "name": "RoamPulse — Travel Resilience Platform",
+  "short_name": "RoamPulse",
+  "description": "Smart travel planning that adapts to flight disruptions, weather, and itinerary changes.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0b2436",
+  "theme_color": "#0b2436",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}

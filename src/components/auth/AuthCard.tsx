@@ -6,7 +6,6 @@ import { pageBackgrounds } from "@/lib/pageBackgrounds";
 import { Logo } from "@/components/brand/Logo";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
-import { lovable } from "@/integrations/lovable/index";
 
 export function AuthCard({
   title,

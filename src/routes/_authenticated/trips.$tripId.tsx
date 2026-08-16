@@ -41,6 +41,8 @@ import { DemoBadge, StatusBadge } from "@/components/app/StatusBadge";
 import { Logo } from "@/components/brand/Logo";
 import { ConfigureFlightModal } from "@/components/flights/ConfigureFlightModal";
 import { DeleteFlightModal } from "@/components/flights/DeleteFlightModal";
+import { FlightRecoveryPlanModal } from "@/components/flights/FlightRecoveryPlanModal";
+import type { FlightImpactPlan } from "@/lib/flights/flight-impact.server";
 import { TripMap } from "@/components/maps/TripMap";
 import { DeleteTripModal } from "@/components/trips/DeleteTripModal";
 import { DuplicateTripModal } from "@/components/trips/DuplicateTripModal";
@@ -87,6 +89,8 @@ function TripDetailsPage() {
   const [showDuplicateModal, setShowDuplicateModal] = useState(false);
   const [showConfigureFlightModal, setShowConfigureFlightModal] = useState(false);
   const [showDeleteFlightModal, setShowDeleteFlightModal] = useState(false);
+  const [flightImpactPlan, setFlightImpactPlan] = useState<FlightImpactPlan | null>(null);
+  const [showFlightRecoveryModal, setShowFlightRecoveryModal] = useState(false);
   const [noticeMessage, setNoticeMessage] = useState<string | null>(null);
   const [selectedItineraryItemId, setSelectedItineraryItemId] = useState<string | null>(null);
 
@@ -339,6 +343,11 @@ function TripDetailsPage() {
       void queryClient.invalidateQueries({ queryKey: ["recovery", tripId] });
       void queryClient.invalidateQueries({ queryKey: ["history", tripId] });
       void queryClient.invalidateQueries({ queryKey: ["notifications"] });
+
+      if (data.impactPlan) {
+        setFlightImpactPlan(data.impactPlan);
+        setShowFlightRecoveryModal(true);
+      }
 
       if (data.message) {
         setNoticeMessage(data.message);
@@ -1287,6 +1296,19 @@ function TripDetailsPage() {
                         )}
                       </Button>
 
+                      {flight?.status === "delayed" || flight?.status === "cancelled" || flightImpactPlan ? (
+                        <Button
+                          type="button"
+                          variant="recover"
+                          size="sm"
+                          onClick={() => setShowFlightRecoveryModal(true)}
+                          className="w-full gap-2 text-xs font-semibold shadow-xs"
+                        >
+                          <Sparkles className="h-3.5 w-3.5" />
+                          <span>View Recovery Plan</span>
+                        </Button>
+                      ) : null}
+
                       <div className="flex items-center gap-2 pt-1 border-t border-border/60">
                         <Button
                           type="button"
@@ -1619,6 +1641,21 @@ function TripDetailsPage() {
                 }}
               />
             ) : null}
+
+            <FlightRecoveryPlanModal
+              open={showFlightRecoveryModal}
+              onOpenChange={setShowFlightRecoveryModal}
+              impactPlan={flightImpactPlan}
+              onApplyPlan={() => {
+                const recId = recoveryList[0]?.id || checkFlightMutation.data?.recommendationId;
+                if (recId) {
+                  applyRecoveryMutation.mutate(recId);
+                } else {
+                  setNoticeMessage("No pending recovery recommendation found to apply.");
+                }
+              }}
+              isApplying={applyRecoveryMutation.isPending}
+            />
           </>
         ) : null}
       </main>

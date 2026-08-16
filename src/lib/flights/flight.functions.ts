@@ -5,6 +5,7 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import type { Json } from "@/integrations/supabase/types";
 import { buildRecovery, type EngineItem } from "@/lib/recovery.server";
 import { fetchAviationstackFlightStatus } from "./aviationstack.server";
+import { analyzeFlightImpact, type FlightImpactPlan } from "./flight-impact.server";
 
 export type FlightStatusClassification = "normal" | "minor_delay" | "disruption" | "major_disruption" | "cancelled" | "unavailable";
 
@@ -187,13 +188,17 @@ export const checkTripFlightStatus = createServerFn({ method: "POST" })
     }));
 
     const scheduleAnchor = snapshot.scheduledArrival || snapshot.estimatedArrival || flight.scheduled_arrival || flight.estimated_arrival;
-    const fromTime = toIsoTime(scheduleAnchor) || "14:00";
     const settings = (trip.automation_settings ?? {}) as { maxExtraSpend?: number };
     const tripInterests = Array.isArray(trip.interests) ? (trip.interests as string[]) : [];
-    const { affected, payload } = buildRecovery(itemsForEngine, {
-      type: "flight_delay",
-      minutesLost: nextDelay,
-      fromTime,
+
+    const impactPlan = analyzeFlightImpact({
+      tripId: data.tripId,
+      flightNumber: snapshot.flightNumber || flight.flight_number || "FLIGHT",
+      delayMinutes: nextDelay,
+      flightStatus: nextStatus,
+      scheduledArrival: snapshot.scheduledArrival || flight.scheduled_arrival || null,
+      estimatedArrival: snapshot.estimatedArrival || flight.estimated_arrival || null,
+      items: itemsForEngine,
       interests: tripInterests,
       currency: (trip.currency as string) || "INR",
       maxExtraSpend: Number(settings.maxExtraSpend ?? 2000),
@@ -201,6 +206,20 @@ export const checkTripFlightStatus = createServerFn({ method: "POST" })
       anchorLat: itemsForEngine.find((item) => item.latitude !== null)?.latitude ?? null,
       anchorLon: itemsForEngine.find((item) => item.longitude !== null)?.longitude ?? null,
     });
+
+    const payload = impactPlan?.recoveryPayload ?? null;
+    const affected = impactPlan?.affectedAnalyses ? impactPlan.affectedAnalyses.map((a) => a.item) : [];
+
+    // Idempotency check: avoid creating duplicate disruption records for identical delay
+    const { data: existingDisruption } = await supabase
+      .from("disruption_events")
+      .select("id")
+      .eq("trip_id", data.tripId)
+      .in("type", ["flight_delay", "flight_cancelled"])
+      .order("created_at", { ascending: false })
+      .limit(1);
+
+    const alreadyLogged = Boolean(existingDisruption && existingDisruption.length > 0 && !meaningfulChange);
 
     if (affected.length > 0) {
       await supabase.from("itinerary_items").update({ status: "at_risk" }).in(
@@ -210,80 +229,82 @@ export const checkTripFlightStatus = createServerFn({ method: "POST" })
       affectedCount = affected.length;
     }
 
-    const eventTitle =
-      nextStatus === "cancelled"
-        ? `Flight ${snapshot.flightNumber} cancelled` 
-        : `Flight ${snapshot.flightNumber} delayed by ${nextDelay} minutes`;
-    const eventDescription =
-      nextStatus === "cancelled"
-        ? `Aviationstack reported a cancellation for ${snapshot.airlineName} ${snapshot.flightNumber}.`
-        : `Aviationstack detected a ${nextDelay}-minute delay for ${snapshot.airlineName} ${snapshot.flightNumber}.`;
+    if (!alreadyLogged) {
+      const eventTitle =
+        nextStatus === "cancelled"
+          ? `Flight ${snapshot.flightNumber} cancelled`
+          : `Flight ${snapshot.flightNumber} delayed by ${nextDelay} minutes`;
+      const eventDescription =
+        nextStatus === "cancelled"
+          ? `Aviationstack reported a cancellation for ${snapshot.airlineName} ${snapshot.flightNumber}.`
+          : `Aviationstack detected a ${nextDelay}-minute delay for ${snapshot.airlineName} ${snapshot.flightNumber}.`;
 
-    const { data: disruption } = await supabase
-      .from("disruption_events")
-      .insert({
-        trip_id: data.tripId,
-        type: nextStatus === "cancelled" ? "flight_cancelled" : "flight_delay",
-        severity: nextStatus === "cancelled" ? "critical" : delayBucket === "major_disruption" ? "high" : "medium",
-        title: eventTitle,
-        description: eventDescription,
-        affected_item_ids: affected.map((item) => item.id),
-        metadata: {
-          flightNumber: snapshot.flightNumber,
-          airline: snapshot.airlineName,
-          delayMinutes: nextDelay,
-          previousDelayMinutes: previousDelay,
-          status: nextStatus,
-          estimatedArrival: snapshot.estimatedArrival,
-          scheduledArrival: snapshot.scheduledArrival,
-        } as unknown as Json,
-      })
-      .select("id")
-      .single();
-
-    if (payload && disruption) {
-      const { data: rec } = await supabase
-        .from("recovery_recommendations")
+      const { data: disruption } = await supabase
+        .from("disruption_events")
         .insert({
           trip_id: data.tripId,
-          disruption_id: disruption.id,
-          recommendation_data: payload as unknown as Json,
-          status: "pending",
+          type: nextStatus === "cancelled" ? "flight_cancelled" : "flight_delay",
+          severity: nextStatus === "cancelled" ? "critical" : delayBucket === "major_disruption" ? "high" : "medium",
+          title: eventTitle,
+          description: eventDescription,
+          affected_item_ids: affected.map((item) => item.id),
+          metadata: {
+            flightNumber: snapshot.flightNumber,
+            airline: snapshot.airlineName,
+            delayMinutes: nextDelay,
+            previousDelayMinutes: previousDelay,
+            status: nextStatus,
+            estimatedArrival: snapshot.estimatedArrival,
+            scheduledArrival: snapshot.scheduledArrival,
+          } as unknown as Json,
         })
         .select("id")
         .single();
-      recommendationId = rec?.id ?? null;
-    }
 
-    await supabase.from("trip_history").insert([
-      {
+      if (payload && disruption) {
+        const { data: rec } = await supabase
+          .from("recovery_recommendations")
+          .insert({
+            trip_id: data.tripId,
+            disruption_id: disruption.id,
+            recommendation_data: payload as unknown as Json,
+            status: "pending",
+          })
+          .select("id")
+          .single();
+        recommendationId = rec?.id ?? null;
+      }
+
+      await supabase.from("trip_history").insert([
+        {
+          trip_id: data.tripId,
+          event: "flight_delay_detected",
+          detail: `Flight ${snapshot.flightNumber} delay detected: +${nextDelay} minutes`,
+        },
+        ...(recommendationId && payload
+          ? [
+              {
+                trip_id: data.tripId,
+                event: "recovery_recommendation_generated",
+                detail: `Recovery recommendation generated for ${payload.affectedItemTitle}`,
+              },
+            ]
+          : []),
+      ]);
+
+      await supabase.from("notifications").insert({
+        user_id: userId,
         trip_id: data.tripId,
-        event: "flight_delay_detected",
-        detail: `Flight ${snapshot.flightNumber} delay detected: +${nextDelay} minutes`,
-      },
-      ...(recommendationId && payload
-        ? [
-            {
-              trip_id: data.tripId,
-              event: "recovery_recommendation_generated",
-              detail: `Recovery recommendation generated for ${payload.affectedItemTitle}`,
-            },
-          ]
-        : []),
-    ]);
-
-    await supabase.from("notifications").insert({
-      user_id: userId,
-      trip_id: data.tripId,
-      type: nextStatus === "cancelled" ? "flight" : "recovery",
-      title: nextStatus === "cancelled" ? `Flight ${snapshot.flightNumber} has been cancelled` : `Flight ${snapshot.flightNumber} is delayed by ${nextDelay} minutes`,
-      message:
-        nextStatus === "cancelled"
-          ? "Your itinerary has been flagged for recovery."
-          : payload
-            ? `Your flight is delayed by ${nextDelay} minutes, affecting ${payload.affectedItemTitle}.`
-            : `Flight ${snapshot.flightNumber} is delayed by ${nextDelay} minutes.`,
-    });
+        type: nextStatus === "cancelled" ? "flight" : "recovery",
+        title: nextStatus === "cancelled" ? `Flight ${snapshot.flightNumber} has been cancelled` : `Flight ${snapshot.flightNumber} is delayed by ${nextDelay} minutes`,
+        message:
+          nextStatus === "cancelled"
+            ? "Your itinerary has been flagged for recovery."
+            : payload
+              ? `Your flight is delayed by ${nextDelay} minutes, affecting ${payload.affectedItemTitle}.`
+              : `Flight ${snapshot.flightNumber} is delayed by ${nextDelay} minutes.`,
+      });
+    }
 
     return {
       tripId: data.tripId,
@@ -295,9 +316,10 @@ export const checkTripFlightStatus = createServerFn({ method: "POST" })
           : payload
           ? `Flight ${snapshot.flightNumber} is delayed by ${nextDelay} minutes. ${payload.affectedItemTitle} may be affected.`
           : `Flight ${snapshot.flightNumber} is delayed by ${nextDelay} minutes.`,
-      disruptionCreated: true,
+      disruptionCreated: !alreadyLogged,
       recommendationId,
       affectedCount,
+      impactPlan,
       checkedAt: new Date().toISOString(),
     };
   });
