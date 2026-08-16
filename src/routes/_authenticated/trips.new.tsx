@@ -679,9 +679,25 @@ function NewTripPage() {
                 <ArrowRight className="h-4 w-4" />
               </Button>
             ) : (
-              <Button type="button" variant="recover" size="lg" onClick={submit} className="gap-2">
-                <Sparkles className="h-4 w-4" />
-                Create My Trip
+              <Button
+                type="button"
+                variant="recover"
+                size="lg"
+                onClick={submit}
+                disabled={createTripMutation.isPending}
+                className="gap-2"
+              >
+                {createTripMutation.isPending ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Creating Trip…
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="h-4 w-4" />
+                    Create My Trip
+                  </>
+                )}
               </Button>
             )}
           </div>

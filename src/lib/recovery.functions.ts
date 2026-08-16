@@ -34,6 +34,7 @@ export const triggerDisruption = createServerFn({ method: "POST" })
         "id, title, day_date, start_time, end_time, category, estimated_cost, indoor_outdoor, is_locked, status, latitude, longitude",
       )
       .eq("trip_id", data.tripId)
+      .neq("status", "replaced")
       .order("day_date")
       .order("start_time");
     if (!items || items.length === 0) throw new Error("This trip has no itinerary yet.");
@@ -172,6 +173,15 @@ export const applyRecovery = createServerFn({ method: "POST" })
       .eq("id", data.recommendationId)
       .maybeSingle();
     if (!rec) throw new Error("Recovery plan not found.");
+
+    const { data: trip } = await supabase
+      .from("trips")
+      .select("id")
+      .eq("id", rec.trip_id)
+      .eq("user_id", userId)
+      .maybeSingle();
+    if (!trip) throw new Error("Trip not found or access denied.");
+
     if (rec.status !== "pending") throw new Error("This recovery has already been resolved.");
 
     const payload = rec.recommendation_data as unknown as {
@@ -194,40 +204,62 @@ export const applyRecovery = createServerFn({ method: "POST" })
     if (!original) throw new Error("The affected activity no longer exists.");
     if (original.is_locked) throw new Error("That activity is locked and can't be replaced.");
 
-    await supabase.from("trip_history").insert({
-      trip_id: rec.trip_id,
-      event: "Previous itinerary version saved",
-      detail: `Snapshot of "${original.title}" before recovery.`,
-      snapshot: original as unknown as Json,
-    });
+    const replacementTitle = String(chosen["title"] ?? "Recovery activity");
+    const replacementStartTime = String(chosen["startTime"] ?? payload.newStartTime);
+    const replacementDayDate = String((chosen["dayDate"] as string) || (payload as any)["replacementDate"] || original.day_date);
 
-    await supabase
+    // Idempotency safeguard: check if this exact replacement item was already inserted
+    const { data: existingReplacement } = await supabase
       .from("itinerary_items")
-      .update({ status: "replaced", is_locked: false })
-      .eq("id", payload.affectedItemId);
+      .select("id")
+      .eq("trip_id", rec.trip_id)
+      .eq("title", replacementTitle)
+      .eq("day_date", replacementDayDate)
+      .eq("start_time", replacementStartTime)
+      .neq("status", "replaced")
+      .maybeSingle();
 
-    const { error: insertError } = await supabase.from("itinerary_items").insert({
-      trip_id: rec.trip_id,
-      day_date: original.day_date,
-      start_time: String(chosen["startTime"] ?? payload.newStartTime),
-      end_time: String(chosen["endTime"] ?? payload.newStartTime),
-      title: String(chosen["title"] ?? "Recovery activity"),
-      description: String(chosen["description"] ?? ""),
-      category: String(chosen["category"] ?? "activity"),
-      location: original.location,
-      latitude: (chosen["latitude"] as number | null) ?? original.latitude,
-      longitude: (chosen["longitude"] as number | null) ?? original.longitude,
-      estimated_cost: Number(chosen["estimatedCost"] ?? 0),
-      currency: original.currency,
-      travel_minutes: Math.round(Number(chosen["distanceKm"] ?? 1) * 4),
-      indoor_outdoor: String(chosen["indoorOutdoor"] ?? "indoor"),
-      weather_suitability: String(chosen["weatherSuitability"] ?? "any"),
-      booking_url: (chosen["bookingUrl"] as string | null) ?? null,
-      status: "confirmed",
-      is_sponsored: Boolean(chosen["sponsored"]),
-      sort_order: (original.sort_order as number) + 1,
-    });
-    if (insertError) throw new Error("We couldn't apply the recovery. Please try again.");
+    if (!existingReplacement) {
+      await supabase.from("trip_history").insert({
+        trip_id: rec.trip_id,
+        event: "Previous itinerary version saved",
+        detail: `Snapshot of "${original.title}" before recovery.`,
+        snapshot: original as unknown as Json,
+      });
+
+      await supabase
+        .from("itinerary_items")
+        .update({ status: "replaced", is_locked: false })
+        .eq("id", payload.affectedItemId);
+
+      const { error: insertError } = await supabase.from("itinerary_items").insert({
+        trip_id: rec.trip_id,
+        day_date: replacementDayDate,
+        start_time: replacementStartTime,
+        end_time: String(chosen["endTime"] ?? replacementStartTime),
+        title: replacementTitle,
+        description: String(chosen["description"] ?? ""),
+        category: String(chosen["category"] ?? "activity"),
+        location: (chosen["location"] as string) || original.location,
+        latitude: (chosen["latitude"] as number | null) ?? original.latitude,
+        longitude: (chosen["longitude"] as number | null) ?? original.longitude,
+        estimated_cost: Number(chosen["estimatedCost"] ?? 0),
+        currency: original.currency,
+        travel_minutes: Math.round(Number(chosen["distanceKm"] ?? 1) * 4),
+        indoor_outdoor: String(chosen["indoorOutdoor"] ?? "indoor"),
+        weather_suitability: String(chosen["weatherSuitability"] ?? "any"),
+        booking_url: (chosen["bookingUrl"] as string | null) ?? null,
+        status: "confirmed",
+        is_sponsored: Boolean(chosen["sponsored"]),
+        sort_order: Number(original.sort_order ?? 0) + 1,
+      });
+      if (insertError) throw new Error("We couldn't apply the recovery. Please try again.");
+    } else {
+      await supabase
+        .from("itinerary_items")
+        .update({ status: "replaced", is_locked: false })
+        .eq("id", payload.affectedItemId);
+    }
 
     await supabase.from("recovery_recommendations").update({ status: "applied" }).eq("id", rec.id);
     if (rec.disruption_id) {
@@ -274,6 +306,14 @@ export const resolveRecovery = createServerFn({ method: "POST" })
       .eq("id", data.recommendationId)
       .maybeSingle();
     if (!rec) throw new Error("Recovery plan not found.");
+
+    const { data: trip } = await supabase
+      .from("trips")
+      .select("id")
+      .eq("id", rec.trip_id)
+      .eq("user_id", userId)
+      .maybeSingle();
+    if (!trip) throw new Error("Trip not found or access denied.");
 
     const payload = rec.recommendation_data as unknown as { affectedItemId: string; affectedItemTitle: string };
 

@@ -7,21 +7,30 @@ import {
   CheckCircle2,
   Clock,
   Compass,
+  Copy,
   DollarSign,
+  Edit3,
   Gauge,
+  Info,
   MapPin,
+  MoreVertical,
   Plane,
   Plus,
   RefreshCw,
   ShieldCheck,
   Sparkles,
+  Trash2,
   User,
   Users,
+  X,
 } from "lucide-react";
 import { useState } from "react";
 
 import { DemoBadge, StatusBadge } from "@/components/app/StatusBadge";
 import { Logo } from "@/components/brand/Logo";
+import { DeleteTripModal } from "@/components/trips/DeleteTripModal";
+import { DuplicateTripModal } from "@/components/trips/DuplicateTripModal";
+import { EditTripModal } from "@/components/trips/EditTripModal";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
 import { formatDate, formatMoney } from "@/lib/format";
@@ -43,6 +52,17 @@ export function Dashboard() {
   const { user, signOut } = useAuth();
   const queryClient = useQueryClient();
   const [filterTab, setFilterTab] = useState<"all" | "active" | "completed">("all");
+
+  const [editingTrip, setEditingTrip] = useState<Trip | null>(null);
+  const [deletingTrip, setDeletingTrip] = useState<{ id: string; name: string } | null>(null);
+  const [duplicatingTrip, setDuplicatingTrip] = useState<{
+    id: string;
+    name: string;
+    startDate: string;
+    endDate: string;
+  } | null>(null);
+  const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
+  const [noticeMessage, setNoticeMessage] = useState<string | null>(null);
 
   // Fetch real trips belonging to the authenticated user via RLS
   const {
@@ -126,22 +146,38 @@ export function Dashboard() {
         </div>
       </header>
 
-      {/* Main Content */}
-      <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 space-y-8">
-        {/* Top greeting banner */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div>
+      {/* MAIN CONTAINER */}
+      <main className="mx-auto flex-1 w-full max-w-7xl space-y-8 px-4 py-8 sm:px-6 lg:px-8">
+        {/* Notice Message */}
+        {noticeMessage ? (
+          <div className="rounded-xl border border-primary/40 bg-primary/10 p-4 text-xs text-foreground flex items-center justify-between gap-3 shadow-xs">
+            <div className="flex items-center gap-2">
+              <Info className="h-4 w-4 text-primary shrink-0" />
+              <span>{noticeMessage}</span>
+            </div>
+            <button
+              onClick={() => setNoticeMessage(null)}
+              className="text-muted-foreground hover:text-foreground p-1 rounded"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        ) : null}
+
+        {/* HERO DASHBOARD BANNER */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-border/80 pb-6">
+          <div className="space-y-1">
             <div className="flex items-center gap-2">
               <span className="live-dot inline-block h-2 w-2 rounded-full bg-success" />
-              <span className="text-xs font-semibold uppercase tracking-wider text-primary">
-                Database Connected & RLS Active
+              <span className="font-mono text-xs text-muted-foreground uppercase tracking-wider font-semibold">
+                Live Monitoring Engine Active
               </span>
             </div>
-            <h1 className="mt-1 font-display text-2xl sm:text-3xl font-bold tracking-tight text-foreground">
+            <h1 className="font-display text-2xl sm:text-3xl font-bold tracking-tight text-foreground">
               Welcome back, {userName}
             </h1>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Your real-time trips are securely queried from Supabase and isolated to your account.
+            <p className="text-sm text-muted-foreground">
+              Manage your trips, monitor live disruptions, edit itineraries, or duplicate trip plans.
             </p>
           </div>
 
@@ -149,24 +185,24 @@ export function Dashboard() {
             <Button
               variant="outline"
               size="sm"
-              className="gap-1.5 text-xs"
               onClick={() => void createDemoMutation.mutate()}
               disabled={createDemoMutation.isPending}
+              className="gap-1.5 text-xs"
             >
               <RefreshCw className={`h-3.5 w-3.5 ${createDemoMutation.isPending ? "animate-spin" : ""}`} />
-              <span>{createDemoMutation.isPending ? "Creating Demo Trip…" : "Create Demo Trip"}</span>
+              <span>{createDemoMutation.isPending ? "Generating Demo…" : "1-Click Demo Trip"}</span>
             </Button>
 
-            <Button asChild variant="recover" size="sm" className="gap-1.5 shadow-sm text-xs font-semibold">
+            <Button asChild variant="recover" size="sm" className="gap-1.5 font-semibold text-xs shadow-xs">
               <Link to="/trips/new">
-                <Plus className="h-4 w-4" />
-                <span>Plan My Trip</span>
+                <Plus className="h-3.5 w-3.5" />
+                <span>Create New Trip</span>
               </Link>
             </Button>
           </div>
         </div>
 
-        {/* Quick Metrics */}
+        {/* METRICS ROW */}
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <div className="rounded-xl border border-border bg-card p-5 shadow-xs">
             <div className="flex items-center justify-between">
@@ -174,9 +210,7 @@ export function Dashboard() {
               <Plane className="h-4 w-4 text-primary" />
             </div>
             <p className="mt-3 text-2xl font-bold text-foreground">{trips.length}</p>
-            <p className="mt-1 text-xs text-muted-foreground">
-              {activeTrips.length} active, {completedTrips.length} completed
-            </p>
+            <p className="mt-1 text-xs text-muted-foreground">{activeTrips.length} currently active</p>
           </div>
 
           <div className="rounded-xl border border-border bg-card p-5 shadow-xs">
@@ -214,16 +248,10 @@ export function Dashboard() {
         {/* LOADING STATE */}
         {isLoading ? (
           <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="h-6 w-32 bg-muted animate-pulse rounded" />
-            </div>
+            <div className="h-6 w-32 bg-muted animate-pulse rounded" />
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
               {[1, 2, 3].map((i) => (
-                <div key={i} className="h-56 rounded-2xl border border-border bg-card p-6 animate-pulse space-y-4">
-                  <div className="h-5 w-3/4 bg-muted rounded" />
-                  <div className="h-4 w-1/2 bg-muted rounded" />
-                  <div className="h-16 w-full bg-muted/60 rounded-xl" />
-                </div>
+                <div key={i} className="h-56 rounded-2xl border border-border bg-card p-6 animate-pulse space-y-4" />
               ))}
             </div>
           </div>
@@ -233,115 +261,11 @@ export function Dashboard() {
         {!isLoading && isError ? (
           <div className="rounded-2xl border border-destructive/30 bg-destructive/10 p-6 sm:p-8 text-center space-y-3">
             <AlertTriangle className="mx-auto h-8 w-8 text-destructive" />
-            <h3 className="font-display text-lg font-bold text-foreground">Failed to load trips from Supabase</h3>
-            <p className="text-sm text-muted-foreground max-w-md mx-auto">
-              {(error as Error)?.message || "An unexpected database error occurred. Please try refetching."}
-            </p>
+            <h3 className="font-display text-lg font-bold text-foreground">Failed to load trips</h3>
             <Button size="sm" variant="outline" onClick={() => void refetch()} className="gap-1.5">
               <RefreshCw className="h-3.5 w-3.5" />
               <span>Retry Query</span>
             </Button>
-          </div>
-        ) : null}
-
-        {/* EMPTY STATE */}
-        {!isLoading && !isError && trips.length === 0 ? (
-          <div className="rounded-2xl border border-border bg-card p-8 sm:p-12 text-center space-y-5 shadow-sm">
-            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-primary/10 text-primary">
-              <Compass className="h-7 w-7" />
-            </div>
-            <div className="max-w-md mx-auto space-y-2">
-              <h3 className="font-display text-xl font-bold text-foreground">No trips found in your database</h3>
-              <p className="text-sm text-muted-foreground leading-relaxed">
-                You haven't created any trips yet. Create a trip or generate an instant demo trip to test database persistence and recovery features.
-              </p>
-            </div>
-            <div className="flex items-center justify-center gap-3 flex-wrap pt-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => void createDemoMutation.mutate()}
-                disabled={createDemoMutation.isPending}
-                className="gap-1.5"
-              >
-                <RefreshCw className={`h-3.5 w-3.5 ${createDemoMutation.isPending ? "animate-spin" : ""}`} />
-                <span>{createDemoMutation.isPending ? "Generating Demo Trip…" : "Create Instant Demo Trip"}</span>
-              </Button>
-              <Button asChild variant="recover" size="sm" className="gap-1.5 font-semibold">
-                <Link to="/trips/new">
-                  <Plus className="h-4 w-4" />
-                  <span>Plan My Trip</span>
-                </Link>
-              </Button>
-            </div>
-          </div>
-        ) : null}
-
-        {/* DATA DISPLAY: FEATURED ACTIVE TRIP BANNER */}
-        {!isLoading && !isError && featuredTrip ? (
-          <div className="rounded-2xl border border-primary/30 bg-card p-6 sm:p-8 shadow-sm space-y-6">
-            <div className="flex items-center justify-between border-b border-border/80 pb-4">
-              <div className="flex items-center gap-2">
-                <span className="live-dot inline-block h-2 w-2 rounded-full bg-primary" />
-                <h2 className="font-display text-sm font-semibold uppercase tracking-wider text-primary">
-                  Featured Active Trip
-                </h2>
-              </div>
-              <StatusBadge status={featuredTrip.status} />
-            </div>
-
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-              <div className="space-y-2">
-                <div className="flex items-center gap-2 flex-wrap">
-                  {featuredTrip.is_demo ? <DemoBadge /> : null}
-                  <span className="font-mono text-xs text-muted-foreground">ID: {featuredTrip.id.slice(0, 8)}</span>
-                </div>
-                <h3 className="font-display text-2xl font-bold tracking-tight text-foreground">
-                  {featuredTrip.name}
-                </h3>
-                <p className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <MapPin className="h-4 w-4 text-primary shrink-0" />
-                  <span>
-                    {featuredTrip.origin ? `${featuredTrip.origin} → ` : ""}
-                    <strong className="text-foreground font-medium">{featuredTrip.destination}</strong>
-                  </span>
-                </p>
-              </div>
-
-              <div className="flex items-center gap-3">
-                <Button asChild variant="recover" size="sm" className="gap-1.5">
-                  <Link to="/trips/$tripId" params={{ tripId: featuredTrip.id }}>
-                    <span>View Trip Details & Map</span>
-                    <ArrowRight className="h-4 w-4" />
-                  </Link>
-                </Button>
-              </div>
-            </div>
-
-            {/* Quick Metadata */}
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 pt-2 border-t border-border/60 text-xs">
-              <div className="flex items-center gap-2 text-muted-foreground">
-                <Calendar className="h-3.5 w-3.5 text-primary shrink-0" />
-                <span>
-                  {formatDate(featuredTrip.start_date)} – {formatDate(featuredTrip.end_date)}
-                </span>
-              </div>
-              <div className="flex items-center gap-2 text-muted-foreground">
-                <Users className="h-3.5 w-3.5 text-primary shrink-0" />
-                <span>
-                  {featuredTrip.adults} Adult{featuredTrip.adults > 1 ? "s" : ""}
-                  {featuredTrip.children > 0 ? `, ${featuredTrip.children} Child${featuredTrip.children > 1 ? "ren" : ""}` : ""}
-                </span>
-              </div>
-              <div className="flex items-center gap-2 text-muted-foreground">
-                <DollarSign className="h-3.5 w-3.5 text-primary shrink-0" />
-                <span>{formatMoney(Number(featuredTrip.budget), featuredTrip.currency)}</span>
-              </div>
-              <div className="flex items-center gap-2 text-muted-foreground">
-                <Gauge className="h-3.5 w-3.5 text-success shrink-0" />
-                <span>Mode: <strong className="text-foreground capitalize">{featuredTrip.recovery_mode}</strong></span>
-              </div>
-            </div>
           </div>
         ) : null}
 
@@ -359,7 +283,7 @@ export function Dashboard() {
               {displayedTrips.map((trip: Trip) => (
                 <div
                   key={trip.id}
-                  className="flex flex-col justify-between rounded-2xl border border-border bg-card p-6 shadow-xs transition-all hover:border-primary/40 hover:shadow-panel"
+                  className="relative flex flex-col justify-between rounded-2xl border border-border bg-card p-6 shadow-xs transition-all hover:border-primary/40 hover:shadow-panel"
                 >
                   <div className="space-y-4">
                     <div className="flex items-start justify-between gap-2">
@@ -371,6 +295,58 @@ export function Dashboard() {
                         <h3 className="font-display text-lg font-bold text-foreground leading-snug pt-1">
                           {trip.name}
                         </h3>
+                      </div>
+
+                      {/* CONTEXT ACTION MENU */}
+                      <div className="relative">
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          onClick={() => setActiveMenuId(activeMenuId === trip.id ? null : trip.id)}
+                          className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                        >
+                          <MoreVertical className="h-4 w-4" />
+                        </Button>
+
+                        {activeMenuId === trip.id ? (
+                          <div
+                            className="absolute right-0 top-9 z-30 w-44 rounded-xl border border-border bg-card p-1.5 shadow-xl animate-fadeIn"
+                            onClick={() => setActiveMenuId(null)}
+                          >
+                            <button
+                              onClick={() => setEditingTrip(trip)}
+                              className="w-full flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-medium text-foreground hover:bg-secondary transition-colors"
+                            >
+                              <Edit3 className="h-3.5 w-3.5 text-primary" />
+                              <span>Edit Trip</span>
+                            </button>
+
+                            <button
+                              onClick={() =>
+                                setDuplicatingTrip({
+                                  id: trip.id,
+                                  name: trip.name,
+                                  startDate: trip.start_date,
+                                  endDate: trip.end_date,
+                                })
+                              }
+                              className="w-full flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-medium text-foreground hover:bg-secondary transition-colors"
+                            >
+                              <Copy className="h-3.5 w-3.5 text-primary" />
+                              <span>Duplicate Trip</span>
+                            </button>
+
+                            <div className="my-1 border-t border-border/80" />
+
+                            <button
+                              onClick={() => setDeletingTrip({ id: trip.id, name: trip.name })}
+                              className="w-full flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-medium text-destructive hover:bg-destructive/10 transition-colors"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                              <span>Delete Trip</span>
+                            </button>
+                          </div>
+                        ) : null}
                       </div>
                     </div>
 
@@ -433,6 +409,36 @@ export function Dashboard() {
               ))}
             </div>
           </div>
+        ) : null}
+
+        {/* MODALS */}
+        {editingTrip ? (
+          <EditTripModal
+            trip={editingTrip}
+            isOpen={Boolean(editingTrip)}
+            onClose={() => setEditingTrip(null)}
+            onNotice={(msg) => setNoticeMessage(msg)}
+          />
+        ) : null}
+
+        {deletingTrip ? (
+          <DeleteTripModal
+            tripId={deletingTrip.id}
+            tripName={deletingTrip.name}
+            isOpen={Boolean(deletingTrip)}
+            onClose={() => setDeletingTrip(null)}
+          />
+        ) : null}
+
+        {duplicatingTrip ? (
+          <DuplicateTripModal
+            sourceTripId={duplicatingTrip.id}
+            sourceTripName={duplicatingTrip.name}
+            sourceStartDate={duplicatingTrip.startDate}
+            sourceEndDate={duplicatingTrip.endDate}
+            isOpen={Boolean(duplicatingTrip)}
+            onClose={() => setDuplicatingTrip(null)}
+          />
         ) : null}
       </main>
     </div>

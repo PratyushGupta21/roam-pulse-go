@@ -40,6 +40,7 @@ export const itineraryQuery = (tripId: string) =>
         .from("itinerary_items")
         .select("*")
         .eq("trip_id", tripId)
+        .neq("status", "replaced")
         .order("day_date", { ascending: true })
         .order("start_time", { ascending: true });
       if (error) throw error;

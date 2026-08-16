@@ -68,6 +68,22 @@ export const tripInputSchema = z.object({
 
 export type TripInput = z.infer<typeof tripInputSchema>;
 
+export const updateTripSchema = z.object({
+  tripId: z.string().uuid(),
+  regenerateItinerary: z.boolean().default(false),
+  tripData: tripInputSchema,
+});
+
+export const duplicateTripSchema = z.object({
+  sourceTripId: z.string().uuid(),
+  newName: z.string().min(2).max(80).optional(),
+  startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+});
+
+export type UpdateTripInput = z.infer<typeof updateTripSchema>;
+export type DuplicateTripInput = z.infer<typeof duplicateTripSchema>;
+
 export const itineraryItemSchema = z.object({
   title: z.string().min(2).max(120),
   description: z.string().max(600).default(""),
@@ -115,20 +131,32 @@ export interface RecoveryAlternative {
 }
 
 export interface RecoveryPayload {
-  disruptionId?: string;
-  tripId?: string;
-  type?: string;
-  severity?: "low" | "medium" | "high" | "critical";
+  disruptionId?: string | undefined;
+  tripId?: string | undefined;
+  type?: string | undefined;
+  severity?: "low" | "medium" | "high" | "critical" | undefined;
   affectedItemId: string;
   affectedItemTitle: string;
+  affectedItemDate?: string | undefined;
+  affectedItemStartTime?: string | undefined;
+  affectedItemEndTime?: string | undefined;
+  affectedItemLocation?: string | undefined;
+  affectedItemCategory?: string | undefined;
+  affectedItemCost?: number | undefined;
+  affectedItemIndoorOutdoor?: string | undefined;
+  disruptionType?: string | undefined;
+  disruptionMinutes?: number | undefined;
+  disruptionFromTime?: string | undefined;
+  rainProbability?: number | undefined;
+  replacementDate?: string | undefined;
   reason: string;
-  newStartTime?: string;
-  proposedAction?: "replace" | "reschedule" | "cancel";
+  newStartTime?: string | undefined;
+  proposedAction?: "replace" | "reschedule" | "cancel" | undefined;
   primary: RecoveryAlternative;
   alternatives: RecoveryAlternative[];
   costDelta: number;
   requiresApproval: boolean;
-  autoExecutable?: boolean;
+  autoExecutable?: boolean | undefined;
 }
 
 export const CATEGORY_ICON: Record<string, string> = {

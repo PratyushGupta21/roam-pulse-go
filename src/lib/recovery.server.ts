@@ -113,6 +113,17 @@ export function buildRecovery(
     payload: {
       affectedItemId: target.id,
       affectedItemTitle: target.title,
+      affectedItemDate: target.day_date,
+      affectedItemStartTime: target.start_time,
+      affectedItemEndTime: target.end_time,
+      affectedItemCategory: target.category || "activity",
+      affectedItemCost: target.estimated_cost || 0,
+      affectedItemIndoorOutdoor: target.indoor_outdoor || "outdoor",
+      disruptionType: ctx.type,
+      disruptionMinutes: ctx.minutesLost,
+      disruptionFromTime: ctx.fromTime,
+      rainProbability: ctx.rainProbability,
+      replacementDate: target.day_date,
       reason:
         ctx.type === "weather"
           ? `Heavy rain expected (${ctx.rainProbability ?? 80}% probability) during your outdoor activity.`
