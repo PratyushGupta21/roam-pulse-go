@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import {
   Bell,
+  Clock,
   CloudRain,
   Compass,
   Gauge,
@@ -22,6 +23,7 @@ import { MarketingLayout } from "@/components/marketing/MarketingLayout";
 import { PriceCompare } from "@/components/marketing/PriceCompare";
 import { RecoveryDemo } from "@/components/marketing/RecoveryDemo";
 import { Button } from "@/components/ui/button";
+import { useAuth } from "@/hooks/useAuth";
 
 const TITLE = "RoamPulse — Your Trip Changes. RoamPulse Adapts.";
 const DESCRIPTION =
@@ -42,39 +44,35 @@ export const Route = createFileRoute("/")({
 });
 
 const PROBLEMS = [
-  { icon: PlaneTakeoff, title: "Flight delays", body: "One slipped arrival cascades through every booking of the day." },
-  { icon: CloudRain, title: "Bad weather", body: "Outdoor plans collapse and you rebuild them from a phone in the rain." },
-  { icon: Timer, title: "Lost time", body: "Hours disappear into rescheduling instead of exploring." },
-  { icon: Wallet, title: "Manual rebooking", body: "Refunds, rebooking rules and price differences, all by hand." },
-  { icon: Search, title: "Too many booking sites", body: "Six tabs to answer one question: what should I do now?" },
-  { icon: Compass, title: "Hard local discovery", body: "Finding a good indoor option nearby, fast, is genuinely difficult." },
-];
+  { icon: Clock, title: "Flight Delayed 3h", body: "Losing your afternoon booking and arrival transit." },
+  { icon: CloudRain, title: "Heavy Rain Midday", body: "Outdoor walking tour cancelled with no indoor backup." },
+  { icon: Wallet, title: "Hotel Price Drops ₹4k", body: "Paying original price because nobody re-checked." },
+  { icon: Map, title: "Overbooked Rail", body: "Scrambling for buses while standing at the terminal." },
+  { icon: Search, title: "Scattered App Panic", body: "Juggling 5 tabs while trying to re-plan manually." },
+  { icon: Compass, title: "Zero Travel Context", body: "Generic recommendations that ignore your budget." },
+] as const;
 
 const SOLUTION = [
-  { icon: Wand2, title: "Plans", body: "AI builds a structured, validated itinerary from your budget, pace and interests." },
-  { icon: Gauge, title: "Monitors", body: "Flights, weather, transit and prices are checked continuously." },
-  { icon: Sparkles, title: "Detects", body: "Conflicts are identified against your real schedule, not a generic template." },
-  { icon: RouteIcon, title: "Adapts", body: "Affected items are scored against nearby alternatives that fit your day." },
-  { icon: Map, title: "Re-routes", body: "Maps, travel times and costs update the moment recovery is applied." },
-];
+  { icon: PlaneTakeoff, title: "1. Monitor", body: "Live flight, weather & price signals." },
+  { icon: Bell, title: "2. Detect", body: "Impact identified before you land." },
+  { icon: Wand2, title: "3. Re-plan", body: "Feasible alternative paths generated." },
+  { icon: Sparkles, title: "4. Authorise", body: "You approve spending and changes." },
+  { icon: Timer, title: "5. Repair", body: "Itinerary updated automatically." },
+] as const;
 
 const FEATURES = [
-  { icon: Wand2, title: "AI itinerary generation", body: "Structured, schema-validated day plans — never free-form guesswork." },
-  { icon: PlaneTakeoff, title: "Live flight tracking", body: "Delay, cancellation and gate changes trigger the recovery workflow." },
-  { icon: CloudRain, title: "Weather-aware planning", body: "Rain probability is evaluated per outdoor activity." },
-  { icon: RouteIcon, title: "Dynamic rerouting", body: "New arrival time in, new feasible day out." },
-  { icon: Wallet, title: "Price comparison", body: "Normalised offers across providers with clear affiliate labelling." },
-  { icon: Map, title: "Live maps", body: "Hotel, airport, activities and the updated route in one view." },
-  { icon: Compass, title: "Local experiences", body: "Nearby alternatives scored on distance, weather, budget and interests." },
-  { icon: ShieldCheck, title: "Autonomous recovery", body: "Within your limits — and never an automatic purchase." },
-];
+  { icon: RouteIcon, title: "Live Itinerary Graphs", body: "Every item connected to real-time status signals." },
+  { icon: ShieldCheck, title: "Autonomous Recovery Modes", body: "From manual prompts to auto-replacing flexible items." },
+  { icon: Wallet, title: "Spend Protection", body: "Strict spend limits — no surprise charges ever." },
+  { icon: CloudRain, title: "Weather Sentinel", body: "Swaps outdoor activities for indoor alternatives during rain." },
+] as const;
 
 const STEPS = [
-  { n: "01", title: "Build your trip", body: "Destination, dates, budget, style, interests and recovery preferences." },
-  { n: "02", title: "RoamPulse monitors it", body: "Flights, weather, transit and prices are watched continuously." },
-  { n: "03", title: "A disruption happens", body: "Impact is calculated against your locked and flexible items." },
-  { n: "04", title: "Your itinerary adapts", body: "Recovery is recommended, applied and reflected on your map." },
-];
+  { n: "01", title: "Create your trip", body: "Set origin, destination, dates, party & budget limits." },
+  { n: "02", title: "Generate AI itinerary", body: "Receive a destination-aware, pace-matched day-by-day plan." },
+  { n: "03", title: "Enable monitoring", body: "RoamPulse watches flights, weather & prices 24/7." },
+  { n: "04", title: "Enjoy smooth travel", body: "Disruptions resolved with one-click approved fixes." },
+] as const;
 
 const MODES = [
   { icon: Hand, title: "Manual", body: "Recommendations only. Nothing changes without you." },
@@ -83,6 +81,9 @@ const MODES = [
 ];
 
 function Home() {
+  const { user } = useAuth();
+  const planTripTarget = user ? "/trips/new" : "/signup";
+
   return (
     <MarketingLayout transparentHeader>
       {/* Hero */}
@@ -111,7 +112,7 @@ function Home() {
             <p className="mt-5 max-w-xl text-lg text-white/85">{DESCRIPTION}</p>
             <div className="mt-8 flex flex-wrap gap-3">
               <Button asChild size="lg" variant="recover">
-                <Link to="/signup">Plan My Trip</Link>
+                <Link to={planTripTarget}>Plan My Trip</Link>
               </Button>
               <Button
                 asChild
@@ -260,7 +261,7 @@ function Home() {
             Build your trip once. RoamPulse keeps it alive while you travel.
           </p>
           <Button asChild size="lg" variant="recover">
-            <Link to="/signup">Plan My Trip</Link>
+            <Link to={planTripTarget}>Plan My Trip</Link>
           </Button>
         </div>
       </section>

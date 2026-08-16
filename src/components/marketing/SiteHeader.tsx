@@ -17,7 +17,7 @@ const NAV = [
 export function SiteHeader({ transparent = false }: { transparent?: boolean }) {
   const [open, setOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
-  const { user } = useAuth();
+  const { user, loading } = useAuth();
 
   useEffect(() => {
     if (!transparent) return;
@@ -27,9 +27,8 @@ export function SiteHeader({ transparent = false }: { transparent?: boolean }) {
     return () => window.removeEventListener("scroll", onScroll);
   }, [transparent]);
 
-  // Over the hero image the header floats with light-on-dark chrome; elsewhere
-  // (and once scrolled past the hero) it uses the standard surface.
   const overHero = transparent && !scrolled;
+  const isAuthenticated = !loading && !!user;
 
   return (
     <header
@@ -67,12 +66,20 @@ export function SiteHeader({ transparent = false }: { transparent?: boolean }) {
           ))}
         </nav>
 
-
         <div className="hidden items-center gap-2 md:flex">
-          {user ? (
-            <Button asChild>
-              <Link to="/dashboard">Open dashboard</Link>
-            </Button>
+          {isAuthenticated ? (
+            <>
+              <Button
+                asChild
+                variant="ghost"
+                className={cn(overHero && "text-white hover:bg-white/15 hover:text-white")}
+              >
+                <Link to="/dashboard">Dashboard</Link>
+              </Button>
+              <Button asChild variant="recover">
+                <Link to="/trips/new">Plan My Trip</Link>
+              </Button>
+            </>
           ) : (
             <>
               <Button
@@ -82,7 +89,7 @@ export function SiteHeader({ transparent = false }: { transparent?: boolean }) {
               >
                 <Link to="/login">Log in</Link>
               </Button>
-              <Button asChild>
+              <Button asChild variant="recover">
                 <Link to="/signup">Plan My Trip</Link>
               </Button>
             </>
@@ -115,12 +122,19 @@ export function SiteHeader({ transparent = false }: { transparent?: boolean }) {
               </Link>
             ))}
             <div className="mt-2 flex flex-col gap-2">
-              {user ? (
-                <Button asChild>
-                  <Link to="/dashboard" onClick={() => setOpen(false)}>
-                    Open dashboard
-                  </Link>
-                </Button>
+              {isAuthenticated ? (
+                <>
+                  <Button asChild variant="outline">
+                    <Link to="/dashboard" onClick={() => setOpen(false)}>
+                      Dashboard
+                    </Link>
+                  </Button>
+                  <Button asChild variant="recover">
+                    <Link to="/trips/new" onClick={() => setOpen(false)}>
+                      Plan My Trip
+                    </Link>
+                  </Button>
+                </>
               ) : (
                 <>
                   <Button asChild variant="outline">
@@ -128,7 +142,7 @@ export function SiteHeader({ transparent = false }: { transparent?: boolean }) {
                       Log in
                     </Link>
                   </Button>
-                  <Button asChild>
+                  <Button asChild variant="recover">
                     <Link to="/signup" onClick={() => setOpen(false)}>
                       Plan My Trip
                     </Link>

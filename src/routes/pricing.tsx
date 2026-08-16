@@ -4,6 +4,7 @@ import { Check, Minus, Sparkles, Zap } from "lucide-react";
 import { pageBackgrounds } from "@/lib/pageBackgrounds";
 import { MarketingLayout, PageHero } from "@/components/marketing/MarketingLayout";
 import { Button } from "@/components/ui/button";
+import { useAuth } from "@/hooks/useAuth";
 
 const TITLE = "RoamPulse pricing — Free and Premium plans";
 const DESCRIPTION =
@@ -52,6 +53,9 @@ function Cell({ on }: { on: boolean }) {
 }
 
 function Pricing() {
+  const { user } = useAuth();
+  const planTripTarget = user ? "/trips/new" : "/signup";
+
   return (
     <MarketingLayout transparentHeader>
       <PageHero
@@ -97,7 +101,7 @@ function Pricing() {
             </div>
 
             <Button asChild size="lg" variant="outline" className="mt-8 w-full font-semibold">
-              <Link to="/signup">Start Free</Link>
+              <Link to={planTripTarget}>Start Free</Link>
             </Button>
           </article>
 
@@ -146,7 +150,7 @@ function Pricing() {
             </div>
 
             <Button asChild size="lg" variant="recover" className="mt-8 w-full font-semibold">
-              <Link to="/signup">Start with Premium</Link>
+              <Link to={planTripTarget}>Start with Premium</Link>
             </Button>
           </article>
         </div>

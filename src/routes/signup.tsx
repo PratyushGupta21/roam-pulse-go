@@ -1,10 +1,11 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { AuthCard, GoogleButton } from "@/components/auth/AuthCard";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 
 const TITLE = "Create your RoamPulse account";
@@ -27,12 +28,19 @@ export const Route = createFileRoute("/signup")({
 
 function SignupPage() {
   const navigate = useNavigate();
+  const { user, loading } = useAuth();
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (!loading && user) {
+      void navigate({ to: "/dashboard", replace: true });
+    }
+  }, [user, loading, navigate]);
 
   async function onSubmit(event: React.FormEvent) {
     event.preventDefault();
