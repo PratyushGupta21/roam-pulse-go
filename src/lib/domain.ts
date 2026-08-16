@@ -137,3 +137,128 @@ export const CATEGORY_ICON: Record<string, string> = {
   wellness: "🧘",
   activity: "📍",
 };
+
+export const TRIP_STYLE_OPTIONS = [
+  { id: "adventure", label: "Adventure", emoji: "🧗" },
+  { id: "relaxation", label: "Relaxation", emoji: "🌴" },
+  { id: "culture", label: "Culture", emoji: "🏛️" },
+  { id: "food_nightlife", label: "Food & nightlife", emoji: "🍷" },
+  { id: "nature", label: "Nature", emoji: "🌲" },
+  { id: "luxury", label: "Luxury", emoji: "💎" },
+  { id: "budget", label: "Budget", emoji: "🎒" },
+  { id: "family", label: "Family", emoji: "👨‍👩‍👧" },
+  { id: "romantic", label: "Romantic", emoji: "💞" },
+  { id: "business", label: "Business", emoji: "💼" },
+] as const;
+
+export const INTEREST_CARDS = [
+  { id: "Beaches", emoji: "🏖️" },
+  { id: "Mountains", emoji: "🏔️" },
+  { id: "Museums", emoji: "🖼️" },
+  { id: "History", emoji: "🏺" },
+  { id: "Local food", emoji: "🍜" },
+  { id: "Shopping", emoji: "🛍️" },
+  { id: "Nightlife", emoji: "🌃" },
+  { id: "Photography", emoji: "📷" },
+  { id: "Hiking", emoji: "🥾" },
+  { id: "Wellness", emoji: "🧘" },
+  { id: "Hidden gems", emoji: "💫" },
+  { id: "Events", emoji: "🎫" },
+] as const;
+
+export const BUDGET_LEVELS = [
+  { id: "budget", label: "Budget", hint: "Hostels, street food, transit", style: "backpacker" },
+  { id: "moderate", label: "Moderate", hint: "3-star stays, mixed dining", style: "balanced" },
+  { id: "premium", label: "Premium", hint: "Boutique hotels, guided tours", style: "comfort" },
+  { id: "luxury", label: "Luxury", hint: "5-star stays, private transfers", style: "luxury" },
+] as const;
+
+export const ACCOMMODATION_OPTIONS = [
+  { id: "hostel", label: "Hostel" },
+  { id: "budget_hotel", label: "Budget hotel" },
+  { id: "boutique", label: "Boutique" },
+  { id: "hotel", label: "Hotel" },
+  { id: "resort", label: "Resort" },
+] as const;
+
+export const TRANSPORT_OPTIONS = [
+  { id: "walking", label: "Mostly walking" },
+  { id: "public_transit", label: "Public transit" },
+  { id: "rideshare", label: "Rideshare / taxi" },
+  { id: "rental_car", label: "Rental car" },
+] as const;
+
+export const FOOD_OPTIONS = [
+  { id: "street_food", label: "Street food" },
+  { id: "local_casual", label: "Local casual" },
+  { id: "mixed", label: "Mixed" },
+  { id: "fine_dining", label: "Fine dining" },
+] as const;
+
+export const PACE_OPTIONS = [
+  { id: "relaxed", label: "Relaxed", hint: "2-3 activities a day" },
+  { id: "moderate", label: "Balanced", hint: "4-5 activities a day" },
+  { id: "packed", label: "Packed", hint: "6+ activities a day" },
+] as const;
+
+export const DIETARY_OPTIONS = [
+  "Vegetarian",
+  "Vegan",
+  "Halal",
+  "Kosher",
+  "Gluten-free",
+  "Nut allergy",
+  "Jain",
+  "No beef",
+] as const;
+
+export const ACCESSIBILITY_OPTIONS = [
+  "Step-free access",
+  "Wheelchair friendly",
+  "Limited walking",
+  "Elevator required",
+  "Sensory-friendly",
+  "Service animal",
+] as const;
+
+export const CURRENCIES = [
+  { code: "INR", label: "INR — Indian Rupee" },
+  { code: "USD", label: "USD — US Dollar" },
+  { code: "EUR", label: "EUR — Euro" },
+  { code: "GBP", label: "GBP — British Pound" },
+  { code: "JPY", label: "JPY — Japanese Yen" },
+  { code: "SGD", label: "SGD — Singapore Dollar" },
+  { code: "AUD", label: "AUD — Australian Dollar" },
+  { code: "AED", label: "AED — UAE Dirham" },
+] as const;
+
+export const DESTINATION_SUGGESTIONS = [
+  { city: "Tokyo", country: "Japan" },
+  { city: "Kyoto", country: "Japan" },
+  { city: "Bali", country: "Indonesia" },
+  { city: "Bangkok", country: "Thailand" },
+  { city: "Singapore", country: "Singapore" },
+  { city: "Dubai", country: "United Arab Emirates" },
+  { city: "Paris", country: "France" },
+  { city: "Rome", country: "Italy" },
+  { city: "Barcelona", country: "Spain" },
+  { city: "Lisbon", country: "Portugal" },
+  { city: "London", country: "United Kingdom" },
+  { city: "Amsterdam", country: "Netherlands" },
+  { city: "Istanbul", country: "Türkiye" },
+  { city: "New York", country: "United States" },
+  { city: "San Francisco", country: "United States" },
+  { city: "Reykjavik", country: "Iceland" },
+  { city: "Cape Town", country: "South Africa" },
+  { city: "Sydney", country: "Australia" },
+  { city: "Queenstown", country: "New Zealand" },
+  { city: "Goa", country: "India" },
+  { city: "Jaipur", country: "India" },
+  { city: "Leh", country: "India" },
+  { city: "Kerala", country: "India" },
+  { city: "Seoul", country: "South Korea" },
+  { city: "Hanoi", country: "Vietnam" },
+  { city: "Colombo", country: "Sri Lanka" },
+  { city: "Zurich", country: "Switzerland" },
+  { city: "Prague", country: "Czechia" },
+] as const;
