@@ -301,3 +301,157 @@ export const checkTripFlightStatus = createServerFn({ method: "POST" })
       checkedAt: new Date().toISOString(),
     };
   });
+
+export const configureTripFlight = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data: unknown) =>
+    z
+      .object({
+        tripId: z.string().uuid(),
+        flightNumber: z
+          .string()
+          .min(1, "Flight number is required")
+          .transform((s) => s.trim().toUpperCase()),
+        flightDate: z.string().min(1, "Flight date is required"),
+        departureAirport: z
+          .string()
+          .length(3, "Departure airport must be a valid 3-letter IATA code")
+          .transform((s) => s.trim().toUpperCase()),
+        arrivalAirport: z
+          .string()
+          .length(3, "Arrival airport must be a valid 3-letter IATA code")
+          .transform((s) => s.trim().toUpperCase()),
+        airline: z.string().optional().transform((s) => (s ? s.trim() : "")),
+      })
+      .refine((d) => d.departureAirport !== d.arrivalAirport, {
+        message: "Departure and arrival airports cannot be identical.",
+        path: ["arrivalAirport"],
+      })
+      .parse(data)
+  )
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = context;
+
+    // Verify trip ownership
+    const { data: trip } = await supabase
+      .from("trips")
+      .select("id, name, user_id")
+      .eq("id", data.tripId)
+      .eq("user_id", userId)
+      .maybeSingle();
+
+    if (!trip) {
+      throw new Error("Trip not found or access denied.");
+    }
+
+    // Check for existing flight
+    const { data: existingFlights } = await supabase
+      .from("flights")
+      .select("*")
+      .eq("trip_id", data.tripId)
+      .order("created_at", { ascending: false })
+      .limit(1);
+
+    const scheduledDepIso = `${data.flightDate}T09:00:00Z`;
+
+    if (existingFlights && existingFlights.length > 0) {
+      const existing = existingFlights[0]!;
+      const { data: updated, error } = await supabase
+        .from("flights")
+        .update({
+          flight_number: data.flightNumber,
+          departure_airport: data.departureAirport,
+          arrival_airport: data.arrivalAirport,
+          airline: data.airline || existing.airline || "",
+          scheduled_departure: scheduledDepIso,
+          provider: "aviationstack",
+          last_updated: new Date().toISOString(),
+        })
+        .eq("id", existing.id)
+        .select()
+        .single();
+
+      if (error || !updated) {
+        throw new Error(error?.message || "Failed to update flight.");
+      }
+
+      await supabase.from("trip_history").insert({
+        trip_id: data.tripId,
+        event: "flight_updated",
+        detail: `Updated flight ${data.flightNumber} (${data.departureAirport} → ${data.arrivalAirport})`,
+      });
+
+      return updated;
+    } else {
+      const { data: inserted, error } = await supabase
+        .from("flights")
+        .insert({
+          trip_id: data.tripId,
+          flight_number: data.flightNumber,
+          departure_airport: data.departureAirport,
+          arrival_airport: data.arrivalAirport,
+          airline: data.airline || "",
+          scheduled_departure: scheduledDepIso,
+          status: "scheduled",
+          provider: "aviationstack",
+        })
+        .select()
+        .single();
+
+      if (error || !inserted) {
+        throw new Error(error?.message || "Failed to add flight.");
+      }
+
+      await supabase.from("trip_history").insert({
+        trip_id: data.tripId,
+        event: "flight_added",
+        detail: `Added flight ${data.flightNumber} (${data.departureAirport} → ${data.arrivalAirport})`,
+      });
+
+      return inserted;
+    }
+  });
+
+export const removeTripFlight = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data: unknown) =>
+    z
+      .object({
+        tripId: z.string().uuid(),
+        flightId: z.string().uuid(),
+      })
+      .parse(data)
+  )
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = context;
+
+    // Verify trip ownership
+    const { data: trip } = await supabase
+      .from("trips")
+      .select("id, user_id")
+      .eq("id", data.tripId)
+      .eq("user_id", userId)
+      .maybeSingle();
+
+    if (!trip) {
+      throw new Error("Trip not found or access denied.");
+    }
+
+    const { error } = await supabase
+      .from("flights")
+      .delete()
+      .eq("id", data.flightId)
+      .eq("trip_id", data.tripId);
+
+    if (error) {
+      throw new Error(error.message || "Failed to remove flight.");
+    }
+
+    await supabase.from("trip_history").insert({
+      trip_id: data.tripId,
+      event: "flight_removed",
+      detail: "Flight configuration removed from trip.",
+    });
+
+    return { success: true };
+  });

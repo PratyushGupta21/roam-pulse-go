@@ -33,11 +33,14 @@ import {
   CloudRain,
   Sun,
   Thermometer,
+  Pencil,
 } from "lucide-react";
 import { useMemo, useState } from "react";
 
 import { DemoBadge, StatusBadge } from "@/components/app/StatusBadge";
 import { Logo } from "@/components/brand/Logo";
+import { ConfigureFlightModal } from "@/components/flights/ConfigureFlightModal";
+import { DeleteFlightModal } from "@/components/flights/DeleteFlightModal";
 import { TripMap } from "@/components/maps/TripMap";
 import { DeleteTripModal } from "@/components/trips/DeleteTripModal";
 import { DuplicateTripModal } from "@/components/trips/DuplicateTripModal";
@@ -82,6 +85,8 @@ function TripDetailsPage() {
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showDuplicateModal, setShowDuplicateModal] = useState(false);
+  const [showConfigureFlightModal, setShowConfigureFlightModal] = useState(false);
+  const [showDeleteFlightModal, setShowDeleteFlightModal] = useState(false);
   const [noticeMessage, setNoticeMessage] = useState<string | null>(null);
   const [selectedItineraryItemId, setSelectedItineraryItemId] = useState<string | null>(null);
 
@@ -1281,10 +1286,45 @@ function TripDetailsPage() {
                           </>
                         )}
                       </Button>
+
+                      <div className="flex items-center gap-2 pt-1 border-t border-border/60">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setShowConfigureFlightModal(true)}
+                          className="flex-1 gap-1.5 text-xs font-semibold"
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                          <span>Edit Flight</span>
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setShowDeleteFlightModal(true)}
+                          className="flex-1 gap-1.5 text-xs font-semibold text-destructive border-destructive/30 hover:bg-destructive/10"
+                        >
+                          <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                          <span>Remove Flight</span>
+                        </Button>
+                      </div>
                     </div>
                   ) : (
-                    <div className="space-y-3 text-xs text-muted-foreground">
-                      <p>No flight has been configured for this trip yet.</p>
+                    <div className="space-y-3 text-xs">
+                      <p className="text-muted-foreground leading-relaxed">
+                        No flight has been configured for this trip yet.
+                      </p>
+                      <Button
+                        type="button"
+                        variant="default"
+                        size="sm"
+                        onClick={() => setShowConfigureFlightModal(true)}
+                        className="w-full gap-2 text-xs font-semibold shadow-xs"
+                      >
+                        <Plus className="h-4 w-4" />
+                        <span>Add Flight</span>
+                      </Button>
                     </div>
                   )}
                 </div>
@@ -1546,6 +1586,37 @@ function TripDetailsPage() {
                 sourceEndDate={trip.end_date}
                 isOpen={showDuplicateModal}
                 onClose={() => setShowDuplicateModal(false)}
+              />
+            ) : null}
+
+            {trip ? (
+              <ConfigureFlightModal
+                open={showConfigureFlightModal}
+                onOpenChange={setShowConfigureFlightModal}
+                tripId={trip.id}
+                defaultDate={trip.start_date}
+                existingFlight={flight}
+                onSuccess={() => {
+                  void queryClient.invalidateQueries({ queryKey: ["trip", tripId] });
+                  void queryClient.invalidateQueries({ queryKey: ["flights", tripId] });
+                  void queryClient.invalidateQueries({ queryKey: ["history", tripId] });
+                  setNoticeMessage(flight ? "Flight configuration updated." : "Flight configured successfully.");
+                }}
+              />
+            ) : null}
+
+            {trip && flight ? (
+              <DeleteFlightModal
+                open={showDeleteFlightModal}
+                onOpenChange={setShowDeleteFlightModal}
+                tripId={trip.id}
+                flight={flight}
+                onSuccess={() => {
+                  void queryClient.invalidateQueries({ queryKey: ["trip", tripId] });
+                  void queryClient.invalidateQueries({ queryKey: ["flights", tripId] });
+                  void queryClient.invalidateQueries({ queryKey: ["history", tripId] });
+                  setNoticeMessage("Flight removed from trip.");
+                }}
               />
             ) : null}
           </>
