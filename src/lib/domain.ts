@@ -45,7 +45,17 @@ export const tripInputSchema = z.object({
     pace: z.enum(["relaxed", "moderate", "packed"]).default("moderate"),
     transport: z.enum(["walking", "public_transit", "rideshare", "rental_car"]).default("public_transit"),
     accommodation: z.enum(["hostel", "budget_hotel", "boutique", "hotel", "resort"]).default("budget_hotel"),
+    country: z.string().max(80).optional(),
+    tripStyles: z.array(z.string().max(40)).max(12).optional(),
+    budgetLevel: z.enum(["budget", "moderate", "premium", "luxury"]).optional(),
+    foodPreference: z.enum(["street_food", "local_casual", "mixed", "fine_dining"]).optional(),
+    wakeUpTime: z.string().regex(/^\d{2}:\d{2}$/).optional(),
+    maxTravelMinutes: z.number().int().min(5).max(240).optional(),
+    dietary: z.array(z.string().max(40)).max(12).optional(),
+    accessibility: z.array(z.string().max(60)).max(12).optional(),
+    specialRequests: z.string().max(600).optional(),
   }),
+
   recoveryMode: z.enum(RECOVERY_MODES),
   automationSettings: z.object({
     maxExtraSpend: z.number().min(0).max(10_000_000).default(2000),
