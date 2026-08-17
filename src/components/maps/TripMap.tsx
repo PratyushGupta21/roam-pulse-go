@@ -133,6 +133,27 @@ function createCustomDivIcon(item: ItineraryItem, isSelected: boolean, index: nu
   });
 }
 
+export function getCityCoordinates(city?: string): [number, number] | null {
+  if (!city) return null;
+  const norm = city.toLowerCase().trim();
+  if (norm.includes("shimla")) return [31.1048, 77.1734];
+  if (norm.includes("kohima")) return [25.6747, 94.11];
+  if (norm.includes("jaipur")) return [26.9124, 75.7873];
+  if (norm.includes("delhi")) return [28.6139, 77.209];
+  if (norm.includes("mumbai")) return [19.076, 72.8777];
+  if (norm.includes("goa")) return [15.2993, 74.124];
+  if (norm.includes("paris")) return [48.8566, 2.3522];
+  if (norm.includes("tokyo")) return [35.6762, 139.6503];
+  if (norm.includes("london")) return [51.5074, -0.1278];
+  if (norm.includes("new york")) return [40.7128, -74.006];
+  if (norm.includes("bangalore") || norm.includes("bengaluru")) return [12.9716, 77.5946];
+  if (norm.includes("manali")) return [32.2432, 77.1892];
+  if (norm.includes("agra")) return [27.1767, 78.0081];
+  if (norm.includes("varanasi")) return [25.3176, 82.9739];
+  if (norm.includes("udaipur")) return [24.5854, 73.7125];
+  return null;
+}
+
 export function TripMap({ items = [], selectedItemId, onSelectItem, destination }: TripMapProps) {
   const [selectedDay, setSelectedDay] = useState<string>("all");
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
@@ -199,13 +220,15 @@ export function TripMap({ items = [], selectedItemId, onSelectItem, destination 
     };
   }, [mappedItems]);
 
-  // Default initial center (first mapped coordinate or default fallback)
+  // Default initial center (first mapped coordinate or destination lookup)
   const initialCenter: [number, number] = useMemo(() => {
     if (mappedItems.length > 0 && mappedItems[0]?.latitude && mappedItems[0]?.longitude) {
       return [mappedItems[0].latitude, mappedItems[0].longitude];
     }
-    return [26.9124, 75.7873]; // Jaipur fallback
-  }, [mappedItems]);
+    const cityCoords = getCityCoordinates(destination);
+    if (cityCoords) return cityCoords;
+    return [31.1048, 77.1734]; // Default destination center
+  }, [mappedItems, destination]);
 
   return (
     <div className="flex flex-col rounded-2xl border border-border bg-card shadow-panel overflow-hidden space-y-3">

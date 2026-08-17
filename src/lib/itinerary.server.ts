@@ -217,6 +217,10 @@ export function isDuplicateOrNearDuplicate(
   if (candNormTitle.length < 3) return false;
 
   return existingItems.some((existing) => {
+    if (candidate.day_date !== existing.day_date) {
+      return false;
+    }
+
     const existKey = generateUniquenessKey(existing);
     if (candKey === existKey) return true;
 
@@ -339,6 +343,142 @@ export function validateAndCleanItineraryItems(
             : "any",
       };
     });
+}
+
+/**
+ * Guarantees that every date in the trip range has itinerary items.
+ * Fills missing dates automatically to eliminate skipped intermediate days.
+ */
+export function guaranteeAllDatesPresent(
+  items: GeneratedItem[],
+  input: TripInput,
+  realPlaces: RealPlace[],
+): GeneratedItem[] {
+  const expectedDates = dayList(input.startDate, input.endDate);
+  const presentDates = new Set(items.map((i) => i.day_date));
+  const missingDates = expectedDates.filter((d) => !presentDates.has(d));
+
+  if (missingDates.length === 0) {
+    return items;
+  }
+
+  console.warn(
+    `[RoamPulse] Missing dates detected: ${missingDates.join(", ")}; repairing date gaps now...`,
+  );
+
+  const repaired = [...items];
+
+  missingDates.forEach((missingDay, idx) => {
+    const dayPlaces =
+      realPlaces.length > 0
+        ? realPlaces.filter(
+            (_, pIdx) => pIdx % missingDates.length === idx || realPlaces.length <= 3,
+          )
+        : [];
+
+    if (dayPlaces.length > 0) {
+      dayPlaces.forEach((p, pIdx) => {
+        const startTime = pIdx === 0 ? "10:00" : pIdx === 1 ? "12:30" : "15:00";
+        const duration = p.category === "restaurant" ? 75 : 120;
+        const endTime = addMinutes(startTime, duration);
+
+        repaired.push({
+          title: p.name,
+          description: p.description || `Explore ${p.name} in ${input.destination}.`,
+          day_date: missingDay,
+          start_time: startTime,
+          end_time: endTime,
+          category: p.category,
+          location: p.address || input.destination,
+          latitude: p.latitude ?? null,
+          longitude: p.longitude ?? null,
+          estimated_cost: Math.round(
+            (p.estimatedCostMin ?? 300) * (input.currency === "USD" ? 0.012 : 1),
+          ),
+          cost_type: p.costType || "estimated",
+          opening_hours: p.openingHours || null,
+          rating: p.rating ?? 4.5,
+          verification_status: "verified",
+          why_fits: `Popular ${p.category} in ${input.destination}`,
+          travel_minutes: 20,
+          indoor_outdoor: "mixed",
+          weather_suitability: "any",
+          booking_url: null,
+          is_locked: false,
+          uniqueness_key: generateUniquenessKey({
+            title: p.name,
+            category: p.category,
+            location: input.destination,
+          }),
+        });
+      });
+    } else {
+      repaired.push({
+        title: `${input.destination} Historic Promenade & Landmarks`,
+        description: `Visit iconic historic sites and local landmarks in ${input.destination}.`,
+        day_date: missingDay,
+        start_time: "10:00",
+        end_time: "12:00",
+        category: "culture",
+        location: input.destination,
+        latitude: null,
+        longitude: null,
+        estimated_cost: Math.round(input.currency === "USD" ? 5 : 250),
+        cost_type: "estimated",
+        verification_status: "estimated",
+        travel_minutes: 20,
+        indoor_outdoor: "mixed",
+        weather_suitability: "any",
+        booking_url: null,
+        is_locked: false,
+        uniqueness_key: `repaired_${missingDay}_1`,
+      });
+
+      repaired.push({
+        title: `Lunch near ${input.destination} Town Center`,
+        description: `Sample regional specialties and local dining in ${input.destination}.`,
+        day_date: missingDay,
+        start_time: "12:30",
+        end_time: "13:30",
+        category: "food",
+        location: input.destination,
+        latitude: null,
+        longitude: null,
+        estimated_cost: Math.round(input.currency === "USD" ? 8 : 500),
+        cost_type: "estimated",
+        verification_status: "estimated",
+        travel_minutes: 15,
+        indoor_outdoor: "indoor",
+        weather_suitability: "any",
+        booking_url: null,
+        is_locked: false,
+        uniqueness_key: `repaired_${missingDay}_2`,
+      });
+
+      repaired.push({
+        title: `${input.destination} Scenic Viewpoint & Gardens`,
+        description: `Enjoy scenic views and local atmosphere in ${input.destination}.`,
+        day_date: missingDay,
+        start_time: "14:30",
+        end_time: "16:30",
+        category: "nature",
+        location: input.destination,
+        latitude: null,
+        longitude: null,
+        estimated_cost: 0,
+        cost_type: "free",
+        verification_status: "estimated",
+        travel_minutes: 20,
+        indoor_outdoor: "outdoor",
+        weather_suitability: "any",
+        booking_url: null,
+        is_locked: false,
+        uniqueness_key: `repaired_${missingDay}_3`,
+      });
+    }
+  });
+
+  return repaired;
 }
 
 /**
@@ -495,13 +635,50 @@ export function fallbackItinerary(
 
   const rawItems: GeneratedItem[] = [];
 
+  const fallbackTemplates = [
+    {
+      name: `${input.destination} Historic Mall & Promenade`,
+      category: "culture",
+      cost: 200,
+      time: "10:00",
+    },
+    {
+      name: `Lunch near ${input.destination} City Center`,
+      category: "food",
+      cost: 500,
+      time: "12:30",
+    },
+    {
+      name: `${input.destination} Botanical Gardens & Viewpoint`,
+      category: "nature",
+      cost: 150,
+      time: "14:30",
+    },
+    {
+      name: `${input.destination} State Museum & Heritage Center`,
+      category: "culture",
+      cost: 250,
+      time: "10:00",
+    },
+    { name: `Regional Dining in ${input.destination}`, category: "food", cost: 600, time: "13:00" },
+    {
+      name: `${input.destination} Local Handicrafts Market`,
+      category: "shopping",
+      cost: 300,
+      time: "15:00",
+    },
+  ];
+
   days.forEach((day, dayIndex) => {
     let currentTimeMins = 9 * 60;
     if (dayIndex === 0) {
       currentTimeMins = minutesOf(input.arrivalTime || "14:00") + 120;
     }
 
-    const dayPlaces = places.slice(dayIndex * 3, dayIndex * 3 + 3);
+    const dayPlaces =
+      places.length > 0
+        ? places.filter((_, idx) => idx % days.length === dayIndex || places.length <= 3)
+        : [];
 
     if (dayPlaces.length > 0) {
       dayPlaces.forEach((p) => {
@@ -545,34 +722,64 @@ export function fallbackItinerary(
         });
       });
     } else {
-      const backupTitle = `${input.destination} Central Landmark & Culture`;
+      const t1 = fallbackTemplates[(dayIndex * 2) % fallbackTemplates.length]!;
+      const t2 = fallbackTemplates[(dayIndex * 2 + 1) % fallbackTemplates.length]!;
+
+      const startTime1 = dayIndex === 0 ? "16:00" : "09:30";
+      const endTime1 = addMinutes(startTime1, 120);
+
       rawItems.push({
-        title: backupTitle,
-        description: `Discover iconic landmarks, cultural venues, and local dining in ${input.destination}.`,
+        title: t1.name,
+        description: `Explore iconic sights and cultural landmarks in ${input.destination}.`,
         day_date: day,
-        start_time: "10:00",
-        end_time: "13:00",
-        category: "culture",
+        start_time: startTime1,
+        end_time: endTime1,
+        category: t1.category,
         location: input.destination,
         latitude: null,
         longitude: null,
-        estimated_cost: Math.round(input.currency === "USD" ? 15 : 800),
-        cost_type: "estimated",
+        estimated_cost: Math.round(t1.cost * (input.currency === "USD" ? 0.012 : 1)),
+        cost_type: t1.cost === 0 ? "free" : "estimated",
         verification_status: "estimated",
         travel_minutes: 20,
         indoor_outdoor: "mixed",
         weather_suitability: "any",
         booking_url: null,
         is_locked: false,
-        uniqueness_key: generateUniquenessKey({ title: backupTitle, location: input.destination }),
+        uniqueness_key: `fallback_${dayIndex}_1`,
+      });
+
+      const startTime2 = "14:00";
+      const endTime2 = addMinutes(startTime2, 120);
+
+      rawItems.push({
+        title: t2.name,
+        description: `Enjoy local activities and scenic locations in ${input.destination}.`,
+        day_date: day,
+        start_time: startTime2,
+        end_time: endTime2,
+        category: t2.category,
+        location: input.destination,
+        latitude: null,
+        longitude: null,
+        estimated_cost: Math.round(t2.cost * (input.currency === "USD" ? 0.012 : 1)),
+        cost_type: t2.cost === 0 ? "free" : "estimated",
+        verification_status: "estimated",
+        travel_minutes: 20,
+        indoor_outdoor: "mixed",
+        weather_suitability: "any",
+        booking_url: null,
+        is_locked: false,
+        uniqueness_key: `fallback_${dayIndex}_2`,
       });
     }
   });
 
-  return validateAndCleanItineraryItems(
+  const cleaned = validateAndCleanItineraryItems(
     enforceArrivalAndDepartureConstraints(rawItems, input),
     input,
   );
+  return guaranteeAllDatesPresent(cleaned, input, places);
 }
 
 /**
@@ -584,8 +791,7 @@ export async function generateItinerary(
 ): Promise<{ items: GeneratedItem[]; source: "ai" | "fallback"; error: string | null }> {
   const mode = options?.mode || (options?.isRegeneration ? "regenerate" : "initial");
   const genId = options?.generationId || crypto.randomUUID();
-
-  console.log(`[RoamPulse] Gemini itinerary generation started | generationId: ${genId}`);
+  const days = dayList(input.startDate, input.endDate);
 
   const geminiApiKey = process.env["GEMINI_API_KEY"]?.trim();
   const gatewayApiKey = (
@@ -594,6 +800,14 @@ export async function generateItinerary(
 
   const isGeminiConfigured = Boolean(geminiApiKey && geminiApiKey.length > 0);
   const isGatewayConfigured = Boolean(gatewayApiKey && gatewayApiKey.length > 0);
+
+  console.log(`[RoamPulse] GENERATION START | generationId: ${genId}`);
+  console.log(`[RoamPulse] destination: ${input.destination}`);
+  console.log(`[RoamPulse] trip start date: ${input.startDate}`);
+  console.log(`[RoamPulse] trip end date: ${input.endDate}`);
+  console.log(`[RoamPulse] expected day count: ${days.length}`);
+  console.log(`[RoamPulse] Gemini API key present: ${isGeminiConfigured}`);
+  console.log(`[RoamPulse] Gemini model: ${MODEL}`);
 
   // Fetch real-world place data for destination (Google Places / Curated / OSM)
   const realPlaces = await fetchRealWorldPlaces(input.destination, input.interests);
@@ -610,13 +824,11 @@ export async function generateItinerary(
 
   if (!isGeminiConfigured && !isGatewayConfigured) {
     console.warn(
-      "[RoamPulse] Using fallback itinerary because Gemini failed (No API keys configured)",
+      "[RoamPulse] Using fallback itinerary because Gemini failed (GEMINI_API_KEY is missing/unconfigured in environment)",
     );
-    const items = fallbackItinerary(input, { ...options, realPlacesOverride: realPlaces });
-    return { items, source: "fallback", error: null };
+    const fallbackItems = fallbackItinerary(input, { ...options, realPlacesOverride: realPlaces });
+    return { items: fallbackItems, source: "fallback", error: null };
   }
-
-  const days = dayList(input.startDate, input.endDate);
 
   const promptParts = [
     `You are an expert, local travel planner creating a practical, real-world ${days.length}-day travel itinerary for ${input.destination} (traveling from ${input.origin}).`,
@@ -630,18 +842,18 @@ export async function generateItinerary(
     `CRITICAL REAL-WORLD REQUIREMENTS:`,
     `1. REAL PLACE SELECTION ONLY: You MUST select attractions, museums, markets, landmarks, parks, and restaurants ONLY from the verified real-place list provided below. NEVER invent or hallucinate fictional venue names.`,
     `2. NO GENERIC ACTIVITY TITLES: NEVER emit generic activity titles like "Sightseeing & Local Exploration", "Explore the city", "Explore local attractions", "Discover the city", "Explore historic attractions", "City sightseeing", or "Free time". EVERY activity title MUST be the exact name of a real place or specific venue (e.g. "Kohima War Cemetery", "Nagaland State Museum", "Naga Bazaar", "Lunch at Dzüko Cafe").`,
-    `3. DAILY STRUCTURE & MEALS:`,
-    `   - For full days, create 3 to 5 distinct activities.`,
+    `3. COMPLETE DAY-BY-DAY COVERAGE: You MUST generate 3 to 5 items for EVERY date in the list (${days.join(", ")}). NEVER skip an intermediate date.`,
+    `4. DAILY STRUCTURE & MEALS:`,
     `   - Include lunch (around 12:30 - 13:30) and dinner (around 19:30 - 20:30) at real restaurant candidates from the list whenever available.`,
     `   - Provide realistic time slots (e.g. 09:00–10:30, 10:50–12:15, 12:30–13:30 lunch, 14:00–16:00, 16:30–18:00). Leave realistic 15–30 minute buffers for travel between places.`,
-    `4. GEOGRAPHIC CLUSTERING: Group nearby venues together on the same day so travelers don't waste hours crisscrossing the city.`,
-    `5. ARRIVAL & DEPARTURE TIMING:`,
+    `5. GEOGRAPHIC CLUSTERING: Group nearby venues together on the same day so travelers don't waste hours crisscrossing the city.`,
+    `6. ARRIVAL & DEPARTURE TIMING:`,
     `   - Day 1: Do NOT schedule any morning activities before arrival time (${input.arrivalTime || "14:00"}). Start Day 1 with arrival transfer, hotel check-in, and an evening dinner/activity.`,
     `   - Final Day: Conclude major tours at least 3 hours prior to departure (${input.departureTime || "16:00"}). Include hotel checkout and station/airport transfer.`,
-    `6. PACING & INTEREST MATCHING:`,
+    `7. PACING & INTEREST MATCHING:`,
     `   - Match pace "${input.preferences.pace}": ${input.preferences.pace === "relaxed" ? "2-3 leisurely items/day with longer breaks" : input.preferences.pace === "packed" ? "4-5 active items/day" : "3-4 balanced items/day"}.`,
     `   - Align activities directly with user interests: ${input.interests.join(", ")}.`,
-    `7. REALISTIC COSTS:`,
+    `8. REALISTIC COSTS:`,
     `   - Estimate realistic costs per item in ${input.currency} (e.g. 0 for free public places, 200–500 for entry tickets/dining). Use clean rounded numbers.`,
   ];
 
@@ -684,9 +896,7 @@ export async function generateItinerary(
       let rawJsonText: string | null = null;
 
       if (isGeminiConfigured) {
-        console.log(
-          `[RoamPulse] Gemini API call attempt ${attempt} for model ${MODEL} | generationId: ${genId}`,
-        );
+        console.log(`[RoamPulse] Gemini request started | attempt: ${attempt}`);
         const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${geminiApiKey}`;
         const res = await fetch(geminiUrl, {
           method: "POST",
@@ -706,6 +916,8 @@ export async function generateItinerary(
           }),
         });
 
+        console.log(`[RoamPulse] Gemini HTTP status: ${res.status}`);
+
         if (res.ok) {
           const geminiData = (await res.json()) as {
             candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
@@ -720,6 +932,7 @@ export async function generateItinerary(
       }
 
       if (!rawJsonText && isGatewayConfigured) {
+        console.log(`[RoamPulse] Gemini Gateway request started | attempt: ${attempt}`);
         const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
           method: "POST",
           headers: { authorization: `Bearer ${gatewayApiKey}`, "content-type": "application/json" },
@@ -803,6 +1016,8 @@ export async function generateItinerary(
           }),
         });
 
+        console.log(`[RoamPulse] Gemini Gateway HTTP status: ${res.status}`);
+
         if (res.ok) {
           const json = (await res.json()) as {
             choices?: { message?: { tool_calls?: { function?: { arguments?: string } }[] } }[];
@@ -815,7 +1030,7 @@ export async function generateItinerary(
         throw new Error("No response content returned from AI services.");
       }
 
-      console.log("[RoamPulse] Gemini response received");
+      console.log(`[RoamPulse] Gemini response received | length: ${rawJsonText.length}`);
 
       const extractedJson = extractJsonFromText(rawJsonText);
       let jsonParsed: unknown;
@@ -833,8 +1048,14 @@ export async function generateItinerary(
         throw new Error(`Validation failed: ${parsed.error.message}`);
       }
 
+      const rawItems = parsed.data.items;
+      console.log(`[RoamPulse] Gemini generated item count: ${rawItems.length}`);
+      console.log(
+        `[RoamPulse] Gemini generated dates: ${Array.from(new Set(rawItems.map((i) => i.day_date))).join(", ")}`,
+      );
+
       // Real-place matching & metadata attachment
-      const matchedItems = parsed.data.items.map((item) => {
+      const matchedItems = rawItems.map((item) => {
         if (realPlaces.length > 0) {
           const matched = realPlaces.find((p) => {
             const normP = normalizeTitle(p.name);
@@ -882,7 +1103,13 @@ export async function generateItinerary(
 
       const clusteredItems = clusterAndSortItemsByProximity(constrainedItems);
 
-      const finalItems = validateAndCleanItineraryItems(clusteredItems, input);
+      const cleanedItems = validateAndCleanItineraryItems(clusteredItems, input);
+
+      // GUARANTEE date coverage for every date in range
+      const finalItems = guaranteeAllDatesPresent(cleanedItems, input, realPlaces);
+
+      console.log(`[RoamPulse] validation item count: ${cleanedItems.length}`);
+      console.log(`[RoamPulse] final item count: ${finalItems.length}`);
 
       const hasAccommodation = finalItems.some(
         (i) => i.category === "accommodation" || i.title.toLowerCase().startsWith("accommodation:"),
@@ -938,8 +1165,9 @@ export async function generateItinerary(
         finalItems.unshift(accommodationItem);
       }
 
+      console.log(`[RoamPulse] fallback used: false`);
       console.log(
-        `[RoamPulse] Gemini itinerary generation succeeded with ${finalItems.length} items`,
+        `[RoamPulse] GENERATION COMPLETE | Gemini itinerary succeeded with ${finalItems.length} items`,
       );
       return {
         items: finalItems,
@@ -950,21 +1178,30 @@ export async function generateItinerary(
       const errMsg = err instanceof Error ? err.message : String(err);
       console.warn(`[RoamPulse] Gemini itinerary attempt ${attempt} failed: ${errMsg}`);
       if (attempt === maxAttempts) {
-        console.warn("[RoamPulse] Using fallback itinerary because Gemini failed");
-        const items = fallbackItinerary(input, { ...options, realPlacesOverride: realPlaces });
+        console.warn(
+          "[RoamPulse] Using fallback itinerary because Gemini failed (Attempts exhausted)",
+        );
+        const fallbackItems = fallbackItinerary(input, {
+          ...options,
+          realPlacesOverride: realPlaces,
+        });
+        console.log(`[RoamPulse] fallback used: true`);
+        console.log(`[RoamPulse] GENERATION COMPLETE`);
         return {
-          items,
+          items: fallbackItems,
           source: "fallback",
-          error: "AI planner is temporarily busy — generated a diverse backup schedule.",
+          error: "AI planner is temporarily busy — generated a backup schedule.",
         };
       }
     }
   }
 
   console.warn("[RoamPulse] Using fallback itinerary because Gemini failed");
-  const items = fallbackItinerary(input, { ...options, realPlacesOverride: realPlaces });
+  const fallbackItems = fallbackItinerary(input, { ...options, realPlacesOverride: realPlaces });
+  console.log(`[RoamPulse] fallback used: true`);
+  console.log(`[RoamPulse] GENERATION COMPLETE`);
   return {
-    items,
+    items: fallbackItems,
     source: "fallback",
     error: null,
   };

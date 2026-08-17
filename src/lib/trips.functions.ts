@@ -233,10 +233,12 @@ export const generateTripItinerary = createServerFn({ method: "POST" })
     const generated = await generateItinerary(tripInput, {
       mode,
       generationId,
-      previousTitles,
+      previousTitles: data.replaceExisting ? [] : previousTitles,
       lockedItems: lockedItems as unknown as GeneratedItem[],
       isRegeneration: mode === "regenerate",
     });
+
+    console.log(`[RoamPulse] Items generated: ${generated.items.length}`);
 
     // 5. Clear old unlocked active items if replaceExisting is true (preserves user-locked items and replaced history items!)
     if (data.replaceExisting) {
@@ -274,13 +276,17 @@ export const generateTripItinerary = createServerFn({ method: "POST" })
 
       // Check slot or title collision WITH PRESERVED LOCKED ITEMS in DB
       const collidesWithLocked = lockedTrackingList.some((locked) => {
-        // Time slot collision with a preserved locked activity
+        // Time slot collision with a preserved locked activity on the same day
         if (item.day_date === locked.day_date && item.start_time === locked.start_time) {
           return true;
         }
-        // Exact title collision with a preserved locked activity
+        // Exact title collision with a preserved locked activity on the same day
         const lockedNormTitle = normalizeTitle(locked.title);
-        if (candNormTitle === lockedNormTitle && candNormTitle.length > 2) {
+        if (
+          item.day_date === locked.day_date &&
+          candNormTitle === lockedNormTitle &&
+          candNormTitle.length > 2
+        ) {
           return true;
         }
         return false;
@@ -291,13 +297,17 @@ export const generateTripItinerary = createServerFn({ method: "POST" })
         continue;
       }
 
-      // Check collision with NEWLY ADDED candidate items inside the current generation run
+      // Check collision with NEWLY ADDED candidate items inside the current generation run on the SAME day
       const collidesWithNewRun = newlyAddedList.some((added) => {
         if (item.day_date === added.day_date && item.start_time === added.start_time) {
           return true;
         }
         const addedNormTitle = normalizeTitle(added.title);
-        if (candNormTitle === addedNormTitle && candNormTitle.length > 2) {
+        if (
+          item.day_date === added.day_date &&
+          candNormTitle === addedNormTitle &&
+          candNormTitle.length > 2
+        ) {
           return true;
         }
         const addedKey = generateUniquenessKey(
@@ -309,7 +319,7 @@ export const generateTripItinerary = createServerFn({ method: "POST" })
             start_time: string;
           },
         );
-        if (candKey === addedKey) {
+        if (item.day_date === added.day_date && candKey === addedKey) {
           return true;
         }
         return false;
@@ -350,6 +360,8 @@ export const generateTripItinerary = createServerFn({ method: "POST" })
       }
     }
 
+    console.log(`[RoamPulse] Items prepared for database: ${rowsToInsert.length}`);
+
     if (rowsToInsert.length > 0) {
       const geocodedRows = await geocodeItineraryItems(rowsToInsert, trip.destination as string);
       const { error: insertErr } = await supabase.from("itinerary_items").insert(geocodedRows);
@@ -357,7 +369,7 @@ export const generateTripItinerary = createServerFn({ method: "POST" })
         throw new Error("Failed to save itinerary items to database.");
       }
       console.log(
-        `[REGENERATE] inserted ${rowsToInsert.length} new geocoded items into Supabase | generationId: ${generationId}`,
+        `[RoamPulse] Items inserted into database: ${rowsToInsert.length} | generationId: ${generationId}`,
       );
     }
 
