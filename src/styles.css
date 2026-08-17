@@ -309,13 +309,42 @@
 
 /* Level 3: Authenticated Application / Dashboard atmosphere */
 @utility bg-app-atmosphere {
-  background-color: color-mix(in oklab, var(--primary) 2.5%, var(--color-background));
-  background-image:
-    radial-gradient(at 10% 10%, color-mix(in oklab, var(--primary) 5%, transparent) 0px, transparent 45%),
-    radial-gradient(at 90% 15%, color-mix(in oklab, var(--accent) 3.5%, transparent) 0px, transparent 40%),
-    radial-gradient(at 50% 90%, color-mix(in oklab, var(--primary) 4%, transparent) 0px, transparent 50%),
-    linear-gradient(to right, oklch(0.29 0.04 258 / 0.02) 1px, transparent 1px),
-    linear-gradient(to bottom, oklch(0.29 0.04 258 / 0.02) 1px, transparent 1px);
-  background-size: auto, auto, auto, 32px 32px, 32px 32px;
+  position: relative;
+  isolation: isolate;
+  background-color: var(--color-background);
+
+  &::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: -10;
+    background-image:
+      linear-gradient(
+        to bottom,
+        color-mix(in oklab, var(--color-background) 88%, transparent),
+        color-mix(in oklab, var(--color-background) 94%, transparent)
+      ),
+      url('/dashboard-bg.jpg');
+    background-size: cover;
+    background-position: center 30%;
+    background-repeat: no-repeat;
+    pointer-events: none;
+  }
+
+  &::after {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: -9;
+    background-image:
+      radial-gradient(at 10% 10%, color-mix(in oklab, var(--primary) 4%, transparent) 0px, transparent 45%),
+      radial-gradient(at 90% 15%, color-mix(in oklab, var(--accent) 3%, transparent) 0px, transparent 40%),
+      linear-gradient(to right, oklch(0.29 0.04 258 / 0.015) 1px, transparent 1px),
+      linear-gradient(to bottom, oklch(0.29 0.04 258 / 0.015) 1px, transparent 1px);
+    background-size: auto, auto, 32px 32px, 32px 32px;
+    pointer-events: none;
+  }
 }
+
+
 
