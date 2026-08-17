@@ -52,8 +52,8 @@ const weatherCache = new Map<string, { data: OpenMeteoResponse; expiresAt: numbe
 const CACHE_TTL_MS = 10 * 60 * 1000; // 10 minutes
 
 /**
-  * WMO Weather Interpretation Codes to human readable label & icon.
-  */
+ * WMO Weather Interpretation Codes to human readable label & icon.
+ */
 export function formatWmoWeatherCode(code: number): { label: string; icon: string } {
   switch (code) {
     case 0:
@@ -107,9 +107,9 @@ export function formatWmoWeatherCode(code: number): { label: string; icon: strin
 }
 
 /**
-  * Server-side Open-Meteo forecast client.
-  * Free keyless API fetching hourly weather metrics.
-  */
+ * Server-side Open-Meteo forecast client.
+ * Free keyless API fetching hourly weather metrics.
+ */
 export async function fetchOpenMeteoForecast({
   latitude,
   longitude,
@@ -164,9 +164,9 @@ export async function fetchOpenMeteoForecast({
 }
 
 /**
-  * Weather Risk Evaluation Engine.
-  * Compares itinerary activity time windows against Open-Meteo hourly metrics.
-  */
+ * Weather Risk Evaluation Engine.
+ * Compares itinerary activity time windows against Open-Meteo hourly metrics.
+ */
 export function evaluateActivityWeather(
   item: {
     id: string;
@@ -178,7 +178,7 @@ export function evaluateActivityWeather(
     is_locked?: boolean | null;
     status?: string | null;
   },
-  forecast: OpenMeteoResponse | null
+  forecast: OpenMeteoResponse | null,
 ): ActivityWeatherEvaluation {
   const itemType = (item.indoor_outdoor || "outdoor").toLowerCase();
 
@@ -204,7 +204,8 @@ export function evaluateActivityWeather(
     return defaultEval;
   }
 
-  const { time, precipitation_probability, precipitation, weather_code, temperature_2m } = forecast.hourly;
+  const { time, precipitation_probability, precipitation, weather_code, temperature_2m } =
+    forecast.hourly;
 
   const startMin = minutesOf(item.start_time);
   const endMin = minutesOf(item.end_time);

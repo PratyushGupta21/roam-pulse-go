@@ -59,8 +59,14 @@ export function formatActivityPrice(
   isExplicitFree?: boolean,
   title?: string,
   category?: string,
+  costMin?: number | null,
+  costMax?: number | null,
+  costType?: string | null,
 ): ActivityPriceDisplay {
-  const isFree = isExplicitFree || (cost === 0 && isExplicitlyFreeActivity(title, category));
+  const isFree =
+    costType === "free" ||
+    isExplicitFree ||
+    (cost === 0 && isExplicitlyFreeActivity(title, category));
 
   if (isFree) {
     return {
@@ -78,11 +84,22 @@ export function formatActivityPrice(
     };
   }
 
+  if (costMin && costMax && costMax > costMin) {
+    const minFormatted = formatMoney(costMin, currency);
+    const maxFormatted = formatMoney(costMax, currency);
+    const typeLabel = costType === "listed" ? "listed" : "estimated";
+    return {
+      label: `~${minFormatted} – ${maxFormatted} ${typeLabel}`,
+      status: costType === "listed" ? "live" : "estimated",
+      numericAmount: Math.round((costMin + costMax) / 2),
+    };
+  }
+
   const formattedMoney = formatMoney(cost, currency);
 
-  if (isLive) {
+  if (isLive || costType === "listed") {
     return {
-      label: `${formattedMoney} live`,
+      label: `${formattedMoney} listed`,
       status: "live",
       numericAmount: cost,
     };
@@ -105,7 +122,9 @@ export function formatTime(value: string | null | undefined) {
   return `${display}:${m} ${suffix}`;
 }
 
-export function parseDateParts(dateStr: string | null | undefined): { year: number; month: number; day: number } | null {
+export function parseDateParts(
+  dateStr: string | null | undefined,
+): { year: number; month: number; day: number } | null {
   if (!dateStr || typeof dateStr !== "string") return null;
   const clean = dateStr.slice(0, 10);
   const match = clean.match(/^(\d{4})-(\d{2})-(\d{2})$/);
@@ -124,7 +143,10 @@ export function formatDateStr(year: number, month: number, day: number): string 
   return `${y}-${m}-${d}`;
 }
 
-export function formatDate(value: string | Date | null | undefined, opts?: Intl.DateTimeFormatOptions) {
+export function formatDate(
+  value: string | Date | null | undefined,
+  opts?: Intl.DateTimeFormatOptions,
+) {
   if (!value) return "";
   if (typeof value === "string") {
     const parts = parseDateParts(value);

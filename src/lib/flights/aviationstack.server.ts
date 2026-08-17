@@ -1,11 +1,5 @@
 export type AviationstackStatus =
-  | "scheduled"
-  | "active"
-  | "landed"
-  | "delayed"
-  | "cancelled"
-  | "diverted"
-  | "unknown";
+  "scheduled" | "active" | "landed" | "delayed" | "cancelled" | "diverted" | "unknown";
 
 export interface FlightStatusSnapshot {
   flightNumber: string;
@@ -37,7 +31,11 @@ interface AviationstackFlightRecord {
     number?: string | null;
     iata?: string | null;
     icao?: string | null;
-    codeshared?: { airline_name?: string | null; flight_number?: string | null; flight_iata?: string | null } | null;
+    codeshared?: {
+      airline_name?: string | null;
+      flight_number?: string | null;
+      flight_iata?: string | null;
+    } | null;
   };
   airline?: {
     name?: string | null;
@@ -111,7 +109,9 @@ function getMinutesDifference(scheduled: string | null, estimated: string | null
   return Math.max(diffMinutes, 0);
 }
 
-export function normalizeAviationstackFlight(raw: AviationstackFlightRecord | undefined): FlightStatusSnapshot | null {
+export function normalizeAviationstackFlight(
+  raw: AviationstackFlightRecord | undefined,
+): FlightStatusSnapshot | null {
   if (!raw) return null;
 
   const flightNum = safeString(raw.flight?.number || raw.flight?.iata || raw.flight?.icao);
@@ -131,16 +131,29 @@ export function normalizeAviationstackFlight(raw: AviationstackFlightRecord | un
   const normalizedStatus = normalizeStatus(raw.flight_status);
   const departureDelay = Number(raw.departure?.delay ?? 0);
   const arrivalDelay = Number(raw.arrival?.delay ?? 0);
-  const fallbackDepartureDelay = getMinutesDifference(scheduledDeparture, estimatedDeparture || actualDeparture);
-  const fallbackArrivalDelay = getMinutesDifference(scheduledArrival, estimatedArrival || actualArrival);
+  const fallbackDepartureDelay = getMinutesDifference(
+    scheduledDeparture,
+    estimatedDeparture || actualDeparture,
+  );
+  const fallbackArrivalDelay = getMinutesDifference(
+    scheduledArrival,
+    estimatedArrival || actualArrival,
+  );
 
   const finalStatus: AviationstackStatus =
-    normalizedStatus === "scheduled" && (departureDelay > 0 || arrivalDelay > 0 || fallbackDepartureDelay > 0 || fallbackArrivalDelay > 0)
+    normalizedStatus === "scheduled" &&
+    (departureDelay > 0 ||
+      arrivalDelay > 0 ||
+      fallbackDepartureDelay > 0 ||
+      fallbackArrivalDelay > 0)
       ? "delayed"
       : normalizedStatus;
 
-  const flightDate = safeString(raw.flight_date || scheduledDeparture?.slice(0, 10) || new Date().toISOString().slice(0, 10));
-  const lastUpdated = parseTimestamp(raw.live?.updated ?? new Date().toISOString()) ?? new Date().toISOString();
+  const flightDate = safeString(
+    raw.flight_date || scheduledDeparture?.slice(0, 10) || new Date().toISOString().slice(0, 10),
+  );
+  const lastUpdated =
+    parseTimestamp(raw.live?.updated ?? new Date().toISOString()) ?? new Date().toISOString();
 
   return {
     flightNumber: flightNum || "UNKNOWN",
@@ -253,7 +266,10 @@ export async function fetchAviationstackFlightStatus({
     aviationstackCache.set(cacheKey, { data: normalized, expiresAt: now + CACHE_TTL_MS });
     return { data: normalized, error: null, success: true };
   } catch (error) {
-    console.warn("[Flight] Aviationstack request failed:", error instanceof Error ? error.message : "unknown error");
+    console.warn(
+      "[Flight] Aviationstack request failed:",
+      error instanceof Error ? error.message : "unknown error",
+    );
     return { data: null, error: "Flight status temporarily unavailable.", success: false };
   }
 }

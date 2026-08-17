@@ -16,7 +16,10 @@ export const tripsQuery = () =>
   queryOptions({
     queryKey: ["trips"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("trips").select("*").order("start_date", { ascending: true });
+      const { data, error } = await supabase
+        .from("trips")
+        .select("*")
+        .order("start_date", { ascending: true });
       if (error) throw error;
       return data as Trip[];
     },
@@ -26,7 +29,11 @@ export const tripQuery = (tripId: string) =>
   queryOptions({
     queryKey: ["trip", tripId],
     queryFn: async () => {
-      const { data, error } = await supabase.from("trips").select("*").eq("id", tripId).maybeSingle();
+      const { data, error } = await supabase
+        .from("trips")
+        .select("*")
+        .eq("id", tripId)
+        .maybeSingle();
       if (error) throw error;
       return data as Trip | null;
     },

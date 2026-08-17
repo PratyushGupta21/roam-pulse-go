@@ -1,5 +1,6 @@
 import { itineraryResponseSchema, type GeneratedItem, type TripInput } from "./domain";
 import { addMinutes, formatDateStr, minutesOf, parseDateParts } from "./format";
+import { fetchRealWorldPlaces } from "./places/real-places.server";
 
 const MODEL = "google/gemini-3.5-flash";
 
@@ -33,7 +34,10 @@ export function dayList(start: string, end: string): string[] {
 export function normalizeTitle(title: string): string {
   return title
     .toLowerCase()
-    .replace(/\b(visit|explore|experience|tour|attend|go to|see|famous|historic|historical|local|traditional|morning|evening|afternoon|night|day \d+|discover|stroll|walk|around)\b/g, "")
+    .replace(
+      /\b(visit|explore|experience|tour|attend|go to|see|famous|historic|historical|local|traditional|morning|evening|afternoon|night|day \d+|discover|stroll|walk|around)\b/g,
+      "",
+    )
     .replace(/[^a-z0-9]/g, "")
     .trim();
 }
@@ -41,7 +45,11 @@ export function normalizeTitle(title: string): string {
 /**
  * Generates a unique deterministic key for an itinerary item.
  */
-export function generateUniquenessKey(item: { title: string; category?: string; location?: string }): string {
+export function generateUniquenessKey(item: {
+  title: string;
+  category?: string;
+  location?: string;
+}): string {
   const normTitle = normalizeTitle(item.title);
   const normLoc = item.location ? normalizeTitle(item.location) : "";
   const cat = (item.category || "activity").toLowerCase().trim();
@@ -51,7 +59,10 @@ export function generateUniquenessKey(item: { title: string; category?: string; 
 /**
  * Checks if a candidate activity title/location is a duplicate or near-duplicate of any previously planned activity.
  */
-export function isDuplicateOrNearDuplicate(candidate: GeneratedItem, existingItems: GeneratedItem[]): boolean {
+export function isDuplicateOrNearDuplicate(
+  candidate: GeneratedItem,
+  existingItems: GeneratedItem[],
+): boolean {
   const candKey = generateUniquenessKey(candidate);
   const candNormTitle = normalizeTitle(candidate.title);
 
@@ -93,12 +104,16 @@ export function isDuplicateOrNearDuplicate(candidate: GeneratedItem, existingIte
 /**
  * Validates and cleans itinerary items against trip constraints (date boundary, start < end, non-negative costs).
  */
-export function validateAndCleanItineraryItems(items: GeneratedItem[], input: TripInput): GeneratedItem[] {
+export function validateAndCleanItineraryItems(
+  items: GeneratedItem[],
+  input: TripInput,
+): GeneratedItem[] {
   const validDays = new Set(dayList(input.startDate, input.endDate));
 
   return items
     .filter((item) => {
-      if (!item.title || typeof item.title !== "string" || item.title.trim().length < 2) return false;
+      if (!item.title || typeof item.title !== "string" || item.title.trim().length < 2)
+        return false;
       return true;
     })
     .map((item) => {
@@ -108,7 +123,7 @@ export function validateAndCleanItineraryItems(items: GeneratedItem[], input: Tr
         if (date > input.endDate) date = input.endDate;
       }
 
-      let startTime = item.start_time || "09:00";
+      const startTime = item.start_time || "09:00";
       let endTime = item.end_time || "10:00";
       const startMins = minutesOf(startTime);
       const endMins = minutesOf(endTime);
@@ -129,12 +144,23 @@ export function validateAndCleanItineraryItems(items: GeneratedItem[], input: Tr
         category: (item.category || "activity").toLowerCase().trim(),
         location: (item.location || input.destination).trim(),
         estimated_cost: cost,
+        cost_min: typeof item.cost_min === "number" ? Math.max(0, Math.round(item.cost_min)) : null,
+        cost_max: typeof item.cost_max === "number" ? Math.max(0, Math.round(item.cost_max)) : null,
+        cost_type: item.cost_type || (cost === 0 ? "free" : "estimated"),
+        opening_hours: item.opening_hours || null,
+        rating: typeof item.rating === "number" ? Number(item.rating.toFixed(1)) : null,
+        verification_status: item.verification_status || (item.rating ? "verified" : "estimated"),
+        why_fits: item.why_fits || null,
         indoor_outdoor:
-          item.indoor_outdoor === "outdoor" || item.indoor_outdoor === "indoor" || item.indoor_outdoor === "mixed"
+          item.indoor_outdoor === "outdoor" ||
+          item.indoor_outdoor === "indoor" ||
+          item.indoor_outdoor === "mixed"
             ? item.indoor_outdoor
             : "mixed",
         weather_suitability:
-          item.weather_suitability === "clear_only" || item.weather_suitability === "rain_ok" || item.weather_suitability === "any"
+          item.weather_suitability === "clear_only" ||
+          item.weather_suitability === "rain_ok" ||
+          item.weather_suitability === "any"
             ? item.weather_suitability
             : "any",
       };
@@ -155,7 +181,8 @@ export function scoreCandidateActivity(
   // 1. Interest Matching (+30 pts)
   const userInterests = (input.interests || []).map((i) => i.toLowerCase());
   const matchesInterest = userInterests.some(
-    (interest) => item.category.toLowerCase().includes(interest) || item.title.toLowerCase().includes(interest),
+    (interest) =>
+      item.category.toLowerCase().includes(interest) || item.title.toLowerCase().includes(interest),
   );
   if (matchesInterest) score += 30;
 
@@ -175,7 +202,11 @@ export function scoreCandidateActivity(
   if (dayItemsCount >= 5) score -= 40;
 
   // 5. Pricing Sanity (+15 pts)
-  if (item.estimated_cost > 0 || item.title.toLowerCase().includes("free") || item.title.toLowerCase().includes("viewpoint")) {
+  if (
+    item.estimated_cost > 0 ||
+    item.title.toLowerCase().includes("free") ||
+    item.title.toLowerCase().includes("viewpoint")
+  ) {
     score += 15;
   }
 
@@ -185,7 +216,10 @@ export function scoreCandidateActivity(
 /**
  * Post-processes itinerary items to enforce arrival & departure time constraints, meal windows, and buffers.
  */
-export function enforceArrivalAndDepartureConstraints(items: GeneratedItem[], input: TripInput): GeneratedItem[] {
+export function enforceArrivalAndDepartureConstraints(
+  items: GeneratedItem[],
+  input: TripInput,
+): GeneratedItem[] {
   const days = dayList(input.startDate, input.endDate);
   if (days.length === 0) return items;
 
@@ -205,7 +239,9 @@ export function enforceArrivalAndDepartureConstraints(items: GeneratedItem[], in
       const validDay1Items = dayItems.filter((i) => minutesOf(i.start_time) >= arrMins);
 
       // Ensure Day 1 starts with Arrival & Check-in
-      const hasArrival = validDay1Items.some((i) => i.category === "transit" || i.title.toLowerCase().includes("arrival"));
+      const hasArrival = validDay1Items.some(
+        (i) => i.category === "transit" || i.title.toLowerCase().includes("arrival"),
+      );
       if (!hasArrival) {
         processed.push({
           title: `Arrival in ${input.destination} & Station/Airport Transfer`,
@@ -317,7 +353,10 @@ export interface GenerateItineraryOptions {
 /**
  * Calculates overlap ratio between new generated activity titles and previous activity titles.
  */
-export function calculateTitleOverlapRatio(newItems: GeneratedItem[], previousTitles?: string[]): number {
+export function calculateTitleOverlapRatio(
+  newItems: GeneratedItem[],
+  previousTitles?: string[],
+): number {
   if (!previousTitles || previousTitles.length === 0 || newItems.length === 0) return 0;
   const prevSet = new Set(previousTitles.map((t) => normalizeTitle(t)));
   let matches = 0;
@@ -358,40 +397,208 @@ export function fallbackItinerary(
   let localSeed = seed;
 
   const morningPool = [
-    { title: `Historic District & Old Town Morning Walk`, category: "culture", mins: 120, cost: 350, io: "outdoor" as const },
-    { title: `Artisanal Coffee Roastery & Local Bakery Breakfast`, category: "food", mins: 60, cost: 450, io: "indoor" as const },
-    { title: `Scenic Sunrise Viewpoint & Nature Promenade`, category: "sightseeing", mins: 90, cost: 0, io: "outdoor" as const },
-    { title: `Central Heritage Museum & Fine Art Gallery`, category: "culture", mins: 120, cost: 600, io: "indoor" as const },
-    { title: `Bustling Morning Produce & Craft Market`, category: "shopping", mins: 105, cost: 400, io: "outdoor" as const },
-    { title: `Botanical Sanctuary & Sculpture Garden`, category: "nature", mins: 90, cost: 300, io: "outdoor" as const },
-    { title: `Royal Palace Courtyard & Architecture Tour`, category: "history", mins: 135, cost: 800, io: "indoor" as const },
-    { title: `Riverside / Coastal Morning Promenade Trek`, category: "adventure", mins: 105, cost: 0, io: "outdoor" as const },
-    { title: `Ancient Temple Grounds & Spiritual Walk`, category: "culture", mins: 90, cost: 250, io: "outdoor" as const },
-    { title: `Neighborhood Delicatessen & Breakfast Tasting`, category: "food", mins: 60, cost: 500, io: "indoor" as const },
+    {
+      title: `Historic District & Old Town Morning Walk`,
+      category: "culture",
+      mins: 120,
+      cost: 350,
+      io: "outdoor" as const,
+    },
+    {
+      title: `Artisanal Coffee Roastery & Local Bakery Breakfast`,
+      category: "food",
+      mins: 60,
+      cost: 450,
+      io: "indoor" as const,
+    },
+    {
+      title: `Scenic Sunrise Viewpoint & Nature Promenade`,
+      category: "sightseeing",
+      mins: 90,
+      cost: 0,
+      io: "outdoor" as const,
+    },
+    {
+      title: `Central Heritage Museum & Fine Art Gallery`,
+      category: "culture",
+      mins: 120,
+      cost: 600,
+      io: "indoor" as const,
+    },
+    {
+      title: `Bustling Morning Produce & Craft Market`,
+      category: "shopping",
+      mins: 105,
+      cost: 400,
+      io: "outdoor" as const,
+    },
+    {
+      title: `Botanical Sanctuary & Sculpture Garden`,
+      category: "nature",
+      mins: 90,
+      cost: 300,
+      io: "outdoor" as const,
+    },
+    {
+      title: `Royal Palace Courtyard & Architecture Tour`,
+      category: "history",
+      mins: 135,
+      cost: 800,
+      io: "indoor" as const,
+    },
+    {
+      title: `Riverside / Coastal Morning Promenade Trek`,
+      category: "adventure",
+      mins: 105,
+      cost: 0,
+      io: "outdoor" as const,
+    },
+    {
+      title: `Ancient Temple Grounds & Spiritual Walk`,
+      category: "culture",
+      mins: 90,
+      cost: 250,
+      io: "outdoor" as const,
+    },
+    {
+      title: `Neighborhood Delicatessen & Breakfast Tasting`,
+      category: "food",
+      mins: 60,
+      cost: 500,
+      io: "indoor" as const,
+    },
   ];
 
   const afternoonPool = [
-    { title: `Authentic Regional Lunch at Courtyard Restaurant`, category: "food", mins: 75, cost: 950, io: "indoor" as const },
-    { title: `Traditional Street Food & Alleyway Sampling Tour`, category: "food", mins: 90, cost: 750, io: "outdoor" as const },
-    { title: `Artisan Textile & Pottery Workshop Exhibition`, category: "culture", mins: 120, cost: 550, io: "indoor" as const },
-    { title: `Hilltop Panoramic Observation Deck`, category: "sightseeing", mins: 90, cost: 400, io: "outdoor" as const },
-    { title: `Independent Craft Boutiques & Souvenir Bazaar`, category: "shopping", mins: 120, cost: 650, io: "indoor" as const },
-    { title: `Historical Fortress & Ancient Citadel Exploration`, category: "history", mins: 150, cost: 700, io: "outdoor" as const },
-    { title: `Quiet Shade Garden & Heritage Library Rest`, category: "wellness", mins: 90, cost: 0, io: "indoor" as const },
-    { title: `Lakeside / Waterfront Afternoon Cafe & Refreshment`, category: "food", mins: 60, cost: 450, io: "indoor" as const },
-    { title: `Cultural Heritage Center & Photography Spot`, category: "culture", mins: 90, cost: 300, io: "outdoor" as const },
-    { title: `Nature Reserve Trail & Wildlife Overlook`, category: "adventure", mins: 120, cost: 500, io: "outdoor" as const },
+    {
+      title: `Authentic Regional Lunch at Courtyard Restaurant`,
+      category: "food",
+      mins: 75,
+      cost: 950,
+      io: "indoor" as const,
+    },
+    {
+      title: `Traditional Street Food & Alleyway Sampling Tour`,
+      category: "food",
+      mins: 90,
+      cost: 750,
+      io: "outdoor" as const,
+    },
+    {
+      title: `Artisan Textile & Pottery Workshop Exhibition`,
+      category: "culture",
+      mins: 120,
+      cost: 550,
+      io: "indoor" as const,
+    },
+    {
+      title: `Hilltop Panoramic Observation Deck`,
+      category: "sightseeing",
+      mins: 90,
+      cost: 400,
+      io: "outdoor" as const,
+    },
+    {
+      title: `Independent Craft Boutiques & Souvenir Bazaar`,
+      category: "shopping",
+      mins: 120,
+      cost: 650,
+      io: "indoor" as const,
+    },
+    {
+      title: `Historical Fortress & Ancient Citadel Exploration`,
+      category: "history",
+      mins: 150,
+      cost: 700,
+      io: "outdoor" as const,
+    },
+    {
+      title: `Quiet Shade Garden & Heritage Library Rest`,
+      category: "wellness",
+      mins: 90,
+      cost: 0,
+      io: "indoor" as const,
+    },
+    {
+      title: `Lakeside / Waterfront Afternoon Cafe & Refreshment`,
+      category: "food",
+      mins: 60,
+      cost: 450,
+      io: "indoor" as const,
+    },
+    {
+      title: `Cultural Heritage Center & Photography Spot`,
+      category: "culture",
+      mins: 90,
+      cost: 300,
+      io: "outdoor" as const,
+    },
+    {
+      title: `Nature Reserve Trail & Wildlife Overlook`,
+      category: "adventure",
+      mins: 120,
+      cost: 500,
+      io: "outdoor" as const,
+    },
   ];
 
   const eveningPool = [
-    { title: `Sunset Promenade & Golden Hour Viewpoint`, category: "sightseeing", mins: 75, cost: 0, io: "outdoor" as const },
-    { title: `Welcome Celebration Dinner at Heritage Bistro`, category: "food", mins: 105, cost: 1450, io: "indoor" as const },
-    { title: `Traditional Folk Music & Dance Performance`, category: "culture", mins: 90, cost: 1100, io: "indoor" as const },
-    { title: `Panoramic Rooftop Restaurant & Dinner`, category: "food", mins: 105, cost: 1650, io: "indoor" as const },
-    { title: `Bustling Evening Night Market & Street Bites`, category: "food", mins: 120, cost: 850, io: "outdoor" as const },
-    { title: `Illuminated Old Town Heritage Lantern Walk`, category: "history", mins: 90, cost: 350, io: "outdoor" as const },
-    { title: `Speakeasy Lounge & Specialty Beverage Tasting`, category: "food", mins: 90, cost: 1200, io: "indoor" as const },
-    { title: `Farewell Gala Dinner at Fine Dining Estate`, category: "food", mins: 120, cost: 1950, io: "indoor" as const },
+    {
+      title: `Sunset Promenade & Golden Hour Viewpoint`,
+      category: "sightseeing",
+      mins: 75,
+      cost: 0,
+      io: "outdoor" as const,
+    },
+    {
+      title: `Welcome Celebration Dinner at Heritage Bistro`,
+      category: "food",
+      mins: 105,
+      cost: 1450,
+      io: "indoor" as const,
+    },
+    {
+      title: `Traditional Folk Music & Dance Performance`,
+      category: "culture",
+      mins: 90,
+      cost: 1100,
+      io: "indoor" as const,
+    },
+    {
+      title: `Panoramic Rooftop Restaurant & Dinner`,
+      category: "food",
+      mins: 105,
+      cost: 1650,
+      io: "indoor" as const,
+    },
+    {
+      title: `Bustling Evening Night Market & Street Bites`,
+      category: "food",
+      mins: 120,
+      cost: 850,
+      io: "outdoor" as const,
+    },
+    {
+      title: `Illuminated Old Town Heritage Lantern Walk`,
+      category: "history",
+      mins: 90,
+      cost: 350,
+      io: "outdoor" as const,
+    },
+    {
+      title: `Speakeasy Lounge & Specialty Beverage Tasting`,
+      category: "food",
+      mins: 90,
+      cost: 1200,
+      io: "indoor" as const,
+    },
+    {
+      title: `Farewell Gala Dinner at Fine Dining Estate`,
+      category: "food",
+      mins: 120,
+      cost: 1950,
+      io: "indoor" as const,
+    },
   ];
 
   const prevSet = new Set((options?.previousTitles || []).map((t) => normalizeTitle(t)));
@@ -466,13 +673,21 @@ export function fallbackItinerary(
         weather_suitability: t.io === "outdoor" ? ("clear_only" as const) : ("any" as const),
         booking_url: null,
         is_locked: false,
-        uniqueness_key: generateUniquenessKey({ title: itemTitle, category: t.category, location: input.destination }),
+        uniqueness_key: generateUniquenessKey({
+          title: itemTitle,
+          category: t.category,
+          location: input.destination,
+        }),
       };
 
       if (isDuplicateOrNearDuplicate(candItem, existingItems)) {
         itemTitle = `${t.title} · Day ${dayIndex + 1} #${idx + 1}`;
         candItem.title = itemTitle;
-        candItem.uniqueness_key = generateUniquenessKey({ title: itemTitle, category: t.category, location: input.destination });
+        candItem.uniqueness_key = generateUniquenessKey({
+          title: itemTitle,
+          category: t.category,
+          location: input.destination,
+        });
       }
 
       existingItems.push(candItem);
@@ -480,11 +695,17 @@ export function fallbackItinerary(
     });
   });
 
-  return validateAndCleanItineraryItems(enforceArrivalAndDepartureConstraints(rawItems, input), input);
+  return validateAndCleanItineraryItems(
+    enforceArrivalAndDepartureConstraints(rawItems, input),
+    input,
+  );
 }
 
 /**
  * Calls the RoamPulse AI gateway to generate a highly diverse, destination-specific itinerary.
+ */
+/**
+ * Calls the RoamPulse AI gateway or Gemini API to generate a real-world, destination-specific itinerary.
  */
 export async function generateItinerary(
   input: TripInput,
@@ -493,26 +714,45 @@ export async function generateItinerary(
   const mode = options?.mode || (options?.isRegeneration ? "regenerate" : "initial");
   const genId = options?.generationId || crypto.randomUUID();
 
-  const apiKey = process.env["AI_GATEWAY_API_KEY"] || process.env["LOVABLE_API_KEY"];
-  const isKeyConfigured = Boolean(apiKey && apiKey.trim().length > 0);
+  const geminiApiKey = process.env["GEMINI_API_KEY"]?.trim();
+  const gatewayApiKey = (
+    process.env["AI_GATEWAY_API_KEY"] || process.env["LOVABLE_API_KEY"]
+  )?.trim();
 
-  console.log(`[REGENERATE] request received | destination: ${input.destination} | mode: ${mode} | generationId: ${genId}`);
-  console.log(`[REGENERATE] AI Gateway status: ${isKeyConfigured ? "configured" : "missing"}`);
-  console.log(`[REGENERATE] previous titles count: ${options?.previousTitles?.length ?? 0} | locked items count: ${options?.lockedItems?.length ?? 0}`);
+  const isGeminiConfigured = Boolean(geminiApiKey && geminiApiKey.length > 0);
+  const isGatewayConfigured = Boolean(gatewayApiKey && gatewayApiKey.length > 0);
 
-  if (!apiKey) {
-    console.log(`[REGENERATE] provider: FALLBACK | reason: AI_GATEWAY_API_KEY not configured | generationId: ${genId}`);
+  console.log(
+    `[REGENERATE] request received | destination: ${input.destination} | mode: ${mode} | generationId: ${genId}`,
+  );
+  console.log(
+    `[REGENERATE] Gemini API: ${isGeminiConfigured ? "configured" : "missing"} | AI Gateway: ${isGatewayConfigured ? "configured" : "missing"}`,
+  );
+  console.log(
+    `[REGENERATE] previous titles count: ${options?.previousTitles?.length ?? 0} | locked items count: ${options?.lockedItems?.length ?? 0}`,
+  );
+
+  if (!isGeminiConfigured && !isGatewayConfigured) {
+    console.log(
+      `[REGENERATE] provider: FALLBACK | reason: No AI API keys configured | generationId: ${genId}`,
+    );
     const items = fallbackItinerary(input, options);
-    console.log(`[REGENERATE] generatedItems: ${items.length} | source: fallback | generationId: ${genId}`);
+    console.log(
+      `[REGENERATE] generatedItems: ${items.length} | source: fallback | generationId: ${genId}`,
+    );
     return { items, source: "fallback", error: null };
   }
 
-  console.log(`[REGENERATE] provider: AI | model: ${MODEL} | generationId: ${genId}`);
+  // Fetch real-world place data for destination (Level 1 / Level 2)
+  const realPlaces = await fetchRealWorldPlaces(input.destination, input.interests);
+  console.log(
+    `[REAL PLACES] Found ${realPlaces.length} real-world places for ${input.destination}`,
+  );
 
   const days = dayList(input.startDate, input.endDate);
 
   const promptParts = [
-    `Create an authentic, non-repetitive ${days.length}-day travel itinerary for ${input.destination} (traveling from ${input.origin}).`,
+    `Create a practical, real-world ${days.length}-day travel itinerary for ${input.destination} (traveling from ${input.origin}).`,
     `Calendar Dates: ${days.join(", ")} (Day 1 is ${days[0]}, Day ${days.length} is ${days[days.length - 1]}).`,
     `Travelers: ${input.adults} adults, ${input.children} children.`,
     `Budget: ${input.budget} ${input.currency}. Travel style: ${input.travelStyle}.`,
@@ -522,22 +762,45 @@ export async function generateItinerary(
     `STRICT ARRIVAL & DEPARTURE TIMING RULES:`,
     `1. DAY 1 ARRIVAL: Do NOT schedule any activities before ${input.arrivalTime || "14:00"}. Start Day 1 with Arrival and Hotel Check-in.`,
     `2. FINAL DAY DEPARTURE: Do NOT schedule any major tours within 3 hours of departure (${input.departureTime || "16:00"}). Include Checkout and Transit.`,
-    `STRICT PRICING RULES:`,
-    `1. If an activity is genuinely free (e.g. public viewpoint, public park, free beach, promenade walk, photo spot, self-guided walking, free temple grounds), set estimated_cost: 0.`,
-    `2. If an activity has a cost (meals, museum entry, guided tour, paid attraction, transport, tickets), provide a realistic non-zero per-person cost estimate in ${input.currency} (e.g. 350-1500 ${input.currency}). NEVER set estimated_cost: 0 for a paid activity like lunch or museum.`,
-    `STRICT QUALITY & DIVERSITY RULES:`,
-    `1. EVERY DAY MUST HAVE A DISTINCT THEME AND GEOGRAPHIC FOCUS within ${input.destination}.`,
-    `2. DO NOT REPEAT THE SAME ATTRACTION OR UNDERLYING LOCATION across multiple days.`,
-    `3. DO NOT USE TRIVIAL TITLE VARIATIONS to disguise the same attraction (e.g. 'Haridwar Market' vs 'Explore Haridwar Market').`,
-    `4. PACING: Schedule 3 to 5 meaningful activities per day plus meals and free time. Do not overload days or fill every single hour.`,
-    `5. VARY MEALS: Use specific local food experiences rather than repetitive generic "Breakfast".`,
-    `6. INCLUDE REASONABLE FREE TIME or neighborhood exploration periods.`,
+    `STRICT REAL-WORLD PRICING & COST RULES:`,
+    `1. NEVER state estimated costs as confirmed exact prices. Mark price type explicitly ("free", "estimated", or "listed").`,
+    `2. If an activity is genuinely free (public viewpoint, park, beach, promenade, photo spot), set estimated_cost: 0 and cost_type: "free".`,
+    `3. If an activity has a cost, provide realistic non-zero cost estimates in ${input.currency} (e.g. cost_min: 200, cost_max: 500, estimated_cost: 350, cost_type: "estimated").`,
+    `STRICT GEOGRAPHIC & REAL PLACE RULES:`,
+    `1. Use REAL-WORLD attractions, restaurants, markets, and neighborhood locations in ${input.destination}.`,
+    `2. Cluster activities geographically on the same day to minimize unnecessary travel time across town.`,
+    `3. Respect typical opening hours (e.g. opening_hours: "09:00 - 17:30").`,
+    `4. PACING: Schedule 3 to 5 meaningful activities per day plus meals and free time.`,
   ];
+
+  if (realPlaces.length > 0) {
+    promptParts.push(
+      `REAL-WORLD DESTINATION PLACES DATA FOR ${input.destination.toUpperCase()}:`,
+      JSON.stringify(
+        realPlaces.map((p) => ({
+          name: p.name,
+          category: p.category,
+          address: p.address,
+          latitude: p.latitude,
+          longitude: p.longitude,
+          rating: p.rating,
+          openingHours: p.openingHours,
+          costRange:
+            p.estimatedCostMin !== undefined
+              ? `${p.estimatedCostMin}-${p.estimatedCostMax} ${input.currency}`
+              : "Variable",
+          costType: p.costType,
+        })),
+        null,
+        2,
+      ),
+      `INSTRUCTION: Prefer using these verified real places for major attractions and dining in ${input.destination}.`,
+    );
+  }
 
   if (mode === "regenerate" || (options?.previousTitles && options.previousTitles.length > 0)) {
     promptParts.push(
-      `REGENERATION INSTRUCTION: This is a REGENERATION request for a NEW plan. Provide a SUBSTANTIALLY DIFFERENT itinerary from previous runs. Avoid these previously generated attraction titles: ${(options?.previousTitles || []).slice(0, 25).join(", ")}.`,
-      `Explore alternate neighborhoods, different cultural sights, new viewpoint walks, and distinct dining experiences in ${input.destination}.`,
+      `REGENERATION INSTRUCTION: Provide a SUBSTANTIALLY DIFFERENT itinerary from previous runs. Avoid these previously generated titles: ${(options?.previousTitles || []).slice(0, 25).join(", ")}.`,
     );
   }
 
@@ -546,7 +809,7 @@ export async function generateItinerary(
       (l) => `${l.title} on ${l.day_date} at ${l.start_time}`,
     );
     promptParts.push(
-      `PRESERVED LOCKED ACTIVITIES: The user locked these activities, so you MUST include or leave slot buffer for them: ${lockedDescriptions.join(", ")}.`,
+      `PRESERVED LOCKED ACTIVITIES: Include these locked activities: ${lockedDescriptions.join(", ")}.`,
     );
   }
 
@@ -555,94 +818,146 @@ export async function generateItinerary(
 
   while (attempt <= maxAttempts) {
     try {
-      console.log(`[REGENERATE] AI request started | model: ${MODEL} | attempt: ${attempt} | generationId: ${genId}`);
-      const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-        method: "POST",
-        headers: { authorization: `Bearer ${apiKey}`, "content-type": "application/json" },
-        body: JSON.stringify({
-          model: MODEL,
-          messages: [
-            {
-              role: "system",
-              content:
-                "You are RoamPulse's expert local travel planner. Always return structured JSON via emit_itinerary tool. Ensure zero repeated attraction titles across days. Respect arrival & departure times.",
-            },
-            { role: "user", content: promptParts.join("\n") },
-          ],
-          tools: [
-            {
-              type: "function",
-              function: {
-                name: "emit_itinerary",
-                description: "Return structured day-by-day travel itinerary",
-                parameters: {
-                  type: "object",
-                  properties: {
-                    items: {
-                      type: "array",
-                      items: {
-                        type: "object",
-                        properties: {
-                          title: { type: "string" },
-                          description: { type: "string" },
-                          day_date: { type: "string", description: "YYYY-MM-DD" },
-                          start_time: { type: "string", description: "HH:MM 24h" },
-                          end_time: { type: "string", description: "HH:MM 24h" },
-                          category: { type: "string" },
-                          location: { type: "string" },
-                          latitude: { type: "number" },
-                          longitude: { type: "number" },
-                          estimated_cost: { type: "number" },
-                          travel_minutes: { type: "number" },
-                          indoor_outdoor: { type: "string", enum: ["indoor", "outdoor", "mixed"] },
-                          weather_suitability: { type: "string", enum: ["any", "clear_only", "rain_ok"] },
-                        },
-                        required: [
-                          "title",
-                          "description",
-                          "day_date",
-                          "start_time",
-                          "end_time",
-                          "category",
-                          "location",
-                          "estimated_cost",
-                          "indoor_outdoor",
-                        ],
-                        additionalProperties: false,
-                      },
-                    },
-                  },
-                  required: ["items"],
-                  additionalProperties: false,
-                },
-              },
-            },
-          ],
-          tool_choice: { type: "function", function: { name: "emit_itinerary" } },
-        }),
-      });
+      let rawJsonText: string | null = null;
 
-      if (res.status === 429) {
-        console.log(`[REGENERATE] AI request failed | reason: HTTP 429 rate limit | fallback activated | generationId: ${genId}`);
-        const items = fallbackItinerary(input, options);
-        console.log(`[REGENERATE] generatedItems: ${items.length} | source: fallback | generationId: ${genId}`);
-        return {
-          items,
-          source: "fallback",
-          error: "AI planner gateway is currently busy — generated a diverse backup schedule.",
-        };
+      // Primary AI Execution: Direct Gemini API
+      if (isGeminiConfigured) {
+        console.log(
+          `[REGENERATE] Calling Google Gemini API | attempt: ${attempt} | generationId: ${genId}`,
+        );
+        const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiApiKey}`;
+        const res = await fetch(geminiUrl, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: promptParts.join("\n") }] }],
+            systemInstruction: {
+              parts: [
+                {
+                  text: 'You are RoamPulse\'s real-world travel planner. Return JSON matching object schema {"items": [...]}. Every item must have real-world place info, realistic timing, cost ranges, opening_hours, and rating if available.',
+                },
+              ],
+            },
+            generationConfig: {
+              responseMimeType: "application/json",
+            },
+          }),
+        });
+
+        if (res.ok) {
+          const geminiData = (await res.json()) as {
+            candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
+          };
+          rawJsonText = geminiData.candidates?.[0]?.content?.parts?.[0]?.text ?? null;
+        } else {
+          console.warn(`[REGENERATE] Gemini API returned HTTP ${res.status}`);
+        }
       }
 
-      if (!res.ok) throw new Error(`Gateway returned HTTP ${res.status}`);
+      // Secondary AI Execution: Gateway Fallback if Gemini failed/unconfigured
+      if (!rawJsonText && isGatewayConfigured) {
+        console.log(
+          `[REGENERATE] Calling AI Gateway | attempt: ${attempt} | generationId: ${genId}`,
+        );
+        const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+          method: "POST",
+          headers: { authorization: `Bearer ${gatewayApiKey}`, "content-type": "application/json" },
+          body: JSON.stringify({
+            model: MODEL,
+            messages: [
+              {
+                role: "system",
+                content:
+                  "You are RoamPulse's expert local travel planner. Always return structured JSON via emit_itinerary tool.",
+              },
+              { role: "user", content: promptParts.join("\n") },
+            ],
+            tools: [
+              {
+                type: "function",
+                function: {
+                  name: "emit_itinerary",
+                  description: "Return structured day-by-day travel itinerary",
+                  parameters: {
+                    type: "object",
+                    properties: {
+                      items: {
+                        type: "array",
+                        items: {
+                          type: "object",
+                          properties: {
+                            title: { type: "string" },
+                            description: { type: "string" },
+                            day_date: { type: "string" },
+                            start_time: { type: "string" },
+                            end_time: { type: "string" },
+                            category: { type: "string" },
+                            location: { type: "string" },
+                            latitude: { type: "number" },
+                            longitude: { type: "number" },
+                            estimated_cost: { type: "number" },
+                            cost_min: { type: "number" },
+                            cost_max: { type: "number" },
+                            cost_type: {
+                              type: "string",
+                              enum: ["free", "estimated", "listed", "unknown"],
+                            },
+                            opening_hours: { type: "string" },
+                            rating: { type: "number" },
+                            verification_status: {
+                              type: "string",
+                              enum: ["verified", "estimated", "ai_planned"],
+                            },
+                            why_fits: { type: "string" },
+                            travel_minutes: { type: "number" },
+                            indoor_outdoor: {
+                              type: "string",
+                              enum: ["indoor", "outdoor", "mixed"],
+                            },
+                            weather_suitability: {
+                              type: "string",
+                              enum: ["any", "clear_only", "rain_ok"],
+                            },
+                          },
+                          required: [
+                            "title",
+                            "description",
+                            "day_date",
+                            "start_time",
+                            "end_time",
+                            "category",
+                            "location",
+                            "estimated_cost",
+                            "indoor_outdoor",
+                          ],
+                        },
+                      },
+                    },
+                    required: ["items"],
+                  },
+                },
+              },
+            ],
+            tool_choice: { type: "function", function: { name: "emit_itinerary" } },
+          }),
+        });
 
-      const json = (await res.json()) as {
-        choices?: { message?: { tool_calls?: { function?: { arguments?: string } }[] } }[];
-      };
-      const args = json.choices?.[0]?.message?.tool_calls?.[0]?.function?.arguments;
-      if (!args) throw new Error("No tool call returned from AI gateway");
+        if (res.ok) {
+          const json = (await res.json()) as {
+            choices?: { message?: { tool_calls?: { function?: { arguments?: string } }[] } }[];
+          };
+          rawJsonText = json.choices?.[0]?.message?.tool_calls?.[0]?.function?.arguments ?? null;
+        }
+      }
 
-      const parsed = itineraryResponseSchema.safeParse(JSON.parse(args));
-      if (!parsed.success) throw new Error("Schema validation failed on AI output");
+      if (!rawJsonText) {
+        throw new Error("No response content returned from AI services.");
+      }
+
+      const parsed = itineraryResponseSchema.safeParse(JSON.parse(rawJsonText));
+      if (!parsed.success) {
+        throw new Error("Schema validation failed on AI output: " + parsed.error.message);
+      }
 
       // Advanced Post-processing Deduplication & Constraint Enforcement
       const existingItems: GeneratedItem[] = [];
@@ -663,20 +978,25 @@ export async function generateItinerary(
 
       const finalItems = validateAndCleanItineraryItems(constrainedItems, input);
 
-      // Controlled Retry Check for Regeneration
       const overlap = calculateTitleOverlapRatio(finalItems, options?.previousTitles);
-      if (mode === "regenerate" && options?.previousTitles && options.previousTitles.length > 0 && attempt < maxAttempts) {
-        if (overlap > 0.60) {
-          console.log(`[REGENERATE] title overlap too high (${Math.round(overlap * 100)}%) — retrying with stronger variation prompt | generationId: ${genId}`);
-          promptParts.push(
-            `CONTROLLED RETRY INSTRUCTION: Your previous response had ${Math.round(overlap * 100)}% title overlap with previous runs. Replace those previous activities with FRESH, NEW attractions and local experiences in ${input.destination}.`,
+      if (
+        mode === "regenerate" &&
+        options?.previousTitles &&
+        options.previousTitles.length > 0 &&
+        attempt < maxAttempts
+      ) {
+        if (overlap > 0.6) {
+          console.log(
+            `[REGENERATE] title overlap too high (${Math.round(overlap * 100)}%) — retrying | generationId: ${genId}`,
           );
           attempt++;
           continue;
         }
       }
 
-      console.log(`[REGENERATE] AI request succeeded | generated count: ${finalItems.length} | title overlap: ${Math.round(overlap * 100)}% | generationId: ${genId}`);
+      console.log(
+        `[REGENERATE] AI request succeeded | count: ${finalItems.length} | generationId: ${genId}`,
+      );
       return {
         items: finalItems,
         source: "ai",
@@ -684,19 +1004,19 @@ export async function generateItinerary(
       };
     } catch (err: unknown) {
       const errMsg = err instanceof Error ? err.message : String(err);
-      console.log(`[REGENERATE] AI request failed | reason: ${errMsg} | fallback activated | generationId: ${genId}`);
+      console.log(
+        `[REGENERATE] AI request failed | reason: ${errMsg} | fallback activated | generationId: ${genId}`,
+      );
       const items = fallbackItinerary(input, options);
-      console.log(`[REGENERATE] generatedItems: ${items.length} | source: fallback | generationId: ${genId}`);
       return {
         items,
         source: "fallback",
-        error: "Could not connect to AI gateway — built a diverse backup itinerary.",
+        error: "AI planner is temporarily busy — generated a diverse backup schedule.",
       };
     }
   }
 
   const items = fallbackItinerary(input, options);
-  console.log(`[REGENERATE] generatedItems: ${items.length} | source: fallback (post retry) | generationId: ${genId}`);
   return {
     items,
     source: "fallback",
@@ -726,7 +1046,10 @@ export async function reoptimizeItinerary(
   }
 
   return {
-    items: validateAndCleanItineraryItems(enforceArrivalAndDepartureConstraints(finalItems, input), input),
+    items: validateAndCleanItineraryItems(
+      enforceArrivalAndDepartureConstraints(finalItems, input),
+      input,
+    ),
     source: result.source,
     error: result.error,
   };

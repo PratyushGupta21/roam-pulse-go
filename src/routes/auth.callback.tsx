@@ -34,7 +34,10 @@ function AuthCallbackPage() {
           }
         }
 
-        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+        const {
+          data: { session },
+          error: sessionError,
+        } = await supabase.auth.getSession();
 
         if (sessionError) {
           console.error("Session retrieval error:", sessionError);
@@ -91,7 +94,9 @@ function AuthCallbackPage() {
               <AlertCircle className="h-6 w-6" />
             </div>
             <div className="space-y-1">
-              <h3 className="font-display text-base font-bold text-foreground">Google Sign-in Failed</h3>
+              <h3 className="font-display text-base font-bold text-foreground">
+                Google Sign-in Failed
+              </h3>
               <p className="text-xs text-muted-foreground leading-relaxed">{error}</p>
             </div>
             <Button
@@ -110,7 +115,9 @@ function AuthCallbackPage() {
               <Sparkles className="h-6 w-6 animate-spin text-primary" />
             </div>
             <div className="space-y-1">
-              <h3 className="font-display text-base font-bold text-foreground">Completing Sign-in…</h3>
+              <h3 className="font-display text-base font-bold text-foreground">
+                Completing Sign-in…
+              </h3>
               <p className="text-xs text-muted-foreground">
                 Establishing secure authentication session with Supabase.
               </p>

@@ -51,7 +51,9 @@ export const triggerDisruption = createServerFn({ method: "POST" })
         .limit(1)
         .maybeSingle();
       if (flight) {
-        const eta = new Date(new Date(flight.scheduled_arrival as string).getTime() + data.minutes * 60_000);
+        const eta = new Date(
+          new Date(flight.scheduled_arrival as string).getTime() + data.minutes * 60_000,
+        );
         await supabase
           .from("flights")
           .update({
@@ -154,7 +156,11 @@ export const triggerDisruption = createServerFn({ method: "POST" })
 
     await notifyN8n("disruption-detected", { tripId: data.tripId, type: data.type });
 
-    return { recommendationId, affectedCount: affected.length, requiresApproval: payload?.requiresApproval ?? true };
+    return {
+      recommendationId,
+      affectedCount: affected.length,
+      requiresApproval: payload?.requiresApproval ?? true,
+    };
   });
 
 export const applyRecovery = createServerFn({ method: "POST" })
@@ -206,7 +212,11 @@ export const applyRecovery = createServerFn({ method: "POST" })
 
     const replacementTitle = String(chosen["title"] ?? "Recovery activity");
     const replacementStartTime = String(chosen["startTime"] ?? payload.newStartTime);
-    const replacementDayDate = String((chosen["dayDate"] as string) || (payload as any)["replacementDate"] || original.day_date);
+    const replacementDayDate = String(
+      (chosen["dayDate"] as string) ||
+        (payload as Record<string, unknown>)["replacementDate"] ||
+        original.day_date,
+    );
 
     // Idempotency safeguard: check if this exact replacement item was already inserted
     const { data: existingReplacement } = await supabase
@@ -275,7 +285,11 @@ export const applyRecovery = createServerFn({ method: "POST" })
         event: "Recovery applied",
         detail: `${payload.affectedItemTitle} → ${String(chosen["title"])}`,
       },
-      { trip_id: rec.trip_id, event: "Map route updated", detail: "New stop added to today's route." },
+      {
+        trip_id: rec.trip_id,
+        event: "Map route updated",
+        detail: "New stop added to today's route.",
+      },
     ]);
 
     await supabase.from("notifications").insert({
@@ -295,7 +309,10 @@ export const resolveRecovery = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((data: unknown) =>
     z
-      .object({ recommendationId: z.string().uuid(), action: z.enum(["keep_original", "dismissed"]) })
+      .object({
+        recommendationId: z.string().uuid(),
+        action: z.enum(["keep_original", "dismissed"]),
+      })
       .parse(data),
   )
   .handler(async ({ data, context }) => {
@@ -315,9 +332,15 @@ export const resolveRecovery = createServerFn({ method: "POST" })
       .maybeSingle();
     if (!trip) throw new Error("Trip not found or access denied.");
 
-    const payload = rec.recommendation_data as unknown as { affectedItemId: string; affectedItemTitle: string };
+    const payload = rec.recommendation_data as unknown as {
+      affectedItemId: string;
+      affectedItemTitle: string;
+    };
 
-    await supabase.from("recovery_recommendations").update({ status: data.action }).eq("id", rec.id);
+    await supabase
+      .from("recovery_recommendations")
+      .update({ status: data.action })
+      .eq("id", rec.id);
     await supabase
       .from("itinerary_items")
       .update({ status: data.action === "keep_original" ? "confirmed" : "flexible" })

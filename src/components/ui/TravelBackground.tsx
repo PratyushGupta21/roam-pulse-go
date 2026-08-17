@@ -63,7 +63,11 @@ export function TravelBackground({
   }
 
   if (variant === "app") {
-    return <div className={cn("min-h-screen bg-app-atmosphere text-foreground", className)}>{children}</div>;
+    return (
+      <div className={cn("min-h-screen bg-app-atmosphere text-foreground", className)}>
+        {children}
+      </div>
+    );
   }
 
   if (variant === "subtle") {
@@ -71,5 +75,9 @@ export function TravelBackground({
   }
 
   // Level 2 marketing background
-  return <div className={cn("min-h-screen bg-travel-atmosphere text-foreground", className)}>{children}</div>;
+  return (
+    <div className={cn("min-h-screen bg-travel-atmosphere text-foreground", className)}>
+      {children}
+    </div>
+  );
 }

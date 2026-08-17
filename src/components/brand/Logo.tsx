@@ -11,4 +11,3 @@ export function Logo({
 }) {
   return <RoamPulseLogo className={className} inverted={inverted} size={size} />;
 }
-

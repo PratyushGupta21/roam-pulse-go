@@ -35,14 +35,24 @@ export const Route = createFileRoute("/_authenticated/trips/new")({
   head: () => ({
     meta: [
       { title: "Plan a New Trip — RoamPulse" },
-      { name: "description", content: "Create a new real-time monitored travel itinerary in six guided steps." },
+      {
+        name: "description",
+        content: "Create a new real-time monitored travel itinerary in six guided steps.",
+      },
       { name: "robots", content: "noindex" },
     ],
   }),
   component: NewTripPage,
 });
 
-const STEPS = ["Destination", "Trip style", "Budget", "Interests", "Preferences", "Review"] as const;
+const STEPS = [
+  "Destination",
+  "Trip style",
+  "Budget",
+  "Interests",
+  "Preferences",
+  "Review",
+] as const;
 
 type Pace = (typeof PACE_OPTIONS)[number]["id"];
 type BudgetLevel = (typeof BUDGET_LEVELS)[number]["id"];
@@ -100,7 +110,8 @@ function NewTripPage() {
   const [accessibility, setAccessibility] = useState<string[]>([]);
   const [specialRequests, setSpecialRequests] = useState("");
 
-  const travelStyle = (BUDGET_LEVELS.find((b) => b.id === budgetLevel)?.style ?? "balanced") as TravelStyle;
+  const travelStyle = (BUDGET_LEVELS.find((b) => b.id === budgetLevel)?.style ??
+    "balanced") as TravelStyle;
 
   const createTripMutation = useMutation({
     mutationFn: async () => {
@@ -109,7 +120,10 @@ function NewTripPage() {
           name: name.trim(),
           origin: origin.trim(),
           destination: destination.trim(),
-          extraDestinations: extraDestinations.map((d) => d.trim()).filter(Boolean).slice(0, 5),
+          extraDestinations: extraDestinations
+            .map((d) => d.trim())
+            .filter(Boolean)
+            .slice(0, 5),
           startDate,
           endDate,
           adults,
@@ -147,7 +161,8 @@ function NewTripPage() {
       void queryClient.invalidateQueries({ queryKey: ["trips"] });
       void navigate({ to: "/trips/$tripId", params: { tripId: data.tripId } });
     },
-    onError: (err: Error) => setError(err.message || "We couldn't save your trip. Please try again."),
+    onError: (err: Error) =>
+      setError(err.message || "We couldn't save your trip. Please try again."),
   });
 
   const validateStep = (index: number): string | null => {
@@ -220,10 +235,12 @@ function NewTripPage() {
       <div className="flex min-h-screen items-center justify-center bg-app-atmosphere px-4 text-foreground">
         <div className="rise-in max-w-md rounded-2xl border border-border bg-card p-8 text-center shadow-sm">
           <Loader2 className="mx-auto h-8 w-8 animate-spin text-primary" />
-          <h1 className="mt-4 font-display text-xl font-bold">Building your {destination} itinerary…</h1>
+          <h1 className="mt-4 font-display text-xl font-bold">
+            Building your {destination} itinerary…
+          </h1>
           <p className="mt-2 text-sm text-muted-foreground">
-            We're generating a day-by-day plan for {nights + 1} days, matching your interests and budget, then
-            switching on live flight and weather monitoring.
+            We're generating a day-by-day plan for {nights + 1} days, matching your interests and
+            budget, then switching on live flight and weather monitoring.
           </p>
         </div>
       </div>
@@ -259,7 +276,9 @@ function NewTripPage() {
         <div>
           <div className="flex items-center gap-2">
             <span className="live-dot inline-block h-2 w-2 rounded-full bg-primary" />
-            <span className="text-xs font-semibold uppercase tracking-wider text-primary">Trip planner</span>
+            <span className="text-xs font-semibold uppercase tracking-wider text-primary">
+              Trip planner
+            </span>
           </div>
           <h1 className="mt-2 font-display text-2xl font-bold tracking-tight sm:text-3xl">
             Plan a real-time monitored trip
@@ -277,7 +296,10 @@ function NewTripPage() {
 
         <div className="rounded-2xl border border-border bg-card p-5 shadow-sm sm:p-8">
           {step === 0 ? (
-            <StepShell title="Where are you going?" description="Destinations, dates and who's travelling.">
+            <StepShell
+              title="Where are you going?"
+              description="Destinations, dates and who's travelling."
+            >
               <Field label="Trip name" htmlFor="trip-name" required>
                 <input
                   id="trip-name"
@@ -290,7 +312,12 @@ function NewTripPage() {
 
               <div className="grid gap-4 sm:grid-cols-2">
                 <Field label="Departing from" htmlFor="origin" required>
-                  <DestinationInput id="origin" value={origin} placeholder="e.g. Delhi" onChange={setOrigin} />
+                  <DestinationInput
+                    id="origin"
+                    value={origin}
+                    placeholder="e.g. Delhi"
+                    onChange={setOrigin}
+                  />
                 </Field>
                 <Field label="Destination city" htmlFor="destination" required>
                   <DestinationInput
@@ -306,7 +333,11 @@ function NewTripPage() {
                 </Field>
               </div>
 
-              <Field label="Country" htmlFor="country" hint="Auto-filled when you pick a suggested city.">
+              <Field
+                label="Country"
+                htmlFor="country"
+                hint="Auto-filled when you pick a suggested city."
+              >
                 <input
                   id="country"
                   className={inputClass}
@@ -327,7 +358,9 @@ function NewTripPage() {
                       onChange={(next) =>
                         setExtraDestinations((prev) => prev.map((v, i) => (i === index ? next : v)))
                       }
-                      onClear={() => setExtraDestinations((prev) => prev.filter((_, i) => i !== index))}
+                      onClear={() =>
+                        setExtraDestinations((prev) => prev.filter((_, i) => i !== index))
+                      }
                     />
                   ))}
                   {extraDestinations.length < 5 ? (
@@ -354,7 +387,12 @@ function NewTripPage() {
                     onChange={(e) => setStartDate(e.target.value)}
                   />
                 </Field>
-                <Field label="End date" htmlFor="end-date" required hint={`${nights + 1} days planned`}>
+                <Field
+                  label="End date"
+                  htmlFor="end-date"
+                  required
+                  hint={`${nights + 1} days planned`}
+                >
                   <input
                     id="end-date"
                     type="date"
@@ -375,7 +413,9 @@ function NewTripPage() {
                     max={12}
                     className={inputClass}
                     value={adults}
-                    onChange={(e) => setAdults(Math.max(1, Math.min(12, Number(e.target.value) || 1)))}
+                    onChange={(e) =>
+                      setAdults(Math.max(1, Math.min(12, Number(e.target.value) || 1)))
+                    }
                   />
                 </Field>
                 <Field label="Children" htmlFor="children">
@@ -386,7 +426,9 @@ function NewTripPage() {
                     max={12}
                     className={inputClass}
                     value={children}
-                    onChange={(e) => setChildren(Math.max(0, Math.min(12, Number(e.target.value) || 0)))}
+                    onChange={(e) =>
+                      setChildren(Math.max(0, Math.min(12, Number(e.target.value) || 0)))
+                    }
                   />
                 </Field>
               </div>
@@ -397,7 +439,10 @@ function NewTripPage() {
           ) : null}
 
           {step === 1 ? (
-            <StepShell title="What kind of trip is this?" description="Select every style that applies.">
+            <StepShell
+              title="What kind of trip is this?"
+              description="Select every style that applies."
+            >
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
                 {TRIP_STYLE_OPTIONS.map((option) => (
                   <OptionCard
@@ -413,7 +458,10 @@ function NewTripPage() {
           ) : null}
 
           {step === 2 ? (
-            <StepShell title="Set your budget" description="We plan and re-plan inside these limits.">
+            <StepShell
+              title="Set your budget"
+              description="We plan and re-plan inside these limits."
+            >
               <div className="grid gap-4 sm:grid-cols-3">
                 <div className="sm:col-span-2">
                   <Field label="Total trip budget" htmlFor="budget" required>
@@ -474,7 +522,12 @@ function NewTripPage() {
               <Field label="Transportation preference">
                 <div className="flex flex-wrap gap-2">
                   {TRANSPORT_OPTIONS.map((o) => (
-                    <Chip key={o.id} label={o.label} selected={transport === o.id} onClick={() => setTransport(o.id)} />
+                    <Chip
+                      key={o.id}
+                      label={o.label}
+                      selected={transport === o.id}
+                      onClick={() => setTransport(o.id)}
+                    />
                   ))}
                 </div>
               </Field>
@@ -482,7 +535,12 @@ function NewTripPage() {
               <Field label="Food preference">
                 <div className="flex flex-wrap gap-2">
                   {FOOD_OPTIONS.map((o) => (
-                    <Chip key={o.id} label={o.label} selected={food === o.id} onClick={() => setFood(o.id)} />
+                    <Chip
+                      key={o.id}
+                      label={o.label}
+                      selected={food === o.id}
+                      onClick={() => setFood(o.id)}
+                    />
                   ))}
                 </div>
               </Field>
@@ -490,7 +548,10 @@ function NewTripPage() {
           ) : null}
 
           {step === 3 ? (
-            <StepShell title="What do you want to do?" description="Your picks drive itinerary and recovery choices.">
+            <StepShell
+              title="What do you want to do?"
+              description="Your picks drive itinerary and recovery choices."
+            >
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
                 {INTEREST_CARDS.map((card) => (
                   <OptionCard
@@ -506,7 +567,10 @@ function NewTripPage() {
           ) : null}
 
           {step === 4 ? (
-            <StepShell title="Fine-tune your days" description="Pace, timings and anything we must plan around.">
+            <StepShell
+              title="Fine-tune your days"
+              description="Pace, timings and anything we must plan around."
+            >
               <Field label="Daily activity intensity">
                 <div className="grid gap-3 sm:grid-cols-3">
                   {PACE_OPTIONS.map((o) => (
@@ -575,7 +639,11 @@ function NewTripPage() {
                 </div>
               </Field>
 
-              <Field label="Special requests" htmlFor="requests" hint="Optional — anything else we should know.">
+              <Field
+                label="Special requests"
+                htmlFor="requests"
+                hint="Optional — anything else we should know."
+              >
                 <textarea
                   id="requests"
                   rows={3}
@@ -590,7 +658,10 @@ function NewTripPage() {
           ) : null}
 
           {step === 5 ? (
-            <StepShell title="Review your trip" description="Check everything, then we'll build the itinerary.">
+            <StepShell
+              title="Review your trip"
+              description="Check everything, then we'll build the itinerary."
+            >
               {[
                 {
                   index: 0,
@@ -601,7 +672,10 @@ function NewTripPage() {
                     ["To", country ? `${destination}, ${country}` : destination],
                     ["Extra stops", extraDestinations.filter(Boolean).join(", ") || "None"],
                     ["Dates", `${startDate} → ${endDate} (${nights + 1} days)`],
-                    ["Travelers", `${adults} adult${adults === 1 ? "" : "s"}, ${children} child${children === 1 ? "" : "ren"}`],
+                    [
+                      "Travelers",
+                      `${adults} adult${adults === 1 ? "" : "s"}, ${children} child${children === 1 ? "" : "ren"}`,
+                    ],
                   ] as [string, string][],
                 },
                 {
@@ -622,7 +696,10 @@ function NewTripPage() {
                   rows: [
                     ["Total", `${currency} ${budget.toLocaleString()}`],
                     ["Level", BUDGET_LEVELS.find((b) => b.id === budgetLevel)?.label ?? ""],
-                    ["Stay", ACCOMMODATION_OPTIONS.find((a) => a.id === accommodation)?.label ?? ""],
+                    [
+                      "Stay",
+                      ACCOMMODATION_OPTIONS.find((a) => a.id === accommodation)?.label ?? "",
+                    ],
                     ["Transport", TRANSPORT_OPTIONS.find((t) => t.id === transport)?.label ?? ""],
                     ["Food", FOOD_OPTIONS.find((f) => f.id === food)?.label ?? ""],
                   ] as [string, string][],
@@ -645,9 +722,14 @@ function NewTripPage() {
                   ] as [string, string][],
                 },
               ].map((section) => (
-                <div key={section.title} className="rounded-xl border border-border/70 bg-background p-4">
+                <div
+                  key={section.title}
+                  className="rounded-xl border border-border/70 bg-background p-4"
+                >
                   <div className="flex items-center justify-between gap-2">
-                    <h3 className="font-display text-sm font-bold text-foreground">{section.title}</h3>
+                    <h3 className="font-display text-sm font-bold text-foreground">
+                      {section.title}
+                    </h3>
                     <Button
                       type="button"
                       variant="ghost"
@@ -669,7 +751,13 @@ function NewTripPage() {
           ) : null}
 
           <div className="mt-8 flex items-center justify-between gap-3 border-t border-border/70 pt-5">
-            <Button type="button" variant="outline" onClick={goBack} disabled={step === 0} className="gap-1">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={goBack}
+              disabled={step === 0}
+              className="gap-1"
+            >
               <ArrowLeft className="h-4 w-4" />
               Back
             </Button>

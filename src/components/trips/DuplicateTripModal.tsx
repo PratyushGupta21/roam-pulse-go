@@ -76,7 +76,9 @@ export function DuplicateTripModal({
             </div>
             <div>
               <h3 className="font-display text-lg font-bold text-foreground">Duplicate Trip</h3>
-              <p className="text-xs text-muted-foreground">Create an independent copy with fresh itinerary.</p>
+              <p className="text-xs text-muted-foreground">
+                Create an independent copy with fresh itinerary.
+              </p>
             </div>
           </div>
           <button
@@ -94,7 +96,8 @@ export function DuplicateTripModal({
             <Sparkles className="h-3.5 w-3.5" /> Destination &amp; Preferences Copied
           </p>
           <p className="text-muted-foreground text-[11px] leading-relaxed">
-            All trip preferences, travel style, interests, and budget will be copied. A fresh itinerary will be automatically generated for the duplicated trip.
+            All trip preferences, travel style, interests, and budget will be copied. A fresh
+            itinerary will be automatically generated for the duplicated trip.
           </p>
         </div>
 

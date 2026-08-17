@@ -328,11 +328,11 @@ Possible categories include:
 
 The comparison system is designed to show:
 
-| Provider | Price | Details | Last Checked |
-|---|---:|---|---|
-| Provider A | ₹XX,XXX | Flight / Hotel / Activity | Time |
-| Provider B | ₹XX,XXX | Flight / Hotel / Activity | Time |
-| Provider C | ₹XX,XXX | Flight / Hotel / Activity | Time |
+| Provider   |   Price | Details                   | Last Checked |
+| ---------- | ------: | ------------------------- | ------------ |
+| Provider A | ₹XX,XXX | Flight / Hotel / Activity | Time         |
+| Provider B | ₹XX,XXX | Flight / Hotel / Activity | Time         |
+| Provider C | ₹XX,XXX | Flight / Hotel / Activity | Time         |
 
 The platform should clearly communicate:
 

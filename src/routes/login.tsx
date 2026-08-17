@@ -9,7 +9,8 @@ import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 
 const TITLE = "Log in — RoamPulse";
-const DESCRIPTION = "Sign in to RoamPulse to monitor your trips and recover from delays automatically.";
+const DESCRIPTION =
+  "Sign in to RoamPulse to monitor your trips and recover from delays automatically.";
 
 export const Route = createFileRoute("/login")({
   head: () => ({
@@ -60,7 +61,10 @@ function LoginPage() {
       footer={
         <p>
           New to RoamPulse?{" "}
-          <Link to="/signup" className="font-medium text-primary underline-offset-4 hover:underline">
+          <Link
+            to="/signup"
+            className="font-medium text-primary underline-offset-4 hover:underline"
+          >
             Create an account
           </Link>
         </p>

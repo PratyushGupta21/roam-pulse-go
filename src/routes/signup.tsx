@@ -10,7 +10,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { getAuthCallbackUrl } from "@/lib/site-url";
 
 const TITLE = "Create your RoamPulse account";
-const DESCRIPTION = "Start planning trips that repair themselves when flights slip and weather turns.";
+const DESCRIPTION =
+  "Start planning trips that repair themselves when flights slip and weather turns.";
 
 export const Route = createFileRoute("/signup")({
   head: () => ({

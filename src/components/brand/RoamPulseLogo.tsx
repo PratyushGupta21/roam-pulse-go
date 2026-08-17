@@ -122,7 +122,10 @@ export function RoamPulseLogo({
           inverted ? "text-white" : "text-slate-900 dark:text-white",
         )}
       >
-        Roam<span className="bg-gradient-to-r from-amber-500 via-orange-500 to-orange-600 bg-clip-text text-transparent">Pulse</span>
+        Roam
+        <span className="bg-gradient-to-r from-amber-500 via-orange-500 to-orange-600 bg-clip-text text-transparent">
+          Pulse
+        </span>
       </span>
 
       {showSlogan ? (

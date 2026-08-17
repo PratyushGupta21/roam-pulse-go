@@ -126,7 +126,8 @@ function Pricing() {
                 <span className="text-sm font-normal text-muted-foreground">/ month</span>
               </div>
               <p className="mt-2 text-sm text-muted-foreground">
-                For travellers on the go who need real-time monitoring and autonomous disruption recovery.
+                For travellers on the go who need real-time monitoring and autonomous disruption
+                recovery.
               </p>
 
               <ul className="mt-6 space-y-3 border-t border-border/80 pt-6 text-sm text-muted-foreground">
@@ -159,24 +160,44 @@ function Pricing() {
         <div className="mt-14 overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
           <div className="border-b border-border bg-card px-6 py-4">
             <h3 className="font-display text-lg font-semibold">Detailed Feature Breakdown</h3>
-            <p className="text-xs text-muted-foreground">Compare everything included in Free and Premium tiers</p>
+            <p className="text-xs text-muted-foreground">
+              Compare everything included in Free and Premium tiers
+            </p>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full min-w-[520px] text-left text-sm">
               <caption className="sr-only">Plan comparison</caption>
               <thead>
                 <tr className="border-b border-border bg-secondary/40 text-xs uppercase tracking-wide text-muted-foreground">
-                  <th scope="col" className="px-6 py-3.5 font-semibold">Capability</th>
-                  <th scope="col" className="px-6 py-3.5 text-center font-semibold">Free</th>
-                  <th scope="col" className="px-6 py-3.5 text-center font-semibold text-accent">Premium</th>
+                  <th scope="col" className="px-6 py-3.5 font-semibold">
+                    Capability
+                  </th>
+                  <th scope="col" className="px-6 py-3.5 text-center font-semibold">
+                    Free
+                  </th>
+                  <th scope="col" className="px-6 py-3.5 text-center font-semibold text-accent">
+                    Premium
+                  </th>
                 </tr>
               </thead>
               <tbody>
                 {ROWS.map((row) => (
-                  <tr key={row.label} className="border-b border-border/70 last:border-0 hover:bg-secondary/20 transition-colors">
-                    <th scope="row" className="px-6 py-3.5 text-left font-normal text-foreground/90">{row.label}</th>
-                    <td className="px-6 py-3.5 text-center"><Cell on={row.free} /></td>
-                    <td className="px-6 py-3.5 text-center"><Cell on={row.premium} /></td>
+                  <tr
+                    key={row.label}
+                    className="border-b border-border/70 last:border-0 hover:bg-secondary/20 transition-colors"
+                  >
+                    <th
+                      scope="row"
+                      className="px-6 py-3.5 text-left font-normal text-foreground/90"
+                    >
+                      {row.label}
+                    </th>
+                    <td className="px-6 py-3.5 text-center">
+                      <Cell on={row.free} />
+                    </td>
+                    <td className="px-6 py-3.5 text-center">
+                      <Cell on={row.premium} />
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -185,7 +206,8 @@ function Pricing() {
         </div>
 
         <div className="mt-8 rounded-xl border border-border/80 bg-card/60 p-4 text-center text-xs text-muted-foreground">
-          Subscription state is verified securely server-side. Billing can be updated or paused anytime from Settings → Billing.
+          Subscription state is verified securely server-side. Billing can be updated or paused
+          anytime from Settings → Billing.
         </div>
       </section>
     </MarketingLayout>

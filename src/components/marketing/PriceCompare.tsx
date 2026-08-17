@@ -5,7 +5,12 @@ import { formatMoney } from "@/lib/format";
 
 const OFFERS = [
   { provider: "Duffel", detail: "Delhi → Tokyo · 1 stop · 12h 40m", price: 38_000, best: true },
-  { provider: "Skyscanner", detail: "Delhi → Tokyo · 1 stop · 13h 15m", price: 40_600, best: false },
+  {
+    provider: "Skyscanner",
+    detail: "Delhi → Tokyo · 1 stop · 13h 15m",
+    price: 40_600,
+    best: false,
+  },
   { provider: "Agoda", detail: "Tokyo · 7 nights · boutique", price: 26_400, best: true },
   { provider: "Booking.com", detail: "Tokyo · 7 nights · boutique", price: 28_900, best: false },
 ];
@@ -17,7 +22,8 @@ export function PriceCompare() {
         <div>
           <h3 className="font-display text-xl font-semibold">Price comparison across providers</h3>
           <p className="text-sm text-muted-foreground">
-            Normalised offers from every connected provider. Prices can change — last checked 2 minutes ago.
+            Normalised offers from every connected provider. Prices can change — last checked 2
+            minutes ago.
           </p>
         </div>
         <DemoBadge />
@@ -28,15 +34,26 @@ export function PriceCompare() {
           <caption className="sr-only">Example provider prices</caption>
           <thead>
             <tr className="border-b border-border text-xs uppercase tracking-wide text-muted-foreground">
-              <th scope="col" className="py-2 pr-4 font-medium">Provider</th>
-              <th scope="col" className="py-2 pr-4 font-medium">Details</th>
-              <th scope="col" className="py-2 pr-4 font-medium">Price</th>
-              <th scope="col" className="py-2 font-medium">Book</th>
+              <th scope="col" className="py-2 pr-4 font-medium">
+                Provider
+              </th>
+              <th scope="col" className="py-2 pr-4 font-medium">
+                Details
+              </th>
+              <th scope="col" className="py-2 pr-4 font-medium">
+                Price
+              </th>
+              <th scope="col" className="py-2 font-medium">
+                Book
+              </th>
             </tr>
           </thead>
           <tbody>
             {OFFERS.map((offer) => (
-              <tr key={`${offer.provider}-${offer.detail}`} className="border-b border-border/70 last:border-0">
+              <tr
+                key={`${offer.provider}-${offer.detail}`}
+                className="border-b border-border/70 last:border-0"
+              >
                 <td className="py-3 pr-4 font-medium">
                   {offer.provider}
                   {offer.best ? (

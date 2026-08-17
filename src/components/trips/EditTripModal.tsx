@@ -1,5 +1,16 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { AlertCircle, Calendar, Edit3, Loader2, RefreshCw, Save, Sparkles, Tag, Users, X } from "lucide-react";
+import {
+  AlertCircle,
+  Calendar,
+  Edit3,
+  Loader2,
+  RefreshCw,
+  Save,
+  Sparkles,
+  Tag,
+  Users,
+  X,
+} from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -43,15 +54,15 @@ export function EditTripModal({ trip, isOpen, onClose, onNotice }: EditTripModal
   const [origin, setOrigin] = useState(trip.origin || "");
   const [destination, setDestination] = useState(trip.destination);
   const [extraDestinationsStr, setExtraDestinationsStr] = useState(
-    (trip.extra_destinations || []).join(", ")
+    (trip.extra_destinations || []).join(", "),
   );
   const [startDate, setStartDate] = useState(trip.start_date);
   const [endDate, setEndDate] = useState(trip.end_date);
   const [arrivalTime, setArrivalTime] = useState(
-    (trip as { arrival_time?: string }).arrival_time || "14:00"
+    (trip as { arrival_time?: string }).arrival_time || "14:00",
   );
   const [departureTime, setDepartureTime] = useState(
-    (trip as { departure_time?: string }).departure_time || "16:00"
+    (trip as { departure_time?: string }).departure_time || "16:00",
   );
   const [adults, setAdults] = useState(trip.adults || 1);
   const [children, setChildren] = useState(trip.children || 0);
@@ -59,33 +70,35 @@ export function EditTripModal({ trip, isOpen, onClose, onNotice }: EditTripModal
   const [currency, setCurrency] = useState(trip.currency || "INR");
 
   const [travelStyle, setTravelStyle] = useState<TravelStyle>(
-    (trip.travel_style as TravelStyle) || "balanced"
+    (trip.travel_style as TravelStyle) || "balanced",
   );
   const [interests, setInterests] = useState<string[]>(trip.interests || []);
 
   const pref = (trip.preferences as Record<string, unknown>) || {};
-  const [indoorOutdoor, setIndoorOutdoor] = useState<"mostly_indoor" | "balanced" | "mostly_outdoor">(
-    (pref["indoorOutdoor"] as any) || "balanced"
-  );
+  const [indoorOutdoor, setIndoorOutdoor] = useState<
+    "mostly_indoor" | "balanced" | "mostly_outdoor"
+  >((pref["indoorOutdoor"] as "mostly_indoor" | "balanced" | "mostly_outdoor") || "balanced");
   const [pace, setPace] = useState<string>((pref["pace"] as string) || "moderate");
-  const [transport, setTransport] = useState<string>((pref["transport"] as string) || "public_transit");
+  const [transport, setTransport] = useState<string>(
+    (pref["transport"] as string) || "public_transit",
+  );
   const [accommodation, setAccommodation] = useState<string>(
-    (pref["accommodation"] as string) || "budget_hotel"
+    (pref["accommodation"] as string) || "budget_hotel",
   );
   const [foodPreference, setFoodPreference] = useState<string>(
-    (pref["foodPreference"] as string) || "mixed"
+    (pref["foodPreference"] as string) || "mixed",
   );
   const [wakeUpTime, setWakeUpTime] = useState<string>((pref["wakeUpTime"] as string) || "08:00");
   const [dietary, setDietary] = useState<string[]>((pref["dietary"] as string[]) || []);
   const [accessibility, setAccessibility] = useState<string[]>(
-    (pref["accessibility"] as string[]) || []
+    (pref["accessibility"] as string[]) || [],
   );
   const [specialRequests, setSpecialRequests] = useState<string>(
-    (pref["specialRequests"] as string) || ""
+    (pref["specialRequests"] as string) || "",
   );
 
   const [recoveryMode, setRecoveryMode] = useState<RecoveryMode>(
-    (trip.recovery_mode as RecoveryMode) || "assisted"
+    (trip.recovery_mode as RecoveryMode) || "assisted",
   );
 
   const [error, setError] = useState<string | null>(null);
@@ -108,7 +121,9 @@ export function EditTripModal({ trip, isOpen, onClose, onNotice }: EditTripModal
       setInterests(trip.interests || []);
 
       const p = (trip.preferences as Record<string, unknown>) || {};
-      setIndoorOutdoor((p["indoorOutdoor"] as any) || "balanced");
+      setIndoorOutdoor(
+        (p["indoorOutdoor"] as "mostly_indoor" | "balanced" | "mostly_outdoor") || "balanced",
+      );
       setPace((p["pace"] as string) || "moderate");
       setTransport((p["transport"] as string) || "public_transit");
       setAccommodation((p["accommodation"] as string) || "budget_hotel");
@@ -147,17 +162,17 @@ export function EditTripModal({ trip, isOpen, onClose, onNotice }: EditTripModal
         interests: interests.slice(0, 12),
         preferences: {
           indoorOutdoor,
-          pace: pace as any,
-          transport: transport as any,
-          accommodation: accommodation as any,
-          foodPreference: foodPreference as any,
+          pace: pace as TripInput["preferences"]["pace"],
+          transport: transport as TripInput["preferences"]["transport"],
+          accommodation: accommodation as TripInput["preferences"]["accommodation"],
+          foodPreference: foodPreference as TripInput["preferences"]["foodPreference"],
           wakeUpTime,
           dietary,
           accessibility,
           specialRequests: specialRequests.trim() || undefined,
         },
         recoveryMode,
-        automationSettings: (trip.automation_settings as any) || {
+        automationSettings: (trip.automation_settings as TripInput["automationSettings"]) || {
           maxExtraSpend: 2000,
           autoReplace: ["flexible", "weather_sensitive"],
           alwaysAsk: ["flights", "hotels", "above_limit"],
@@ -201,9 +216,12 @@ export function EditTripModal({ trip, isOpen, onClose, onNotice }: EditTripModal
               <Edit3 className="h-5 w-5" />
             </div>
             <div>
-              <h3 className="font-display text-lg font-bold text-foreground">Edit Trip Configuration</h3>
+              <h3 className="font-display text-lg font-bold text-foreground">
+                Edit Trip Configuration
+              </h3>
               <p className="text-xs text-muted-foreground">
-                Update parameters for {trip.destination}. Choose whether to keep or regenerate the schedule.
+                Update parameters for {trip.destination}. Choose whether to keep or regenerate the
+                schedule.
               </p>
             </div>
           </div>
@@ -488,8 +506,8 @@ export function EditTripModal({ trip, isOpen, onClose, onNotice }: EditTripModal
                       {m === "assisted"
                         ? "Assisted (Proactive approval required)"
                         : m === "autonomous"
-                        ? "Autonomous (Auto-apply within budget limit)"
-                        : "Manual (Notifications only)"}
+                          ? "Autonomous (Auto-apply within budget limit)"
+                          : "Manual (Notifications only)"}
                     </option>
                   ))}
                 </select>

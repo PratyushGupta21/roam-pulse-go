@@ -45,7 +45,9 @@ export function PageHero({
   badge,
 }: PageHeroProps) {
   return (
-    <section className={cn("relative isolate -mt-16 overflow-hidden border-b border-border", className)}>
+    <section
+      className={cn("relative isolate -mt-16 overflow-hidden border-b border-border", className)}
+    >
       {imageSrc ? (
         <>
           <img
@@ -58,7 +60,10 @@ export function PageHero({
             className="absolute inset-0 -z-20 h-full w-full object-cover"
             style={{ objectPosition: imagePosition }}
           />
-          <div className="hero-scrim-subtle absolute inset-0 -z-10 hidden md:block" aria-hidden="true" />
+          <div
+            className="hero-scrim-subtle absolute inset-0 -z-10 hidden md:block"
+            aria-hidden="true"
+          />
           <div className="hero-scrim-mobile absolute inset-0 -z-10 md:hidden" aria-hidden="true" />
         </>
       ) : (
@@ -70,7 +75,10 @@ export function PageHero({
           <div className="mb-4 flex justify-center">{badge}</div>
         ) : eyebrow ? (
           <span className="inline-flex items-center gap-1.5 rounded-full border border-white/25 bg-white/10 px-3.5 py-1 text-xs font-medium uppercase tracking-widest text-white backdrop-blur">
-            <span className="live-dot inline-block h-1.5 w-1.5 rounded-full bg-accent" aria-hidden="true" />
+            <span
+              className="live-dot inline-block h-1.5 w-1.5 rounded-full bg-accent"
+              aria-hidden="true"
+            />
             {eyebrow}
           </span>
         ) : null}
@@ -79,24 +87,26 @@ export function PageHero({
           {title} {titleAccent ? <span className="text-accent">{titleAccent}</span> : null}
         </h1>
 
-        <p className="mx-auto mt-4 max-w-2xl text-base text-white/85 sm:text-lg">
-          {lede}
-        </p>
+        <p className="mx-auto mt-4 max-w-2xl text-base text-white/85 sm:text-lg">{lede}</p>
 
-        {children ? <div className="mt-8 flex flex-wrap justify-center gap-3">{children}</div> : null}
+        {children ? (
+          <div className="mt-8 flex flex-wrap justify-center gap-3">{children}</div>
+        ) : null}
       </div>
     </section>
   );
 }
 
-export function PageHeader({ eyebrow, title, lede }: { eyebrow: string; title: string; lede: string }) {
-  return (
-    <PageHero
-      eyebrow={eyebrow}
-      title={title}
-      lede={lede}
-    />
-  );
+export function PageHeader({
+  eyebrow,
+  title,
+  lede,
+}: {
+  eyebrow: string;
+  title: string;
+  lede: string;
+}) {
+  return <PageHero eyebrow={eyebrow} title={title} lede={lede} />;
 }
 
 export function Prose({ children }: { children: ReactNode }) {

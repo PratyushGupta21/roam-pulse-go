@@ -9,7 +9,8 @@ export function SiteFooter() {
         <div>
           <Logo inverted />
           <p className="mt-3 max-w-xs text-sm opacity-80">
-            Real-time adaptive travel planning. RoamPulse watches your trip and rebuilds it when the world changes.
+            Real-time adaptive travel planning. RoamPulse watches your trip and rebuilds it when the
+            world changes.
           </p>
         </div>
         <nav aria-label="Product">
@@ -55,15 +56,15 @@ export function SiteFooter() {
         <div>
           <h2 className="text-sm font-semibold uppercase tracking-wide opacity-70">Disclosure</h2>
           <p className="mt-3 text-sm opacity-80">
-            Booking links may be affiliate links. RoamPulse never charges booking fees and never spends money without
-            your explicit authorisation.
+            Booking links may be affiliate links. RoamPulse never charges booking fees and never
+            spends money without your explicit authorisation.
           </p>
         </div>
       </div>
       <div className="border-t border-sidebar-border">
         <p className="mx-auto max-w-6xl px-4 py-6 text-xs opacity-70">
-          © {new Date().getFullYear()} RoamPulse. Prices and availability shown in demo mode are examples, not live
-          provider quotes.
+          © {new Date().getFullYear()} RoamPulse. Prices and availability shown in demo mode are
+          examples, not live provider quotes.
         </p>
       </div>
     </footer>

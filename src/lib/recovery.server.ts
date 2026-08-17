@@ -39,7 +39,9 @@ export function findAffectedItems(items: EngineItem[], ctx: DisruptionContext) {
     if (ctx.type === "weather") {
       return item.indoor_outdoor === "outdoor" && minutesOf(item.start_time) >= cutoff;
     }
-    return minutesOf(item.start_time) < cutoff && minutesOf(item.end_time) > cutoff - ctx.minutesLost;
+    return (
+      minutesOf(item.start_time) < cutoff && minutesOf(item.end_time) > cutoff - ctx.minutesLost
+    );
   });
 }
 
@@ -52,15 +54,27 @@ export function scoreAlternatives(
   return ACTIVITY_CATALOG.map((activity) => {
     const interestOverlap = activity.interests.filter((i) => ctx.interests.includes(i)).length;
     const budgetFit = activity.estimatedCost <= ctx.maxExtraSpend + affected.estimated_cost ? 1 : 0;
-    const indoorBonus = ctx.type === "weather" || ctx.type === "flight_delay" ? (activity.indoorOutdoor === "indoor" ? 1 : 0) : 0.5;
+    const indoorBonus =
+      ctx.type === "weather" || ctx.type === "flight_delay"
+        ? activity.indoorOutdoor === "indoor"
+          ? 1
+          : 0
+        : 0.5;
     const proximity = Math.max(0, 1 - activity.distanceKm / 8);
     const score =
-      interestOverlap * 0.28 + budgetFit * 0.22 + indoorBonus * 0.25 + proximity * 0.15 + (activity.rating / 5) * 0.1;
+      interestOverlap * 0.28 +
+      budgetFit * 0.22 +
+      indoorBonus * 0.25 +
+      proximity * 0.15 +
+      (activity.rating / 5) * 0.1;
 
     const reasons: string[] = [];
     reasons.push(`Fits your new schedule from ${startTime}`);
     if (activity.indoorOutdoor === "indoor") reasons.push("Indoor — unaffected by weather");
-    if (interestOverlap > 0) reasons.push(`Matches your ${activity.interests.filter((i) => ctx.interests.includes(i))[0]} interest`);
+    if (interestOverlap > 0)
+      reasons.push(
+        `Matches your ${activity.interests.filter((i) => ctx.interests.includes(i))[0]} interest`,
+      );
     reasons.push(`${Math.round(activity.distanceKm * 4)} minutes away (${activity.distanceKm} km)`);
     if (budgetFit) reasons.push("Within your budget limit");
 
@@ -78,8 +92,10 @@ export function scoreAlternatives(
       reasons,
       score: Number(score.toFixed(3)),
       sponsored: Boolean(activity.sponsored),
-      latitude: ctx.anchorLat === null ? null : Number((ctx.anchorLat + activity.latOffset).toFixed(5)),
-      longitude: ctx.anchorLon === null ? null : Number((ctx.anchorLon + activity.lonOffset).toFixed(5)),
+      latitude:
+        ctx.anchorLat === null ? null : Number((ctx.anchorLat + activity.latOffset).toFixed(5)),
+      longitude:
+        ctx.anchorLon === null ? null : Number((ctx.anchorLon + activity.lonOffset).toFixed(5)),
       bookingUrl: activity.bookingUrl ?? null,
       startTime,
       endTime: addMinutes(startTime, activity.durationMinutes),

@@ -35,14 +35,9 @@ function MapController({
   useEffect(() => {
     if (mappedItems.length === 0) return;
 
-    const bounds = L.latLngBounds(
-      mappedItems.map((item) => [item.latitude!, item.longitude!])
-    );
+    const bounds = L.latLngBounds(mappedItems.map((item) => [item.latitude!, item.longitude!]));
 
-    if (
-      mappedItems.length !== prevItemsLength.current ||
-      triggerFit !== prevTriggerFit.current
-    ) {
+    if (mappedItems.length !== prevItemsLength.current || triggerFit !== prevTriggerFit.current) {
       map.fitBounds(bounds, { padding: [50, 50], maxZoom: 15 });
       prevItemsLength.current = mappedItems.length;
       prevTriggerFit.current = triggerFit;
@@ -63,8 +58,8 @@ function MapController({
 }
 
 /**
-  * Category color helper for markers
-  */
+ * Category color helper for markers
+ */
 function getCategoryColorClass(category?: string): string {
   switch (category?.toLowerCase()) {
     case "food":
@@ -89,8 +84,8 @@ function getCategoryColorClass(category?: string): string {
 }
 
 /**
-  * Category icon helper for markers
-  */
+ * Category icon helper for markers
+ */
 function getCategorySymbol(category?: string): string {
   switch (category?.toLowerCase()) {
     case "food":
@@ -115,16 +110,16 @@ function getCategorySymbol(category?: string): string {
 }
 
 /**
-  * Creates Leaflet custom DivIcon based on item status and category
-  */
+ * Creates Leaflet custom DivIcon based on item status and category
+ */
 function createCustomDivIcon(item: ItineraryItem, isSelected: boolean, index: number): L.DivIcon {
   const colorClass = getCategoryColorClass(item.category);
   const symbol = item.is_locked ? "🔒" : item.status === "at_risk" ? "⚠️" : `${index + 1}`;
 
   const html = `
     <div class="relative flex items-center justify-center h-8 w-8 rounded-full border-2 shadow-lg font-mono text-xs font-bold text-white ${colorClass} ${
-    isSelected ? "ring-4 ring-primary scale-110" : ""
-  }">
+      isSelected ? "ring-4 ring-primary scale-110" : ""
+    }">
       <span>${symbol}</span>
     </div>
   `;
@@ -138,12 +133,7 @@ function createCustomDivIcon(item: ItineraryItem, isSelected: boolean, index: nu
   });
 }
 
-export function TripMap({
-  items = [],
-  selectedItemId,
-  onSelectItem,
-  destination,
-}: TripMapProps) {
+export function TripMap({ items = [], selectedItemId, onSelectItem, destination }: TripMapProps) {
   const [selectedDay, setSelectedDay] = useState<string>("all");
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
   const [routeInfo, setRouteInfo] = useState<RouteResult | null>(null);
@@ -226,9 +216,12 @@ export function TripMap({
             <Compass className="h-4 w-4" />
           </div>
           <div>
-            <h3 className="font-display text-sm font-bold text-foreground">Interactive OpenStreetMap</h3>
+            <h3 className="font-display text-sm font-bold text-foreground">
+              Interactive OpenStreetMap
+            </h3>
             <p className="text-[11px] text-muted-foreground">
-              {mappedItems.length} mapped locations {routeInfo ? `• ~${routeInfo.distanceKm} km route` : ""}
+              {mappedItems.length} mapped locations{" "}
+              {routeInfo ? `• ~${routeInfo.distanceKm} km route` : ""}
             </p>
           </div>
         </div>

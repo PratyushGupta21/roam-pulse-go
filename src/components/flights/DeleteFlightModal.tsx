@@ -60,8 +60,8 @@ export function DeleteFlightModal({
 
         <p className="text-xs text-muted-foreground leading-relaxed">
           Are you sure you want to remove flight{" "}
-          <strong className="text-foreground">{flight.flight_number}</strong> from this trip?
-          This will unbind flight status monitoring. Your trip itinerary will remain intact.
+          <strong className="text-foreground">{flight.flight_number}</strong> from this trip? This
+          will unbind flight status monitoring. Your trip itinerary will remain intact.
         </p>
 
         {error ? (

@@ -18,7 +18,7 @@ export const checkTripWeather = createServerFn({ method: "POST" })
       .object({
         tripId: z.string().uuid(),
       })
-      .parse(data)
+      .parse(data),
   )
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
@@ -26,7 +26,9 @@ export const checkTripWeather = createServerFn({ method: "POST" })
     // Load trip with RLS check (user_id = userId)
     const { data: trip } = await supabase
       .from("trips")
-      .select("id, name, destination, currency, interests, recovery_mode, automation_settings, user_id, start_date, end_date")
+      .select(
+        "id, name, destination, currency, interests, recovery_mode, automation_settings, user_id, start_date, end_date",
+      )
       .eq("id", data.tripId)
       .eq("user_id", userId)
       .maybeSingle();
@@ -37,7 +39,7 @@ export const checkTripWeather = createServerFn({ method: "POST" })
     const { data: items } = await supabase
       .from("itinerary_items")
       .select(
-        "id, title, day_date, start_time, end_time, category, estimated_cost, indoor_outdoor, is_locked, status, latitude, longitude, location"
+        "id, title, day_date, start_time, end_time, category, estimated_cost, indoor_outdoor, is_locked, status, latitude, longitude, location",
       )
       .eq("trip_id", data.tripId)
       .neq("status", "replaced")
@@ -63,7 +65,11 @@ export const checkTripWeather = createServerFn({ method: "POST" })
     let lon: number | null = null;
 
     for (const item of items) {
-      if (typeof item.latitude === "number" && typeof item.longitude === "number" && (item.latitude !== 0 || item.longitude !== 0)) {
+      if (
+        typeof item.latitude === "number" &&
+        typeof item.longitude === "number" &&
+        (item.latitude !== 0 || item.longitude !== 0)
+      ) {
         lat = item.latitude;
         lon = item.longitude;
         break;
@@ -143,7 +149,10 @@ export const checkTripWeather = createServerFn({ method: "POST" })
           title: `Weather Risk: ${affectedDbItem.title}`,
           description: riskItem.reason || "Heavy rain expected during outdoor activity",
           affected_item_ids: [riskItem.itemId],
-          metadata: { rainProbability: riskItem.maxPrecipProbability, condition: riskItem.conditionText } as unknown as Json,
+          metadata: {
+            rainProbability: riskItem.maxPrecipProbability,
+            condition: riskItem.conditionText,
+          } as unknown as Json,
         })
         .select("id")
         .single();
@@ -165,21 +174,18 @@ export const checkTripWeather = createServerFn({ method: "POST" })
           longitude: affectedDbItem.longitude,
         };
 
-        const { payload } = buildRecovery(
-          [engineItem],
-          {
-            type: "weather",
-            minutesLost: 120,
-            fromTime: affectedDbItem.start_time,
-            interests: (trip.interests as string[]) || ["culture", "food"],
-            currency: (trip.currency as string) || "INR",
-            maxExtraSpend: settings.maxExtraSpend ?? 1000,
-            recoveryMode: (trip.recovery_mode as "manual" | "assisted" | "autonomous") || "manual",
-            anchorLat: affectedDbItem.latitude,
-            anchorLon: affectedDbItem.longitude,
-            rainProbability: riskItem.maxPrecipProbability,
-          }
-        );
+        const { payload } = buildRecovery([engineItem], {
+          type: "weather",
+          minutesLost: 120,
+          fromTime: affectedDbItem.start_time,
+          interests: (trip.interests as string[]) || ["culture", "food"],
+          currency: (trip.currency as string) || "INR",
+          maxExtraSpend: settings.maxExtraSpend ?? 1000,
+          recoveryMode: (trip.recovery_mode as "manual" | "assisted" | "autonomous") || "manual",
+          anchorLat: affectedDbItem.latitude,
+          anchorLon: affectedDbItem.longitude,
+          rainProbability: riskItem.maxPrecipProbability,
+        });
 
         if (payload) {
           await supabase.from("recovery_recommendations").insert({
@@ -215,7 +221,9 @@ export const checkTripWeather = createServerFn({ method: "POST" })
         ? `⚠️ Weather risk detected for ${highRisks.length} outdoor activity.`
         : `✓ Weather looks good for all planned activities in ${trip.destination}.`;
 
-    console.log(`[Weather] check complete for trip ${data.tripId}: ${overallStatus} (${createdDisruptionsCount} new disruptions created)`);
+    console.log(
+      `[Weather] check complete for trip ${data.tripId}: ${overallStatus} (${createdDisruptionsCount} new disruptions created)`,
+    );
 
     return {
       destination: trip.destination,

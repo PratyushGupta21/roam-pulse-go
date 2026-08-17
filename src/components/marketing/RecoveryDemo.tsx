@@ -25,7 +25,9 @@ export function RecoveryDemo() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h3 className="font-display text-xl font-semibold">Live recovery, in one tap</h3>
-          <p className="text-sm text-muted-foreground">Try the flow travellers see when a flight slips.</p>
+          <p className="text-sm text-muted-foreground">
+            Try the flow travellers see when a flight slips.
+          </p>
         </div>
         <DemoBadge />
       </div>
@@ -73,7 +75,8 @@ export function RecoveryDemo() {
       </div>
       {applied ? (
         <p className="mt-3 text-sm text-success">
-          Recovery applied — itinerary, route and budget updated. Locked dinner reservation preserved.
+          Recovery applied — itinerary, route and budget updated. Locked dinner reservation
+          preserved.
         </p>
       ) : null}
     </section>

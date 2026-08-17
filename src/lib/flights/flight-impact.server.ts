@@ -27,10 +27,10 @@ export interface FlightImpactPlan {
 }
 
 /**
-  * Server-side Flight Disruption Impact Analyzer.
-  * Calculates traveler availability time after flight delay and post-flight buffer (60 min).
-  * Evaluates active itinerary items against arrival time window and categorizes impact.
-  */
+ * Server-side Flight Disruption Impact Analyzer.
+ * Calculates traveler availability time after flight delay and post-flight buffer (60 min).
+ * Evaluates active itinerary items against arrival time window and categorizes impact.
+ */
 export function analyzeFlightImpact({
   tripId,
   flightNumber,
@@ -101,8 +101,8 @@ export function analyzeFlightImpact({
     const priority: "LOCKED" | "CONFIRMED" | "FLEXIBLE" = item.is_locked
       ? "LOCKED"
       : item.status === "confirmed"
-      ? "CONFIRMED"
-      : "FLEXIBLE";
+        ? "CONFIRMED"
+        : "FLEXIBLE";
 
     // Item starts before traveler is available
     if (itemStartMin < availableMinutes && itemEndMin > minutesOf(arrivalHHMM) - 30) {

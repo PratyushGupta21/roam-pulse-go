@@ -90,7 +90,9 @@ function Faq() {
         <div className="rounded-2xl border border-border bg-card p-6 sm:p-8 shadow-sm">
           <div className="mb-6 flex items-center gap-2 text-primary">
             <HelpCircle className="h-5 w-5" />
-            <span className="font-display font-semibold text-foreground">Frequently Asked Questions</span>
+            <span className="font-display font-semibold text-foreground">
+              Frequently Asked Questions
+            </span>
           </div>
 
           <Accordion type="single" collapsible className="w-full space-y-3">

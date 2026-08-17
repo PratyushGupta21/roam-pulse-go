@@ -70,7 +70,8 @@ export function DeleteTripModal({
         {/* Warning Details */}
         <div className="rounded-xl border border-destructive/20 bg-destructive/5 p-4 text-xs text-foreground space-y-2">
           <p className="font-semibold text-destructive">
-            Are you sure you want to delete <span className="underline font-bold">"{tripName}"</span>?
+            Are you sure you want to delete{" "}
+            <span className="underline font-bold">"{tripName}"</span>?
           </p>
           <p className="text-muted-foreground text-[11px] leading-relaxed">
             This will permanently remove:

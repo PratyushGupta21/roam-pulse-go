@@ -65,13 +65,7 @@ export function Dashboard() {
   const [noticeMessage, setNoticeMessage] = useState<string | null>(null);
 
   // Fetch real trips belonging to the authenticated user via RLS
-  const {
-    data: trips = [],
-    isLoading,
-    isError,
-    error,
-    refetch,
-  } = useQuery(tripsQuery());
+  const { data: trips = [], isLoading, isError, error, refetch } = useQuery(tripsQuery());
 
   // Mutation to create a demo trip for 1-click manual testing
   const createDemoMutation = useMutation({
@@ -84,7 +78,9 @@ export function Dashboard() {
   });
 
   const userName =
-    (user?.user_metadata?.["full_name"] as string | undefined) ?? user?.email?.split("@")[0] ?? "Traveller";
+    (user?.user_metadata?.["full_name"] as string | undefined) ??
+    user?.email?.split("@")[0] ??
+    "Traveller";
 
   // Filter logic
   const now = new Date().toISOString().slice(0, 10);
@@ -110,7 +106,9 @@ export function Dashboard() {
               <button
                 onClick={() => setFilterTab("all")}
                 className={`rounded-md px-3 py-1.5 transition-colors cursor-pointer ${
-                  filterTab === "all" ? "bg-secondary text-foreground font-semibold" : "hover:text-foreground"
+                  filterTab === "all"
+                    ? "bg-secondary text-foreground font-semibold"
+                    : "hover:text-foreground"
                 }`}
               >
                 All Trips ({trips.length})
@@ -118,7 +116,9 @@ export function Dashboard() {
               <button
                 onClick={() => setFilterTab("active")}
                 className={`rounded-md px-3 py-1.5 transition-colors cursor-pointer ${
-                  filterTab === "active" ? "bg-secondary text-foreground font-semibold" : "hover:text-foreground"
+                  filterTab === "active"
+                    ? "bg-secondary text-foreground font-semibold"
+                    : "hover:text-foreground"
                 }`}
               >
                 Active / Upcoming ({activeTrips.length})
@@ -126,7 +126,9 @@ export function Dashboard() {
               <button
                 onClick={() => setFilterTab("completed")}
                 className={`rounded-md px-3 py-1.5 transition-colors cursor-pointer ${
-                  filterTab === "completed" ? "bg-secondary text-foreground font-semibold" : "hover:text-foreground"
+                  filterTab === "completed"
+                    ? "bg-secondary text-foreground font-semibold"
+                    : "hover:text-foreground"
                 }`}
               >
                 Completed ({completedTrips.length})
@@ -177,7 +179,8 @@ export function Dashboard() {
               Welcome back, {userName}
             </h1>
             <p className="text-sm text-muted-foreground">
-              Manage your trips, monitor live disruptions, edit itineraries, or duplicate trip plans.
+              Manage your trips, monitor live disruptions, edit itineraries, or duplicate trip
+              plans.
             </p>
           </div>
 
@@ -189,11 +192,18 @@ export function Dashboard() {
               disabled={createDemoMutation.isPending}
               className="gap-1.5 text-xs"
             >
-              <RefreshCw className={`h-3.5 w-3.5 ${createDemoMutation.isPending ? "animate-spin" : ""}`} />
+              <RefreshCw
+                className={`h-3.5 w-3.5 ${createDemoMutation.isPending ? "animate-spin" : ""}`}
+              />
               <span>{createDemoMutation.isPending ? "Generating Demo…" : "1-Click Demo Trip"}</span>
             </Button>
 
-            <Button asChild variant="recover" size="sm" className="gap-1.5 font-semibold text-xs shadow-xs">
+            <Button
+              asChild
+              variant="recover"
+              size="sm"
+              className="gap-1.5 font-semibold text-xs shadow-xs"
+            >
               <Link to="/trips/new">
                 <Plus className="h-3.5 w-3.5" />
                 <span>Create New Trip</span>
@@ -206,25 +216,35 @@ export function Dashboard() {
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <div className="rounded-xl border border-border bg-card p-5 shadow-xs">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Total Trips</span>
+              <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                Total Trips
+              </span>
               <Plane className="h-4 w-4 text-primary" />
             </div>
             <p className="mt-3 text-2xl font-bold text-foreground">{trips.length}</p>
-            <p className="mt-1 text-xs text-muted-foreground">{activeTrips.length} currently active</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {activeTrips.length} currently active
+            </p>
           </div>
 
           <div className="rounded-xl border border-border bg-card p-5 shadow-xs">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Database Security</span>
+              <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                Database Security
+              </span>
               <ShieldCheck className="h-4 w-4 text-success" />
             </div>
             <p className="mt-3 text-2xl font-bold text-success">RLS Enabled</p>
-            <p className="mt-1 text-xs text-muted-foreground">Scoped to user: {user?.id.slice(0, 8)}…</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Scoped to user: {user?.id.slice(0, 8)}…
+            </p>
           </div>
 
           <div className="rounded-xl border border-border bg-card p-5 shadow-xs">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Monitoring Status</span>
+              <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                Monitoring Status
+              </span>
               <Gauge className="h-4 w-4 text-primary" />
             </div>
             <p className="mt-3 text-2xl font-bold text-foreground">
@@ -237,7 +257,9 @@ export function Dashboard() {
 
           <div className="rounded-xl border border-border bg-card p-5 shadow-xs">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Account Email</span>
+              <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                Account Email
+              </span>
               <User className="h-4 w-4 text-primary" />
             </div>
             <p className="mt-3 text-sm font-bold text-foreground truncate">{user?.email}</p>
@@ -251,7 +273,10 @@ export function Dashboard() {
             <div className="h-6 w-32 bg-muted animate-pulse rounded" />
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
               {[1, 2, 3].map((i) => (
-                <div key={i} className="h-56 rounded-2xl border border-border bg-card p-6 animate-pulse space-y-4" />
+                <div
+                  key={i}
+                  className="h-56 rounded-2xl border border-border bg-card p-6 animate-pulse space-y-4"
+                />
               ))}
             </div>
           </div>
@@ -389,7 +414,9 @@ export function Dashboard() {
                         <span className="flex items-center gap-1.5">
                           <Gauge className="h-3.5 w-3.5 text-success shrink-0" /> Recovery
                         </span>
-                        <span className="font-medium text-foreground capitalize">{trip.recovery_mode}</span>
+                        <span className="font-medium text-foreground capitalize">
+                          {trip.recovery_mode}
+                        </span>
                       </div>
                     </div>
                   </div>
@@ -398,7 +425,12 @@ export function Dashboard() {
                     <span className="font-mono text-[11px] text-muted-foreground">
                       ID: {trip.id.slice(0, 8)}
                     </span>
-                    <Button asChild size="sm" variant="ghost" className="gap-1 text-xs text-primary font-medium hover:text-primary">
+                    <Button
+                      asChild
+                      size="sm"
+                      variant="ghost"
+                      className="gap-1 text-xs text-primary font-medium hover:text-primary"
+                    >
                       <Link to="/trips/$tripId" params={{ tripId: trip.id }}>
                         <span>Open Trip</span>
                         <ArrowRight className="h-3.5 w-3.5" />

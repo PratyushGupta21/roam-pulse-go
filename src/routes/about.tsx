@@ -63,13 +63,18 @@ function About() {
         <section className="rounded-2xl border border-border bg-card p-8 sm:p-10 shadow-sm">
           <div className="flex items-center gap-2.5 text-primary mb-3">
             <Compass className="h-5 w-5" />
-            <span className="font-mono text-xs uppercase tracking-widest font-semibold">The Core Problem</span>
+            <span className="font-mono text-xs uppercase tracking-widest font-semibold">
+              The Core Problem
+            </span>
           </div>
-          <h2 className="font-display text-2xl font-semibold sm:text-3xl">Why we built RoamPulse</h2>
+          <h2 className="font-display text-2xl font-semibold sm:text-3xl">
+            Why we built RoamPulse
+          </h2>
           <p className="mt-4 text-base leading-relaxed text-muted-foreground">
-            Travel planning software typically abandons you the moment you leave your front door. Bookings live in one app,
-            weather in another, flight notifications in a third, and local discovery in a browser tab jungle. When something slips,
-            the traveller becomes the exhausted manual integration layer trying to salvage the trip.
+            Travel planning software typically abandons you the moment you leave your front door.
+            Bookings live in one app, weather in another, flight notifications in a third, and local
+            discovery in a browser tab jungle. When something slips, the traveller becomes the
+            exhausted manual integration layer trying to salvage the trip.
           </p>
         </section>
 
@@ -77,19 +82,26 @@ function About() {
         <section className="rounded-2xl border border-border bg-card p-8 sm:p-10 shadow-sm">
           <div className="flex items-center gap-2.5 text-accent mb-3">
             <Sparkles className="h-5 w-5" />
-            <span className="font-mono text-xs uppercase tracking-widest font-semibold">Our Approach</span>
+            <span className="font-mono text-xs uppercase tracking-widest font-semibold">
+              Our Approach
+            </span>
           </div>
-          <h2 className="font-display text-2xl font-semibold sm:text-3xl">What RoamPulse does differently</h2>
+          <h2 className="font-display text-2xl font-semibold sm:text-3xl">
+            What RoamPulse does differently
+          </h2>
           <p className="mt-4 text-base leading-relaxed text-muted-foreground">
-            RoamPulse treats your trip as an active, monitored state machine. It understands which activities are fixed
-            milestones, which are flexible adventures, and which depend on good weather or timely arrivals. When real-world
-            signals shift, the engine recalculates feasibility, discovers scored alternatives, and presents ready-to-execute recovery.
+            RoamPulse treats your trip as an active, monitored state machine. It understands which
+            activities are fixed milestones, which are flexible adventures, and which depend on good
+            weather or timely arrivals. When real-world signals shift, the engine recalculates
+            feasibility, discovers scored alternatives, and presents ready-to-execute recovery.
           </p>
         </section>
 
         {/* Operating Principles */}
         <section className="rounded-2xl border border-border bg-card p-8 sm:p-10 shadow-sm">
-          <h2 className="font-display text-2xl font-semibold sm:text-3xl">Our operating principles</h2>
+          <h2 className="font-display text-2xl font-semibold sm:text-3xl">
+            Our operating principles
+          </h2>
           <p className="mt-2 text-sm text-muted-foreground">
             Uncompromising standards that guide every line of code in RoamPulse.
           </p>

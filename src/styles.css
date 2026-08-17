@@ -2,7 +2,6 @@
 @source "../src";
 @import "tw-animate-css";
 
-
 @custom-variant dark (&:is(.dark *));
 
 /*
@@ -261,7 +260,12 @@
     linear-gradient(
       to bottom,
       color-mix(in oklab, var(--slate-ink) 82%, transparent) 0%,
-      color-mix(in oklab, var(--slate-ink) 65%, color-mix(in oklab, var(--primary) 35%, transparent)) 50%,
+      color-mix(
+          in oklab,
+          var(--slate-ink) 65%,
+          color-mix(in oklab, var(--primary) 35%, transparent)
+        )
+        50%,
       color-mix(in oklab, var(--slate-ink) 88%, transparent) 100%
     ),
     radial-gradient(
@@ -283,29 +287,44 @@
 
 /* Auth split-screen hero overlay */
 @utility auth-scrim {
-  background:
-    linear-gradient(
-      to bottom,
-      color-mix(in oklab, var(--slate-ink) 78%, transparent) 0%,
-      color-mix(in oklab, var(--slate-ink) 60%, color-mix(in oklab, var(--primary) 40%, transparent)) 50%,
-      color-mix(in oklab, var(--slate-ink) 92%, transparent) 100%
-    );
+  background: linear-gradient(
+    to bottom,
+    color-mix(in oklab, var(--slate-ink) 78%, transparent) 0%,
+    color-mix(in oklab, var(--slate-ink) 60%, color-mix(in oklab, var(--primary) 40%, transparent))
+      50%,
+    color-mix(in oklab, var(--slate-ink) 92%, transparent) 100%
+  );
 }
 
 /* Level 2: Public marketing content atmosphere with subtle multi-point radial gradients */
 @utility bg-travel-atmosphere {
   background-color: var(--color-background);
   background-image:
-    radial-gradient(at 12% 15%, color-mix(in oklab, var(--primary) 6%, transparent) 0px, transparent 48%),
-    radial-gradient(at 88% 30%, color-mix(in oklab, var(--accent) 4%, transparent) 0px, transparent 40%),
-    radial-gradient(at 50% 85%, color-mix(in oklab, var(--primary) 5%, transparent) 0px, transparent 55%);
+    radial-gradient(
+      at 12% 15%,
+      color-mix(in oklab, var(--primary) 6%, transparent) 0px,
+      transparent 48%
+    ),
+    radial-gradient(
+      at 88% 30%,
+      color-mix(in oklab, var(--accent) 4%, transparent) 0px,
+      transparent 40%
+    ),
+    radial-gradient(
+      at 50% 85%,
+      color-mix(in oklab, var(--primary) 5%, transparent) 0px,
+      transparent 55%
+    );
 }
 
 /* Level 2: Subtle alternating surface */
 @utility bg-travel-subtle {
   background-color: color-mix(in oklab, var(--primary) 3.5%, var(--color-card));
-  background-image:
-    radial-gradient(at 50% 0%, color-mix(in oklab, var(--primary) 6%, transparent) 0px, transparent 60%);
+  background-image: radial-gradient(
+    at 50% 0%,
+    color-mix(in oklab, var(--primary) 6%, transparent) 0px,
+    transparent 60%
+  );
 }
 
 /* Level 3: Authenticated Application / Dashboard atmosphere */
@@ -325,12 +344,10 @@
         color-mix(in oklab, var(--color-background) 45%, transparent),
         color-mix(in oklab, var(--color-background) 58%, transparent)
       ),
-      url('/dashboard-bg.jpg');
+      url("/dashboard-bg.jpg");
     background-size: cover;
     background-position: center 30%;
     background-repeat: no-repeat;
     pointer-events: none;
   }
 }
-
-

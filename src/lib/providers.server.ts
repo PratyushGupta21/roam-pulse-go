@@ -36,16 +36,21 @@ export interface FlightStatus {
   estimatedArrival: string | null;
 }
 
-export async function fetchFlightStatus(flightNumber: string): Promise<ProviderResult<FlightStatus>> {
+export async function fetchFlightStatus(
+  flightNumber: string,
+): Promise<ProviderResult<FlightStatus>> {
   const checkedAt = new Date().toISOString();
   const key = process.env["DUFFEL_API_KEY"];
   if (!key) {
     return { data: null, demo: true, error: null, checkedAt };
   }
   try {
-    const res = await fetch(`https://api.duffel.com/air/offers?flight=${encodeURIComponent(flightNumber)}`, {
-      headers: { Authorization: `Bearer ${key}`, "Duffel-Version": "v2" },
-    });
+    const res = await fetch(
+      `https://api.duffel.com/air/offers?flight=${encodeURIComponent(flightNumber)}`,
+      {
+        headers: { Authorization: `Bearer ${key}`, "Duffel-Version": "v2" },
+      },
+    );
     if (!res.ok) throw new Error(`status ${res.status}`);
     const json = (await res.json()) as { data?: unknown };
     return { data: json.data as unknown as FlightStatus, demo: false, error: null, checkedAt };
@@ -93,7 +98,12 @@ export async function fetchWeather(
     }));
     return { data, demo: false, error: null, checkedAt };
   } catch {
-    return { data: null, demo: false, error: "Weather data is temporarily unavailable.", checkedAt };
+    return {
+      data: null,
+      demo: false,
+      error: "Weather data is temporarily unavailable.",
+      checkedAt,
+    };
   }
 }
 
@@ -127,14 +137,51 @@ export async function fetchPriceOffers(
   if (!process.env["PRICE_API_KEY"]) {
     const base = 38_000;
     const demoOffers: PriceOffer[] = [
-      { provider: "Duffel", productType: "flight", title: "Delhi → Tokyo, 1 stop", price: base, currency, bookingUrl: "https://duffel.com", demo: true },
-      { provider: "Skyscanner", productType: "flight", title: "Delhi → Tokyo, 1 stop", price: base + 2600, currency, bookingUrl: "https://www.skyscanner.co.in", demo: true },
-      { provider: "Agoda", productType: "stay", title: `${destination} · 7 nights, boutique`, price: 26_400, currency, bookingUrl: "https://www.agoda.com", demo: true },
-      { provider: "Booking.com", productType: "stay", title: `${destination} · 7 nights, boutique`, price: 28_900, currency, bookingUrl: "https://www.booking.com", demo: true },
+      {
+        provider: "Duffel",
+        productType: "flight",
+        title: "Delhi → Tokyo, 1 stop",
+        price: base,
+        currency,
+        bookingUrl: "https://duffel.com",
+        demo: true,
+      },
+      {
+        provider: "Skyscanner",
+        productType: "flight",
+        title: "Delhi → Tokyo, 1 stop",
+        price: base + 2600,
+        currency,
+        bookingUrl: "https://www.skyscanner.co.in",
+        demo: true,
+      },
+      {
+        provider: "Agoda",
+        productType: "stay",
+        title: `${destination} · 7 nights, boutique`,
+        price: 26_400,
+        currency,
+        bookingUrl: "https://www.agoda.com",
+        demo: true,
+      },
+      {
+        provider: "Booking.com",
+        productType: "stay",
+        title: `${destination} · 7 nights, boutique`,
+        price: 28_900,
+        currency,
+        bookingUrl: "https://www.booking.com",
+        demo: true,
+      },
     ];
     return { data: demoOffers, demo: true, error: null, checkedAt };
   }
-  return { data: [], demo: false, error: "Price providers are temporarily unavailable.", checkedAt };
+  return {
+    data: [],
+    demo: false,
+    error: "Price providers are temporarily unavailable.",
+    checkedAt,
+  };
 }
 
 /* --------------------------------------------------------------- automation */
@@ -147,7 +194,9 @@ export async function notifyN8n(workflow: string, payload: Record<string, unknow
       method: "POST",
       headers: {
         "content-type": "application/json",
-        ...(process.env["N8N_WEBHOOK_TOKEN"] ? { authorization: `Bearer ${process.env["N8N_WEBHOOK_TOKEN"]}` } : {}),
+        ...(process.env["N8N_WEBHOOK_TOKEN"]
+          ? { authorization: `Bearer ${process.env["N8N_WEBHOOK_TOKEN"]}` }
+          : {}),
       },
       body: JSON.stringify(payload),
     });

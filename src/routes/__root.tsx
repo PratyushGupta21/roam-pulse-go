@@ -75,10 +75,18 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
       { title: "RoamPulse — Travel Resilience Platform" },
-      { name: "description", content: "Smart travel planning that adapts to flight disruptions, weather, and itinerary changes." },
+      {
+        name: "description",
+        content:
+          "Smart travel planning that adapts to flight disruptions, weather, and itinerary changes.",
+      },
       { name: "author", content: "RoamPulse" },
       { property: "og:title", content: "RoamPulse — Travel Resilience Platform" },
-      { property: "og:description", content: "Smart travel planning that adapts to flight disruptions, weather, and itinerary changes." },
+      {
+        property: "og:description",
+        content:
+          "Smart travel planning that adapts to flight disruptions, weather, and itinerary changes.",
+      },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
       { name: "twitter:site", content: "@RoamPulse" },

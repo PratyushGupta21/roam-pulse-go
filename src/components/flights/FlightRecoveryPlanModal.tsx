@@ -1,4 +1,12 @@
-import { AlertTriangle, ArrowRight, CheckCircle2, Clock, Lock, ShieldAlert, Sparkles } from "lucide-react";
+import {
+  AlertTriangle,
+  ArrowRight,
+  CheckCircle2,
+  Clock,
+  Lock,
+  ShieldAlert,
+  Sparkles,
+} from "lucide-react";
 import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -53,7 +61,9 @@ export function FlightRecoveryPlanModal({
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h3 className="font-display text-base font-bold text-foreground">Flight Recovery Plan</h3>
+                <h3 className="font-display text-base font-bold text-foreground">
+                  Flight Recovery Plan
+                </h3>
                 <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-amber-700 dark:text-amber-300">
                   {flightStatus === "cancelled" ? "Cancelled" : `Delayed +${delayMinutes}m`}
                 </span>
@@ -78,12 +88,20 @@ export function FlightRecoveryPlanModal({
               <p className="font-mono font-bold text-foreground">{scheduledHHMM}</p>
             </div>
             <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-2.5 space-y-0.5">
-              <span className="text-[10px] text-amber-700 dark:text-amber-300 font-medium">Estimated Arrival</span>
-              <p className="font-mono font-bold text-amber-700 dark:text-amber-300">{estimatedHHMM}</p>
+              <span className="text-[10px] text-amber-700 dark:text-amber-300 font-medium">
+                Estimated Arrival
+              </span>
+              <p className="font-mono font-bold text-amber-700 dark:text-amber-300">
+                {estimatedHHMM}
+              </p>
             </div>
             <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-2.5 space-y-0.5">
-              <span className="text-[10px] text-emerald-700 dark:text-emerald-300 font-medium">Traveler Ready</span>
-              <p className="font-mono font-bold text-emerald-700 dark:text-emerald-300">{formatTime(travelerAvailableTime)}</p>
+              <span className="text-[10px] text-emerald-700 dark:text-emerald-300 font-medium">
+                Traveler Ready
+              </span>
+              <p className="font-mono font-bold text-emerald-700 dark:text-emerald-300">
+                {formatTime(travelerAvailableTime)}
+              </p>
             </div>
           </div>
         </div>
@@ -131,13 +149,15 @@ export function FlightRecoveryPlanModal({
                   analysis.recommendation === "PROTECTED"
                     ? "border-blue-500/30 bg-blue-500/5"
                     : analysis.impactLevel === "HIGH"
-                    ? "border-red-500/30 bg-red-500/5"
-                    : "border-amber-500/30 bg-amber-500/5"
+                      ? "border-red-500/30 bg-red-500/5"
+                      : "border-amber-500/30 bg-amber-500/5"
                 }`}
               >
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex items-center gap-2 font-bold text-foreground">
-                    {analysis.item.is_locked ? <Lock className="h-3.5 w-3.5 text-blue-500" /> : null}
+                    {analysis.item.is_locked ? (
+                      <Lock className="h-3.5 w-3.5 text-blue-500" />
+                    ) : null}
                     <span>{analysis.item.title}</span>
                   </div>
 
@@ -146,8 +166,8 @@ export function FlightRecoveryPlanModal({
                       analysis.recommendation === "PROTECTED"
                         ? "bg-blue-500/20 text-blue-600 dark:text-blue-300"
                         : analysis.recommendation === "REPLACE"
-                        ? "bg-red-500/20 text-red-600 dark:text-red-300"
-                        : "bg-amber-500/20 text-amber-700 dark:text-amber-300"
+                          ? "bg-red-500/20 text-red-600 dark:text-red-300"
+                          : "bg-amber-500/20 text-amber-700 dark:text-amber-300"
                     }`}
                   >
                     {analysis.recommendation}
@@ -158,7 +178,8 @@ export function FlightRecoveryPlanModal({
                   <span>Scheduled: {formatTime(analysis.item.start_time)}</span>
                   {analysis.suggestedNewStart ? (
                     <span className="font-semibold text-foreground flex items-center gap-1">
-                      Recommended: <ArrowRight className="h-3 w-3 text-primary" /> {formatTime(analysis.suggestedNewStart)}
+                      Recommended: <ArrowRight className="h-3 w-3 text-primary" />{" "}
+                      {formatTime(analysis.suggestedNewStart)}
                     </span>
                   ) : null}
                 </div>
@@ -185,7 +206,8 @@ export function FlightRecoveryPlanModal({
             </div>
             <p className="text-muted-foreground leading-relaxed">
               Replace <strong>"{recoveryPayload.affectedItemTitle}"</strong> with{" "}
-              <strong className="text-foreground">"{recoveryPayload.primary.title}"</strong> ({recoveryPayload.primary.category}) starting at{" "}
+              <strong className="text-foreground">"{recoveryPayload.primary.title}"</strong> (
+              {recoveryPayload.primary.category}) starting at{" "}
               {formatTime(recoveryPayload.newStartTime)}.
             </p>
           </div>

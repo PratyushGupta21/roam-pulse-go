@@ -7,7 +7,8 @@ import { buildRecovery, type EngineItem } from "@/lib/recovery.server";
 import { fetchAviationstackFlightStatus } from "./aviationstack.server";
 import { analyzeFlightImpact, type FlightImpactPlan } from "./flight-impact.server";
 
-export type FlightStatusClassification = "normal" | "minor_delay" | "disruption" | "major_disruption" | "cancelled" | "unavailable";
+export type FlightStatusClassification =
+  "normal" | "minor_delay" | "disruption" | "major_disruption" | "cancelled" | "unavailable";
 
 function getDelayBucket(delayMinutes: number): FlightStatusClassification {
   if (delayMinutes >= 120) return "major_disruption";
@@ -16,7 +17,12 @@ function getDelayBucket(delayMinutes: number): FlightStatusClassification {
   return "normal";
 }
 
-function isMeaningfulChange(previousStatus: string | null, previousDelay: number, nextStatus: string | null, delayMinutes: number) {
+function isMeaningfulChange(
+  previousStatus: string | null,
+  previousDelay: number,
+  nextStatus: string | null,
+  delayMinutes: number,
+) {
   const prevDelay = Number(previousDelay ?? 0);
   const nextDelay = Number(delayMinutes ?? 0);
 
@@ -51,7 +57,9 @@ export const checkTripFlightStatus = createServerFn({ method: "POST" })
 
     const { data: trip, error: tripError } = await supabase
       .from("trips")
-      .select("id, name, destination, currency, interests, recovery_mode, automation_settings, user_id")
+      .select(
+        "id, name, destination, currency, interests, recovery_mode, automation_settings, user_id",
+      )
       .eq("id", data.tripId)
       .eq("user_id", userId)
       .maybeSingle();
@@ -89,8 +97,8 @@ export const checkTripFlightStatus = createServerFn({ method: "POST" })
     const flightDate = flight.scheduled_departure
       ? new Date(flight.scheduled_departure).toISOString().slice(0, 10)
       : flight.scheduled_arrival
-      ? new Date(flight.scheduled_arrival).toISOString().slice(0, 10)
-      : new Date().toISOString().slice(0, 10);
+        ? new Date(flight.scheduled_arrival).toISOString().slice(0, 10)
+        : new Date().toISOString().slice(0, 10);
     const flightStatusResult = await fetchAviationstackFlightStatus({
       flightNumber: rawFlightNumber,
       flightDate,
@@ -114,12 +122,26 @@ export const checkTripFlightStatus = createServerFn({ method: "POST" })
     const snapshot = flightStatusResult.data;
     const previousStatus = String(flight.status ?? "scheduled");
     const previousDelay = Number(flight.delay_minutes ?? 0);
-    const estimatedDelay = Math.max(snapshot.departureDelayMinutes, snapshot.arrivalDelayMinutes, 0);
-    const nextStatus = snapshot.status === "cancelled" ? "cancelled" : estimatedDelay >= 60 ? "delayed" : snapshot.status || "scheduled";
+    const estimatedDelay = Math.max(
+      snapshot.departureDelayMinutes,
+      snapshot.arrivalDelayMinutes,
+      0,
+    );
+    const nextStatus =
+      snapshot.status === "cancelled"
+        ? "cancelled"
+        : estimatedDelay >= 60
+          ? "delayed"
+          : snapshot.status || "scheduled";
     const nextDelay = nextStatus === "cancelled" ? Math.max(estimatedDelay, 120) : estimatedDelay;
     const delayBucket = getDelayBucket(nextDelay);
 
-    const meaningfulChange = isMeaningfulChange(previousStatus, previousDelay, nextStatus, nextDelay);
+    const meaningfulChange = isMeaningfulChange(
+      previousStatus,
+      previousDelay,
+      nextStatus,
+      nextDelay,
+    );
 
     const flightUpdate = {
       provider: "aviationstack",
@@ -144,8 +166,8 @@ export const checkTripFlightStatus = createServerFn({ method: "POST" })
         nextStatus === "cancelled"
           ? `Flight ${snapshot.flightNumber} has been cancelled.`
           : nextDelay >= 30
-          ? `Flight ${snapshot.flightNumber} is delayed by ${nextDelay} minutes.`
-          : `Flight ${snapshot.flightNumber} is currently on schedule.`;
+            ? `Flight ${snapshot.flightNumber} is delayed by ${nextDelay} minutes.`
+            : `Flight ${snapshot.flightNumber} is currently on schedule.`;
 
       return {
         tripId: data.tripId,
@@ -187,7 +209,11 @@ export const checkTripFlightStatus = createServerFn({ method: "POST" })
       longitude: item.longitude,
     }));
 
-    const scheduleAnchor = snapshot.scheduledArrival || snapshot.estimatedArrival || flight.scheduled_arrival || flight.estimated_arrival;
+    const scheduleAnchor =
+      snapshot.scheduledArrival ||
+      snapshot.estimatedArrival ||
+      flight.scheduled_arrival ||
+      flight.estimated_arrival;
     const settings = (trip.automation_settings ?? {}) as { maxExtraSpend?: number };
     const tripInterests = Array.isArray(trip.interests) ? (trip.interests as string[]) : [];
 
@@ -202,13 +228,16 @@ export const checkTripFlightStatus = createServerFn({ method: "POST" })
       interests: tripInterests,
       currency: (trip.currency as string) || "INR",
       maxExtraSpend: Number(settings.maxExtraSpend ?? 2000),
-      recoveryMode: ((trip.recovery_mode as "manual" | "assisted" | "autonomous") || "assisted") as "manual" | "assisted" | "autonomous",
+      recoveryMode: ((trip.recovery_mode as "manual" | "assisted" | "autonomous") || "assisted") as
+        "manual" | "assisted" | "autonomous",
       anchorLat: itemsForEngine.find((item) => item.latitude !== null)?.latitude ?? null,
       anchorLon: itemsForEngine.find((item) => item.longitude !== null)?.longitude ?? null,
     });
 
     const payload = impactPlan?.recoveryPayload ?? null;
-    const affected = impactPlan?.affectedAnalyses ? impactPlan.affectedAnalyses.map((a) => a.item) : [];
+    const affected = impactPlan?.affectedAnalyses
+      ? impactPlan.affectedAnalyses.map((a) => a.item)
+      : [];
 
     // Idempotency check: avoid creating duplicate disruption records for identical delay
     const { data: existingDisruption } = await supabase
@@ -219,13 +248,18 @@ export const checkTripFlightStatus = createServerFn({ method: "POST" })
       .order("created_at", { ascending: false })
       .limit(1);
 
-    const alreadyLogged = Boolean(existingDisruption && existingDisruption.length > 0 && !meaningfulChange);
+    const alreadyLogged = Boolean(
+      existingDisruption && existingDisruption.length > 0 && !meaningfulChange,
+    );
 
     if (affected.length > 0) {
-      await supabase.from("itinerary_items").update({ status: "at_risk" }).in(
-        "id",
-        affected.map((item) => item.id),
-      );
+      await supabase
+        .from("itinerary_items")
+        .update({ status: "at_risk" })
+        .in(
+          "id",
+          affected.map((item) => item.id),
+        );
       affectedCount = affected.length;
     }
 
@@ -244,7 +278,12 @@ export const checkTripFlightStatus = createServerFn({ method: "POST" })
         .insert({
           trip_id: data.tripId,
           type: nextStatus === "cancelled" ? "flight_cancelled" : "flight_delay",
-          severity: nextStatus === "cancelled" ? "critical" : delayBucket === "major_disruption" ? "high" : "medium",
+          severity:
+            nextStatus === "cancelled"
+              ? "critical"
+              : delayBucket === "major_disruption"
+                ? "high"
+                : "medium",
           title: eventTitle,
           description: eventDescription,
           affected_item_ids: affected.map((item) => item.id),
@@ -296,7 +335,10 @@ export const checkTripFlightStatus = createServerFn({ method: "POST" })
         user_id: userId,
         trip_id: data.tripId,
         type: nextStatus === "cancelled" ? "flight" : "recovery",
-        title: nextStatus === "cancelled" ? `Flight ${snapshot.flightNumber} has been cancelled` : `Flight ${snapshot.flightNumber} is delayed by ${nextDelay} minutes`,
+        title:
+          nextStatus === "cancelled"
+            ? `Flight ${snapshot.flightNumber} has been cancelled`
+            : `Flight ${snapshot.flightNumber} is delayed by ${nextDelay} minutes`,
         message:
           nextStatus === "cancelled"
             ? "Your itinerary has been flagged for recovery."
@@ -314,8 +356,8 @@ export const checkTripFlightStatus = createServerFn({ method: "POST" })
         nextStatus === "cancelled"
           ? `Flight ${snapshot.flightNumber} has been cancelled.`
           : payload
-          ? `Flight ${snapshot.flightNumber} is delayed by ${nextDelay} minutes. ${payload.affectedItemTitle} may be affected.`
-          : `Flight ${snapshot.flightNumber} is delayed by ${nextDelay} minutes.`,
+            ? `Flight ${snapshot.flightNumber} is delayed by ${nextDelay} minutes. ${payload.affectedItemTitle} may be affected.`
+            : `Flight ${snapshot.flightNumber} is delayed by ${nextDelay} minutes.`,
       disruptionCreated: !alreadyLogged,
       recommendationId,
       affectedCount,
@@ -343,13 +385,16 @@ export const configureTripFlight = createServerFn({ method: "POST" })
           .string()
           .length(3, "Arrival airport must be a valid 3-letter IATA code")
           .transform((s) => s.trim().toUpperCase()),
-        airline: z.string().optional().transform((s) => (s ? s.trim() : "")),
+        airline: z
+          .string()
+          .optional()
+          .transform((s) => (s ? s.trim() : "")),
       })
       .refine((d) => d.departureAirport !== d.arrivalAirport, {
         message: "Departure and arrival airports cannot be identical.",
         path: ["arrivalAirport"],
       })
-      .parse(data)
+      .parse(data),
   )
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
@@ -442,7 +487,7 @@ export const removeTripFlight = createServerFn({ method: "POST" })
         tripId: z.string().uuid(),
         flightId: z.string().uuid(),
       })
-      .parse(data)
+      .parse(data),
   )
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;

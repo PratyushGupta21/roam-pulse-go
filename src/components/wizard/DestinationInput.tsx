@@ -24,7 +24,8 @@ export function DestinationInput({
   const matches = useMemo(() => {
     const query = value.trim().toLowerCase();
     const list = DESTINATION_SUGGESTIONS.filter(
-      (s) => !query || s.city.toLowerCase().includes(query) || s.country.toLowerCase().includes(query),
+      (s) =>
+        !query || s.city.toLowerCase().includes(query) || s.country.toLowerCase().includes(query),
     );
     return list.slice(0, 6);
   }, [value]);

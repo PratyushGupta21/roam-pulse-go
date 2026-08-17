@@ -25,9 +25,18 @@ export function demoTripPayload(userId: string) {
     currency: "INR",
     travel_style: "balanced",
     interests: ["Food", "Culture", "Photography", "Local experiences"],
-    preferences: { indoorOutdoor: "balanced", pace: "moderate", transport: "public_transit", accommodation: "boutique" },
+    preferences: {
+      indoorOutdoor: "balanced",
+      pace: "moderate",
+      transport: "public_transit",
+      accommodation: "boutique",
+    },
     recovery_mode: "assisted",
-    automation_settings: { maxExtraSpend: 3000, autoReplace: ["flexible", "weather_sensitive"], alwaysAsk: ["flights", "hotels", "above_limit"] },
+    automation_settings: {
+      maxExtraSpend: 3000,
+      autoReplace: ["flexible", "weather_sensitive"],
+      alwaysAsk: ["flights", "hotels", "above_limit"],
+    },
     status: "active",
     is_demo: true,
   };

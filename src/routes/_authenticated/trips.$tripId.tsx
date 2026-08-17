@@ -49,7 +49,14 @@ import { DuplicateTripModal } from "@/components/trips/DuplicateTripModal";
 import { EditTripModal } from "@/components/trips/EditTripModal";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
-import { daysBetween, formatActivityPrice, formatDate, formatMoney, formatTime, relativeTime } from "@/lib/format";
+import {
+  daysBetween,
+  formatActivityPrice,
+  formatDate,
+  formatMoney,
+  formatTime,
+  relativeTime,
+} from "@/lib/format";
 import { checkTripFlightStatus } from "@/lib/flights/flight.functions";
 import { checkTripWeather } from "@/lib/weather/weather.functions";
 import {
@@ -68,7 +75,10 @@ export const Route = createFileRoute("/_authenticated/trips/$tripId")({
   head: () => ({
     meta: [
       { title: "Trip Details — RoamPulse" },
-      { name: "description", content: "View real-time monitored trip details, AI itinerary, and route map." },
+      {
+        name: "description",
+        content: "View real-time monitored trip details, AI itinerary, and route map.",
+      },
       { name: "robots", content: "noindex" },
     ],
   }),
@@ -80,9 +90,14 @@ function TripDetailsPage() {
   const { user, signOut } = useAuth();
   const queryClient = useQueryClient();
 
-  const [activeTab, setActiveTab] = useState<"itinerary" | "map" | "flights" | "history">("itinerary");
+  const [activeTab, setActiveTab] = useState<"itinerary" | "map" | "flights" | "history">(
+    "itinerary",
+  );
   const [showRegenerateConfirm, setShowRegenerateConfirm] = useState(false);
-  const [itineraryNotice, setItineraryNotice] = useState<{ source: string; warning: string | null } | null>(null);
+  const [itineraryNotice, setItineraryNotice] = useState<{
+    source: string;
+    warning: string | null;
+  } | null>(null);
 
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -95,7 +110,9 @@ function TripDetailsPage() {
   const [selectedItineraryItemId, setSelectedItineraryItemId] = useState<string | null>(null);
 
   const [showSimulateModal, setShowSimulateModal] = useState(false);
-  const [selectedDisruptionType, setSelectedDisruptionType] = useState<"flight_delay" | "weather" | "transport">("flight_delay");
+  const [selectedDisruptionType, setSelectedDisruptionType] = useState<
+    "flight_delay" | "weather" | "transport"
+  >("flight_delay");
   const [selectedDelayMinutes, setSelectedDelayMinutes] = useState(120);
 
   // Load trip from Supabase (enforces RLS: auth.uid() = user_id)
@@ -126,18 +143,24 @@ function TripDetailsPage() {
     flight?.status === "cancelled"
       ? "Cancelled"
       : flight?.status === "delayed"
-      ? "Delayed"
-      : flight?.status === "scheduled"
-      ? "On Time"
-      : flight?.status === "landed"
-      ? "Landed"
-      : flight?.status === "active"
-      ? "In Air"
-      : "Unknown";
+        ? "Delayed"
+        : flight?.status === "scheduled"
+          ? "On Time"
+          : flight?.status === "landed"
+            ? "Landed"
+            : flight?.status === "active"
+              ? "In Air"
+              : "Unknown";
   const flightDelayMinutes = Number(flight?.delay_minutes ?? 0);
 
-  const pendingRec = useMemo(() => recoveryList.find((r) => r.status === "pending") ?? null, [recoveryList]);
-  const appliedRec = useMemo(() => recoveryList.find((r) => r.status === "applied") ?? null, [recoveryList]);
+  const pendingRec = useMemo(
+    () => recoveryList.find((r) => r.status === "pending") ?? null,
+    [recoveryList],
+  );
+  const appliedRec = useMemo(
+    () => recoveryList.find((r) => r.status === "applied") ?? null,
+    [recoveryList],
+  );
 
   const disruptionStatus = useMemo(() => {
     if (pendingRec) return "disrupted";
@@ -163,30 +186,29 @@ function TripDetailsPage() {
     "Scheduled Activity";
 
   const affectedDateRaw =
-    affectedItem?.day_date ||
-    (pendingPayload?.["affectedItemDate"] as string) ||
-    trip?.start_date;
+    affectedItem?.day_date || (pendingPayload?.["affectedItemDate"] as string) || trip?.start_date;
 
   const affectedDateFormatted = affectedDateRaw
-    ? formatDate(affectedDateRaw, { weekday: "long", month: "long", day: "numeric", year: "numeric" })
+    ? formatDate(affectedDateRaw, {
+        weekday: "long",
+        month: "long",
+        day: "numeric",
+        year: "numeric",
+      })
     : "";
 
   const affectedStartTimeRaw =
-    affectedItem?.start_time ||
-    (pendingPayload?.["affectedItemStartTime"] as string) ||
-    "";
+    affectedItem?.start_time || (pendingPayload?.["affectedItemStartTime"] as string) || "";
 
   const affectedEndTimeRaw =
-    affectedItem?.end_time ||
-    (pendingPayload?.["affectedItemEndTime"] as string) ||
-    "";
+    affectedItem?.end_time || (pendingPayload?.["affectedItemEndTime"] as string) || "";
 
   const affectedTimeRange =
     affectedStartTimeRaw && affectedEndTimeRaw
       ? `${formatTime(affectedStartTimeRaw)} – ${formatTime(affectedEndTimeRaw)}`
       : affectedStartTimeRaw
-      ? formatTime(affectedStartTimeRaw)
-      : "";
+        ? formatTime(affectedStartTimeRaw)
+        : "";
 
   const affectedLocation =
     affectedItem?.location ||
@@ -198,32 +220,34 @@ function TripDetailsPage() {
 
   const replacementTitle = (primaryRec["title"] as string) || "Alternative Activity";
 
-  const replacementStartTimeRaw = (primaryRec["startTime"] as string) || (pendingPayload?.["newStartTime"] as string) || "";
+  const replacementStartTimeRaw =
+    (primaryRec["startTime"] as string) || (pendingPayload?.["newStartTime"] as string) || "";
   const replacementEndTimeRaw = (primaryRec["endTime"] as string) || "";
 
   const replacementTimeRange =
     replacementStartTimeRaw && replacementEndTimeRaw
       ? `${formatTime(replacementStartTimeRaw)} – ${formatTime(replacementEndTimeRaw)}`
       : replacementStartTimeRaw
-      ? formatTime(replacementStartTimeRaw)
-      : "";
+        ? formatTime(replacementStartTimeRaw)
+        : "";
 
-  const replacementDateRaw =
-    (pendingPayload?.["replacementDate"] as string) || affectedDateRaw;
+  const replacementDateRaw = (pendingPayload?.["replacementDate"] as string) || affectedDateRaw;
 
   const replacementDateFormatted = replacementDateRaw
-    ? formatDate(replacementDateRaw, { weekday: "long", month: "long", day: "numeric", year: "numeric" })
+    ? formatDate(replacementDateRaw, {
+        weekday: "long",
+        month: "long",
+        day: "numeric",
+        year: "numeric",
+      })
     : "";
 
   const isDifferentDate = Boolean(
-    replacementDateRaw && affectedDateRaw && replacementDateRaw !== affectedDateRaw
+    replacementDateRaw && affectedDateRaw && replacementDateRaw !== affectedDateRaw,
   );
 
   const replacementLocation =
-    (primaryRec["location"] as string) ||
-    affectedLocation ||
-    trip?.destination ||
-    "";
+    (primaryRec["location"] as string) || affectedLocation || trip?.destination || "";
 
   const replacementDuration = (primaryRec["durationMinutes"] as number) || 0;
 
@@ -242,14 +266,18 @@ function TripDetailsPage() {
     if (type === "weather") {
       return dateStr && timeStr
         ? `Heavy rain expected on ${dateStr} from ${timeStr}.`
-        : (pendingPayload["reason"] as string) || "Severe weather disruption affecting your outdoor schedule.";
+        : (pendingPayload["reason"] as string) ||
+            "Severe weather disruption affecting your outdoor schedule.";
     }
 
     if (type === "flight_delay") {
       const mins = Number(pendingPayload["disruptionMinutes"] ?? 120);
       const hours = Math.floor(mins / 60);
       const extraMins = mins % 60;
-      const delayText = hours > 0 ? `${hours} hour${hours > 1 ? "s" : ""}${extraMins > 0 ? ` ${extraMins}m` : ""}` : `${mins} minutes`;
+      const delayText =
+        hours > 0
+          ? `${hours} hour${hours > 1 ? "s" : ""}${extraMins > 0 ? ` ${extraMins}m` : ""}`
+          : `${mins} minutes`;
       return timeStr
         ? `Your flight is delayed by ${delayText}, affecting your ${timeStr} activity.`
         : `Your flight is delayed by ${delayText}, forcing schedule shifts.`;
@@ -261,7 +289,10 @@ function TripDetailsPage() {
         : "Local transit disruption detected along your route.";
     }
 
-    return (pendingPayload["reason"] as string) || "A disruption event occurred affecting your travel plans.";
+    return (
+      (pendingPayload["reason"] as string) ||
+      "A disruption event occurred affecting your travel plans."
+    );
   }, [pendingPayload, affectedDateRaw, affectedTimeRange]);
 
   // Server-side AI Itinerary Generation Mutation
@@ -375,7 +406,13 @@ function TripDetailsPage() {
 
   // Resolve (Reject/Keep Original) Recovery Mutation
   const resolveRecoveryMutation = useMutation({
-    mutationFn: async ({ recommendationId, action }: { recommendationId: string; action: "keep_original" | "dismissed" }) => {
+    mutationFn: async ({
+      recommendationId,
+      action,
+    }: {
+      recommendationId: string;
+      action: "keep_original" | "dismissed";
+    }) => {
       return await resolveRecovery({ data: { recommendationId, action } });
     },
     onSuccess: () => {
@@ -410,8 +447,18 @@ function TripDetailsPage() {
     let unavailableCount = 0;
 
     for (const item of itinerary) {
-      const cost = item.estimated_cost !== null && item.estimated_cost !== undefined ? Number(item.estimated_cost) : null;
-      const info = formatActivityPrice(cost, trip?.currency || "INR", false, false, item.title, item.category);
+      const cost =
+        item.estimated_cost !== null && item.estimated_cost !== undefined
+          ? Number(item.estimated_cost)
+          : null;
+      const info = formatActivityPrice(
+        cost,
+        trip?.currency || "INR",
+        false,
+        false,
+        item.title,
+        item.category,
+      );
 
       if (info.status === "free") {
         freeCount++;
@@ -487,9 +534,12 @@ function TripDetailsPage() {
           <div className="rounded-2xl border border-destructive/30 bg-destructive/10 p-8 text-center space-y-4 shadow-sm">
             <AlertTriangle className="mx-auto h-10 w-10 text-destructive" />
             <div className="max-w-md mx-auto space-y-1">
-              <h2 className="font-display text-xl font-bold text-foreground">Could not load trip data</h2>
+              <h2 className="font-display text-xl font-bold text-foreground">
+                Could not load trip data
+              </h2>
               <p className="text-sm text-muted-foreground">
-                {(tripError as Error)?.message || "A database query error occurred while fetching your trip."}
+                {(tripError as Error)?.message ||
+                  "A database query error occurred while fetching your trip."}
               </p>
             </div>
             <Button
@@ -514,9 +564,12 @@ function TripDetailsPage() {
               <ShieldAlert className="h-7 w-7" />
             </div>
             <div className="max-w-md mx-auto space-y-2">
-              <h2 className="font-display text-2xl font-bold text-foreground">Trip Not Found or Access Denied</h2>
+              <h2 className="font-display text-2xl font-bold text-foreground">
+                Trip Not Found or Access Denied
+              </h2>
               <p className="text-sm text-muted-foreground leading-relaxed">
-                This trip does not exist in your database or you do not have permission to view it. Row Level Security prevents accessing other users' trips.
+                This trip does not exist in your database or you do not have permission to view it.
+                Row Level Security prevents accessing other users' trips.
               </p>
             </div>
             <div className="pt-2">
@@ -562,7 +615,9 @@ function TripDetailsPage() {
                         Real Database Trip
                       </span>
                     )}
-                    <span className="font-mono text-xs text-muted-foreground">ID: {trip.id.slice(0, 8)}…</span>
+                    <span className="font-mono text-xs text-muted-foreground">
+                      ID: {trip.id.slice(0, 8)}…
+                    </span>
                   </div>
 
                   <h1 className="font-display text-2xl sm:text-3xl lg:text-4xl font-bold tracking-tight text-foreground">
@@ -618,7 +673,9 @@ function TripDetailsPage() {
                   >
                     <Sparkles className="h-3.5 w-3.5" />
                     <span>Simulate Disruption</span>
-                    <span className="ml-1 rounded bg-black/20 px-1.5 py-0.5 text-[10px] uppercase font-mono">Demo</span>
+                    <span className="ml-1 rounded bg-black/20 px-1.5 py-0.5 text-[10px] uppercase font-mono">
+                      Demo
+                    </span>
                   </Button>
 
                   <Button
@@ -660,7 +717,9 @@ function TripDetailsPage() {
                   </span>
                   <p className="font-semibold text-foreground text-sm">
                     {trip.adults} Adult{trip.adults > 1 ? "s" : ""}
-                    {trip.children > 0 ? `, ${trip.children} Child${trip.children > 1 ? "ren" : ""}` : ""}
+                    {trip.children > 0
+                      ? `, ${trip.children} Child${trip.children > 1 ? "ren" : ""}`
+                      : ""}
                   </p>
                   <p className="text-muted-foreground text-[11px]">Travel Party</p>
                 </div>
@@ -672,20 +731,24 @@ function TripDetailsPage() {
                   <p className="font-semibold text-foreground text-sm">
                     {formatMoney(Number(trip.budget), trip.currency)}
                   </p>
-                  <p className="text-muted-foreground text-[11px] capitalize">Style: {trip.travel_style}</p>
+                  <p className="text-muted-foreground text-[11px] capitalize">
+                    Style: {trip.travel_style}
+                  </p>
                 </div>
 
                 <div className="rounded-xl border border-border/70 bg-background/60 p-4 space-y-1">
                   <span className="text-muted-foreground uppercase tracking-wide flex items-center gap-1.5 font-medium">
                     <Gauge className="h-3.5 w-3.5 text-success" /> Autonomous Mode
                   </span>
-                  <p className="font-semibold text-foreground text-sm capitalize">{trip.recovery_mode}</p>
+                  <p className="font-semibold text-foreground text-sm capitalize">
+                    {trip.recovery_mode}
+                  </p>
                   <p className="text-muted-foreground text-[11px]">
                     {trip.recovery_mode === "assisted"
                       ? "Proactive prompt before changes"
                       : trip.recovery_mode === "autonomous"
-                      ? "Auto-executes within policy"
-                      : "Manual notifications only"}
+                        ? "Auto-executes within policy"
+                        : "Manual notifications only"}
                   </p>
                 </div>
               </div>
@@ -721,7 +784,8 @@ function TripDetailsPage() {
                       {disruptionHeading}
                     </h2>
                     <p className="text-xs text-muted-foreground">
-                      RoamPulse Sentinel detected an issue with your schedule. Review the original timeline vs proposed replacement below.
+                      RoamPulse Sentinel detected an issue with your schedule. Review the original
+                      timeline vs proposed replacement below.
                     </p>
                   </div>
                   <span className="text-xs font-mono text-muted-foreground bg-card/80 px-3 py-1.5 rounded-lg border border-border font-semibold">
@@ -740,14 +804,13 @@ function TripDetailsPage() {
                       {costDeltaNum > 0
                         ? `+${formatMoney(costDeltaNum, trip.currency)}`
                         : costDeltaNum < 0
-                        ? `${formatMoney(costDeltaNum, trip.currency)}`
-                        : "₹0 (No extra cost)"}
+                          ? `${formatMoney(costDeltaNum, trip.currency)}`
+                          : "₹0 (No extra cost)"}
                     </span>
                   </div>
 
                   {/* Two Column / Stacked Timeline Comparison Grid */}
                   <div className="grid gap-6 md:grid-cols-11 items-stretch">
-                    
                     {/* AFFECTED ACTIVITY (RED / WARNING AREA - Span 5) */}
                     <div className="md:col-span-5 rounded-xl border border-destructive/30 bg-destructive/5 p-5 space-y-4 flex flex-col justify-between">
                       <div className="space-y-3">
@@ -755,7 +818,9 @@ function TripDetailsPage() {
                           <span className="inline-flex items-center gap-1 rounded-md bg-destructive/15 px-2.5 py-1 text-xs font-bold uppercase tracking-wide text-destructive">
                             <ShieldAlert className="h-3.5 w-3.5" /> Affected Activity
                           </span>
-                          <span className="text-[11px] font-mono text-muted-foreground uppercase font-medium">Original Plan</span>
+                          <span className="text-[11px] font-mono text-muted-foreground uppercase font-medium">
+                            Original Plan
+                          </span>
                         </div>
 
                         <div className="space-y-2">
@@ -791,7 +856,11 @@ function TripDetailsPage() {
 
                       <div className="pt-3 border-t border-destructive/20 text-xs text-destructive font-medium flex items-center gap-1.5">
                         <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
-                        <span>⚠️ {(pendingPayload["reason"] as string) || "Schedule conflict prevents completing this activity."}</span>
+                        <span>
+                          ⚠️{" "}
+                          {(pendingPayload["reason"] as string) ||
+                            "Schedule conflict prevents completing this activity."}
+                        </span>
                       </div>
                     </div>
 
@@ -872,7 +941,6 @@ function TripDetailsPage() {
                         ) : null}
                       </div>
                     </div>
-
                   </div>
                 </div>
 
@@ -901,7 +969,12 @@ function TripDetailsPage() {
                   <Button
                     variant="outline"
                     size="lg"
-                    onClick={() => resolveRecoveryMutation.mutate({ recommendationId: pendingRec.id, action: "keep_original" })}
+                    onClick={() =>
+                      resolveRecoveryMutation.mutate({
+                        recommendationId: pendingRec.id,
+                        action: "keep_original",
+                      })
+                    }
                     disabled={applyRecoveryMutation.isPending || resolveRecoveryMutation.isPending}
                     className="gap-2 font-semibold border-amber-500/50 hover:bg-amber-500/10 text-sm px-6"
                   >
@@ -930,7 +1003,9 @@ function TripDetailsPage() {
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border/80 pb-4">
                     <div>
                       <div className="flex items-center gap-2 flex-wrap">
-                        <h2 className="font-display text-xl font-bold text-foreground">YOUR ITINERARY</h2>
+                        <h2 className="font-display text-xl font-bold text-foreground">
+                          YOUR ITINERARY
+                        </h2>
                         {itineraryNotice ? (
                           <span className="rounded-full border border-primary/30 bg-primary/10 px-2.5 py-0.5 text-[11px] font-semibold text-primary">
                             {itineraryNotice.source === "ai" ? "AI Generated" : "Starter Schedule"}
@@ -959,7 +1034,9 @@ function TripDetailsPage() {
                           </Button>
                         ) : (
                           <div className="flex items-center gap-1.5 bg-secondary/80 p-1 rounded-lg border border-border">
-                            <span className="text-[11px] text-muted-foreground font-medium px-2">Replace existing?</span>
+                            <span className="text-[11px] text-muted-foreground font-medium px-2">
+                              Replace existing?
+                            </span>
                             <Button
                               size="sm"
                               variant="recover"
@@ -988,36 +1065,85 @@ function TripDetailsPage() {
                           onClick={() => void generateMutation.mutate({ replace: true })}
                           className="gap-2 font-semibold shadow-xs"
                         >
-                          <Sparkles className={`h-4 w-4 ${generateMutation.isPending ? "animate-spin" : ""}`} />
+                          <Sparkles
+                            className={`h-4 w-4 ${generateMutation.isPending ? "animate-spin" : ""}`}
+                          />
                           <span>
-                            {generateMutation.isPending ? "Generating your itinerary..." : "Generate Itinerary"}
+                            {generateMutation.isPending
+                              ? "Generating your itinerary..."
+                              : "Generate Itinerary"}
                           </span>
                         </Button>
                       )}
                     </div>
                   </div>
 
-                  {/* ITINERARY TOTAL SUMMARY BAR */}
+                  {/* ITINERARY TOTAL SUMMARY & BUDGET BREAKDOWN BAR */}
                   {itinerary.length > 0 ? (
-                    <div className="rounded-xl border border-border bg-background/60 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
-                      <div>
-                        <span className="text-muted-foreground uppercase tracking-wide font-medium">
-                          Estimated Itinerary Total
-                        </span>
-                        <p className="font-display text-lg font-bold text-foreground mt-0.5">
-                          ~{itineraryTotalSummary.formattedTotal}
-                        </p>
-                      </div>
-                      <div className="text-left sm:text-right text-[11px] text-muted-foreground space-y-0.5">
-                        <p>
-                          {itineraryTotalSummary.estimatedCount > 0 ? `${itineraryTotalSummary.estimatedCount} Estimated` : ""}
-                          {itineraryTotalSummary.freeCount > 0 ? `, ${itineraryTotalSummary.freeCount} Free` : ""}
-                        </p>
-                        {itineraryTotalSummary.unavailableCount > 0 ? (
-                          <p className="text-accent font-medium">
-                            {itineraryTotalSummary.unavailableCount} items without price (excluded)
+                    <div className="rounded-xl border border-border bg-background/60 p-4 space-y-3 text-xs">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border/60 pb-3">
+                        <div>
+                          <span className="text-muted-foreground uppercase tracking-wide font-medium flex items-center gap-1.5">
+                            <DollarSign className="h-3.5 w-3.5 text-primary" /> Estimated Itinerary
+                            Total
+                          </span>
+                          <p className="font-display text-xl font-bold text-foreground mt-0.5">
+                            ~{itineraryTotalSummary.formattedTotal}
                           </p>
-                        ) : null}
+                        </div>
+
+                        {/* Budget Health Badge */}
+                        <div className="flex items-center gap-2 flex-wrap">
+                          {Number(trip.budget) > 0 ? (
+                            itineraryTotalSummary.totalAmount > Number(trip.budget) ? (
+                              <span className="rounded-full border border-destructive/40 bg-destructive/15 px-3 py-1 text-xs font-bold text-destructive flex items-center gap-1">
+                                <AlertTriangle className="h-3.5 w-3.5" /> Exceeds Budget (
+                                {formatMoney(
+                                  itineraryTotalSummary.totalAmount - Number(trip.budget),
+                                  trip.currency,
+                                )}
+                                )
+                              </span>
+                            ) : itineraryTotalSummary.totalAmount > Number(trip.budget) * 0.85 ? (
+                              <span className="rounded-full border border-amber-500/40 bg-amber-500/15 px-3 py-1 text-xs font-bold text-amber-800 dark:text-amber-300 flex items-center gap-1">
+                                <AlertTriangle className="h-3.5 w-3.5" /> Near Budget Limit (
+                                {formatMoney(
+                                  Number(trip.budget) - itineraryTotalSummary.totalAmount,
+                                  trip.currency,
+                                )}{" "}
+                                left)
+                              </span>
+                            ) : (
+                              <span className="rounded-full border border-emerald-500/40 bg-emerald-500/15 px-3 py-1 text-xs font-bold text-emerald-700 dark:text-emerald-300 flex items-center gap-1">
+                                <CheckCircle2 className="h-3.5 w-3.5" /> Within Budget (
+                                {formatMoney(
+                                  Number(trip.budget) - itineraryTotalSummary.totalAmount,
+                                  trip.currency,
+                                )}{" "}
+                                remaining)
+                              </span>
+                            )
+                          ) : null}
+                        </div>
+                      </div>
+
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-[11px] text-muted-foreground">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-medium text-foreground">Pricing breakdown:</span>
+                          {itineraryTotalSummary.estimatedCount > 0 ? (
+                            <span className="rounded-md border border-border bg-secondary px-2 py-0.5">
+                              {itineraryTotalSummary.estimatedCount} Estimated Ranges
+                            </span>
+                          ) : null}
+                          {itineraryTotalSummary.freeCount > 0 ? (
+                            <span className="rounded-md border border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 font-semibold px-2 py-0.5">
+                              {itineraryTotalSummary.freeCount} Free Sights
+                            </span>
+                          ) : null}
+                        </div>
+                        <p className="text-muted-foreground italic">
+                          Prices are per-person estimates. Verify current details before booking.
+                        </p>
                       </div>
                     </div>
                   ) : null}
@@ -1029,7 +1155,8 @@ function TripDetailsPage() {
                       <div className="space-y-1">
                         <p className="font-bold">Unable to generate itinerary</p>
                         <p className="opacity-90">
-                          {(generateMutation.error as Error)?.message || "An unexpected error occurred during generation."}
+                          {(generateMutation.error as Error)?.message ||
+                            "An unexpected error occurred during generation."}
                         </p>
                         <Button
                           size="sm"
@@ -1048,10 +1175,11 @@ function TripDetailsPage() {
                     <div className="rounded-xl border border-primary/30 bg-primary/5 p-8 text-center space-y-3">
                       <Sparkles className="mx-auto h-8 w-8 text-primary animate-spin" />
                       <h3 className="font-display text-base font-bold text-foreground">
-                        Generating your itinerary...
+                        Generating real-world itinerary...
                       </h3>
                       <p className="text-xs text-muted-foreground max-w-sm mx-auto">
-                        Structuring day-by-day activities in {trip.destination} matching your budget and travel preferences.
+                        Discovering authentic attractions, local dining, and realistic cost
+                        estimates in {trip.destination}.
                       </p>
                     </div>
                   ) : null}
@@ -1065,7 +1193,8 @@ function TripDetailsPage() {
                           No itinerary has been generated yet
                         </h3>
                         <p className="text-xs text-muted-foreground leading-relaxed">
-                          Click "Generate Itinerary" to create a personalized day-by-day travel schedule for {trip.destination}.
+                          Click "Generate Itinerary" to create a personalized day-by-day travel
+                          schedule for {trip.destination}.
                         </p>
                       </div>
                       <Button
@@ -1091,16 +1220,45 @@ function TripDetailsPage() {
                               DAY {dayIdx + 1}
                             </span>
                             <span className="font-display text-sm font-bold text-foreground">
-                              {formatDate(dayDate, { weekday: "long", day: "numeric", month: "long" })}
+                              {formatDate(dayDate, {
+                                weekday: "long",
+                                day: "numeric",
+                                month: "long",
+                              })}
                             </span>
                           </div>
 
                           <div className="space-y-3 pt-1">
                             {items.map((item) => {
+                              const meta = (item.metadata || {}) as Record<string, unknown>;
+                              const itemRec = item as Record<string, unknown>;
+                              const costMin =
+                                (itemRec["cost_min"] as number | undefined) ??
+                                (meta["cost_min"] as number | undefined);
+                              const costMax =
+                                (itemRec["cost_max"] as number | undefined) ??
+                                (meta["cost_max"] as number | undefined);
+                              const costType =
+                                (itemRec["cost_type"] as string | undefined) ??
+                                (meta["cost_type"] as string | undefined);
+                              const openingHours =
+                                (itemRec["opening_hours"] as string | undefined) ??
+                                (meta["opening_hours"] as string | undefined);
+                              const rating =
+                                (itemRec["rating"] as number | undefined) ??
+                                (meta["rating"] as number | undefined);
+                              const verificationStatus =
+                                (itemRec["verification_status"] as string | undefined) ??
+                                (meta["verification_status"] as string | undefined);
+                              const whyFits =
+                                (itemRec["why_fits"] as string | undefined) ??
+                                (meta["why_fits"] as string | undefined);
+
                               const costNum =
                                 item.estimated_cost !== null && item.estimated_cost !== undefined
                                   ? Number(item.estimated_cost)
                                   : null;
+
                               const priceInfo = formatActivityPrice(
                                 costNum,
                                 trip.currency || "INR",
@@ -1108,6 +1266,9 @@ function TripDetailsPage() {
                                 false,
                                 item.title,
                                 item.category,
+                                costMin,
+                                costMax,
+                                costType,
                               );
 
                               const isSelected = item.id === selectedItineraryItemId;
@@ -1129,15 +1290,35 @@ function TripDetailsPage() {
                                         <Clock className="h-3 w-3 text-primary" />
                                         {formatTime(item.start_time)} – {formatTime(item.end_time)}
                                       </span>
+
                                       <span className="rounded-md border border-border bg-secondary px-2 py-0.5 text-[11px] font-medium capitalize text-muted-foreground">
                                         {item.category}
                                       </span>
-                                      <StatusBadge status={item.status} />
-                                      {item.status === "at_risk" ? (
-                                        <span className="rounded-md border border-destructive/40 bg-destructive/15 px-2 py-0.5 text-[11px] font-bold text-destructive flex items-center gap-1">
-                                          🌧️ Weather Risk
+
+                                      {/* REAL PLACE BADGE */}
+                                      {verificationStatus === "verified" || rating ? (
+                                        <span className="rounded-md border border-emerald-500/40 bg-emerald-500/15 text-emerald-800 dark:text-emerald-300 font-bold text-[10px] px-2 py-0.5 uppercase tracking-wide">
+                                          ✓ REAL PLACE
                                         </span>
-                                      ) : null}
+                                      ) : (
+                                        <span className="rounded-md border border-blue-500/30 bg-blue-500/10 text-blue-700 dark:text-blue-300 font-medium text-[10px] px-2 py-0.5 uppercase tracking-wide">
+                                          AI PLANNED
+                                        </span>
+                                      )}
+
+                                      {/* PRICE HONESTY BADGE */}
+                                      {priceInfo.status === "free" ? (
+                                        <span className="rounded-md border border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 font-bold text-[10px] px-2 py-0.5 uppercase tracking-wide">
+                                          FREE
+                                        </span>
+                                      ) : (
+                                        <span className="rounded-md border border-amber-500/30 bg-amber-500/10 text-amber-800 dark:text-amber-300 font-medium text-[10px] px-2 py-0.5 uppercase tracking-wide">
+                                          ESTIMATED PRICE
+                                        </span>
+                                      )}
+
+                                      <StatusBadge status={item.status} />
+
                                       {item.is_locked ? (
                                         <span className="rounded-md border border-amber-500/40 bg-amber-500/15 px-2 py-0.5 text-[11px] font-bold text-amber-800 dark:text-amber-300 flex items-center gap-1">
                                           🔒 Locked
@@ -1145,13 +1326,27 @@ function TripDetailsPage() {
                                       ) : null}
                                     </div>
 
-                                    <h4 className="font-semibold text-foreground text-base leading-snug">
-                                      {item.title}
-                                    </h4>
+                                    <div className="flex items-baseline justify-between gap-2 flex-wrap">
+                                      <h4 className="font-semibold text-foreground text-base leading-snug">
+                                        {item.title}
+                                      </h4>
+                                      {rating ? (
+                                        <span className="text-xs font-bold text-amber-500 flex items-center gap-1">
+                                          ⭐ {rating}
+                                        </span>
+                                      ) : null}
+                                    </div>
 
                                     {item.description ? (
                                       <p className="text-xs text-muted-foreground leading-relaxed">
                                         {item.description}
+                                      </p>
+                                    ) : null}
+
+                                    {whyFits ? (
+                                      <p className="text-[11px] font-medium text-primary bg-primary/5 p-2 rounded-md border border-primary/20 flex items-center gap-1.5">
+                                        <span>💡</span>
+                                        <span>{whyFits}</span>
                                       </p>
                                     ) : null}
 
@@ -1160,6 +1355,12 @@ function TripDetailsPage() {
                                         <span className="flex items-center gap-1">
                                           <MapPin className="h-3 w-3 text-primary" />
                                           {item.location}
+                                        </span>
+                                      ) : null}
+                                      {openingHours ? (
+                                        <span className="flex items-center gap-1 font-medium text-foreground">
+                                          <Clock className="h-3 w-3 text-muted-foreground" />
+                                          Open: {openingHours}
                                         </span>
                                       ) : null}
                                       {item.travel_minutes > 0 ? (
@@ -1175,10 +1376,10 @@ function TripDetailsPage() {
                                         priceInfo.status === "free"
                                           ? "text-success font-semibold text-xs rounded-full border border-success/30 bg-success/10 px-2.5 py-0.5"
                                           : priceInfo.status === "estimated"
-                                          ? "text-foreground font-medium text-xs rounded-full border border-border bg-secondary/60 px-2.5 py-0.5"
-                                          : priceInfo.status === "live"
-                                          ? "text-primary font-semibold text-xs rounded-full border border-primary/30 bg-primary/10 px-2.5 py-0.5"
-                                          : "text-muted-foreground text-xs rounded-full border border-border bg-muted/40 px-2.5 py-0.5"
+                                            ? "text-foreground font-medium text-xs rounded-full border border-border bg-secondary/60 px-2.5 py-0.5"
+                                            : priceInfo.status === "live"
+                                              ? "text-primary font-semibold text-xs rounded-full border border-primary/30 bg-primary/10 px-2.5 py-0.5"
+                                              : "text-muted-foreground text-xs rounded-full border border-border bg-muted/40 px-2.5 py-0.5"
                                       }
                                     >
                                       {priceInfo.label}
@@ -1216,7 +1417,9 @@ function TripDetailsPage() {
                   <div className="flex items-center justify-between border-b border-border/80 pb-3">
                     <div className="flex items-center gap-2">
                       <Plane className="h-4 w-4 text-primary" />
-                      <h3 className="font-display text-sm font-bold text-foreground">Flight Sentinel</h3>
+                      <h3 className="font-display text-sm font-bold text-foreground">
+                        Flight Sentinel
+                      </h3>
                     </div>
                     <span className="rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-primary">
                       Aviationstack
@@ -1227,11 +1430,15 @@ function TripDetailsPage() {
                     <div className="space-y-3">
                       <div className="flex items-center justify-between text-xs">
                         <span className="text-muted-foreground">Flight</span>
-                        <span className="font-semibold text-foreground">{flight.flight_number}</span>
+                        <span className="font-semibold text-foreground">
+                          {flight.flight_number}
+                        </span>
                       </div>
                       <div className="flex items-center justify-between text-xs">
                         <span className="text-muted-foreground">Airline</span>
-                        <span className="font-semibold text-foreground">{flight.airline || "Airline"}</span>
+                        <span className="font-semibold text-foreground">
+                          {flight.airline || "Airline"}
+                        </span>
                       </div>
                       <div className="flex items-center justify-between text-xs">
                         <span className="text-muted-foreground">Route</span>
@@ -1248,29 +1455,40 @@ function TripDetailsPage() {
                               flight?.status === "cancelled"
                                 ? "bg-red-500/15 text-red-600"
                                 : flight?.status === "delayed"
-                                ? "bg-amber-500/15 text-amber-700 dark:text-amber-300"
-                                : "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300"
+                                  ? "bg-amber-500/15 text-amber-700 dark:text-amber-300"
+                                  : "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300"
                             }`}
                           >
-                            {flight?.status === "cancelled" ? "🚨" : flight?.status === "delayed" ? "⚠️" : "✓"} {flightStatusLabel}
+                            {flight?.status === "cancelled"
+                              ? "🚨"
+                              : flight?.status === "delayed"
+                                ? "⚠️"
+                                : "✓"}{" "}
+                            {flightStatusLabel}
                           </span>
                         </div>
                         {flightDelayMinutes > 0 ? (
                           <div className="flex items-center justify-between gap-2">
                             <span className="text-muted-foreground">Delay</span>
-                            <span className="font-semibold text-foreground">{flightDelayMinutes} min</span>
+                            <span className="font-semibold text-foreground">
+                              {flightDelayMinutes} min
+                            </span>
                           </div>
                         ) : null}
                         {flight.estimated_arrival ? (
                           <div className="flex items-center justify-between gap-2">
                             <span className="text-muted-foreground">Estimated arrival</span>
-                            <span className="font-semibold text-foreground">{formatTime(flight.estimated_arrival.slice(11, 16))}</span>
+                            <span className="font-semibold text-foreground">
+                              {formatTime(flight.estimated_arrival.slice(11, 16))}
+                            </span>
                           </div>
                         ) : null}
                         {flight.last_updated ? (
                           <div className="flex items-center justify-between gap-2">
                             <span className="text-muted-foreground">Last checked</span>
-                            <span className="font-semibold text-foreground">{relativeTime(flight.last_updated)}</span>
+                            <span className="font-semibold text-foreground">
+                              {relativeTime(flight.last_updated)}
+                            </span>
                           </div>
                         ) : null}
                       </div>
@@ -1296,7 +1514,9 @@ function TripDetailsPage() {
                         )}
                       </Button>
 
-                      {flight?.status === "delayed" || flight?.status === "cancelled" || flightImpactPlan ? (
+                      {flight?.status === "delayed" ||
+                      flight?.status === "cancelled" ||
+                      flightImpactPlan ? (
                         <Button
                           type="button"
                           variant="recover"
@@ -1376,7 +1596,9 @@ function TripDetailsPage() {
                         <Sun className="h-5 w-5 text-amber-500 shrink-0" />
                         <div>
                           <p className="font-bold text-foreground">Live Forecast Engine</p>
-                          <p className="text-[11px] text-muted-foreground">Keyless hourly weather risk analysis</p>
+                          <p className="text-[11px] text-muted-foreground">
+                            Keyless hourly weather risk analysis
+                          </p>
                         </div>
                       </div>
                     </div>
@@ -1416,12 +1638,24 @@ function TripDetailsPage() {
 
                     <div className="space-y-3 text-xs">
                       {history.slice(0, 5).map((log) => (
-                        <div key={log.id} className="space-y-1 border-b border-border/50 pb-2.5 last:border-0 last:pb-0">
+                        <div
+                          key={log.id}
+                          className="space-y-1 border-b border-border/50 pb-2.5 last:border-0 last:pb-0"
+                        >
                           <div className="flex items-center justify-between text-muted-foreground text-[11px]">
                             <span className="font-semibold text-foreground">{log.event}</span>
-                            <span>{new Date(log.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
+                            <span>
+                              {new Date(log.created_at).toLocaleTimeString([], {
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              })}
+                            </span>
                           </div>
-                          {log.detail ? <p className="text-muted-foreground text-[11px] leading-snug">{log.detail}</p> : null}
+                          {log.detail ? (
+                            <p className="text-muted-foreground text-[11px] leading-snug">
+                              {log.detail}
+                            </p>
+                          ) : null}
                         </div>
                       ))}
                     </div>
@@ -1441,14 +1675,16 @@ function TripDetailsPage() {
                     <div className="flex items-center justify-between rounded-lg border border-border/60 bg-background/50 p-2.5">
                       <span>Flight Status Polling</span>
                       <span className="font-semibold text-success flex items-center gap-1">
-                        <span className="live-dot inline-block h-1.5 w-1.5 rounded-full bg-success" /> Active
+                        <span className="live-dot inline-block h-1.5 w-1.5 rounded-full bg-success" />{" "}
+                        Active
                       </span>
                     </div>
 
                     <div className="flex items-center justify-between rounded-lg border border-border/60 bg-background/50 p-2.5">
                       <span>Weather Forecast Sentinel</span>
                       <span className="font-semibold text-success flex items-center gap-1">
-                        <span className="live-dot inline-block h-1.5 w-1.5 rounded-full bg-success" /> Nominal
+                        <span className="live-dot inline-block h-1.5 w-1.5 rounded-full bg-success" />{" "}
+                        Nominal
                       </span>
                     </div>
 
@@ -1470,7 +1706,9 @@ function TripDetailsPage() {
                       <span className="inline-flex items-center gap-1 rounded bg-accent/20 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-accent-foreground">
                         Demo Simulation Mode
                       </span>
-                      <h3 className="font-display text-lg font-bold text-foreground">Simulate Disruption Event</h3>
+                      <h3 className="font-display text-lg font-bold text-foreground">
+                        Simulate Disruption Event
+                      </h3>
                     </div>
                     <Button variant="ghost" size="sm" onClick={() => setShowSimulateModal(false)}>
                       <X className="h-4 w-4" />
@@ -1478,11 +1716,14 @@ function TripDetailsPage() {
                   </div>
 
                   <p className="text-xs text-muted-foreground">
-                    Select a simulated disruption scenario to test RoamPulse's real-time impact detection and automated recovery recommendation loop.
+                    Select a simulated disruption scenario to test RoamPulse's real-time impact
+                    detection and automated recovery recommendation loop.
                   </p>
 
                   <div className="space-y-3">
-                    <label className="text-xs font-semibold text-foreground">Disruption Scenario</label>
+                    <label className="text-xs font-semibold text-foreground">
+                      Disruption Scenario
+                    </label>
                     <div className="grid gap-2 sm:grid-cols-2">
                       <button
                         type="button"
@@ -1496,8 +1737,12 @@ function TripDetailsPage() {
                             : "border-border bg-background hover:bg-secondary"
                         }`}
                       >
-                        <p className="text-xs font-bold text-foreground">✈️ Flight Delay (2 Hours)</p>
-                        <p className="text-[11px] text-muted-foreground mt-1">Simulates a 2-hour arrival delay shift on Day 1.</p>
+                        <p className="text-xs font-bold text-foreground">
+                          ✈️ Flight Delay (2 Hours)
+                        </p>
+                        <p className="text-[11px] text-muted-foreground mt-1">
+                          Simulates a 2-hour arrival delay shift on Day 1.
+                        </p>
                       </button>
 
                       <button
@@ -1512,8 +1757,12 @@ function TripDetailsPage() {
                             : "border-border bg-background hover:bg-secondary"
                         }`}
                       >
-                        <p className="text-xs font-bold text-foreground">✈️ Flight Delay (4 Hours)</p>
-                        <p className="text-[11px] text-muted-foreground mt-1">Simulates a major 4-hour delay shift.</p>
+                        <p className="text-xs font-bold text-foreground">
+                          ✈️ Flight Delay (4 Hours)
+                        </p>
+                        <p className="text-[11px] text-muted-foreground mt-1">
+                          Simulates a major 4-hour delay shift.
+                        </p>
                       </button>
 
                       <button
@@ -1529,7 +1778,9 @@ function TripDetailsPage() {
                         }`}
                       >
                         <p className="text-xs font-bold text-foreground">🌧️ Severe Rain Forecast</p>
-                        <p className="text-[11px] text-muted-foreground mt-1">Marks outdoor activities as weather-sensitive.</p>
+                        <p className="text-[11px] text-muted-foreground mt-1">
+                          Marks outdoor activities as weather-sensitive.
+                        </p>
                       </button>
 
                       <button
@@ -1545,7 +1796,9 @@ function TripDetailsPage() {
                         }`}
                       >
                         <p className="text-xs font-bold text-foreground">🚌 Transit Disruption</p>
-                        <p className="text-[11px] text-muted-foreground mt-1">Simulates local transit delays between activities.</p>
+                        <p className="text-[11px] text-muted-foreground mt-1">
+                          Simulates local transit delays between activities.
+                        </p>
                       </button>
                     </div>
                   </div>
@@ -1622,7 +1875,9 @@ function TripDetailsPage() {
                   void queryClient.invalidateQueries({ queryKey: ["trip", tripId] });
                   void queryClient.invalidateQueries({ queryKey: ["flights", tripId] });
                   void queryClient.invalidateQueries({ queryKey: ["history", tripId] });
-                  setNoticeMessage(flight ? "Flight configuration updated." : "Flight configured successfully.");
+                  setNoticeMessage(
+                    flight ? "Flight configuration updated." : "Flight configured successfully.",
+                  );
                 }}
               />
             ) : null}

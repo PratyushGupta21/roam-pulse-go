@@ -101,7 +101,9 @@ export function AuthCard({
             <div>
               <div className="flex items-center justify-between">
                 <div>
-                  <h1 className="font-display text-2xl font-bold tracking-tight text-foreground">{title}</h1>
+                  <h1 className="font-display text-2xl font-bold tracking-tight text-foreground">
+                    {title}
+                  </h1>
                   <p className="mt-1.5 text-sm text-muted-foreground">{lede}</p>
                 </div>
                 <Link to="/" className="text-xs font-medium text-primary hover:underline lg:hidden">
@@ -154,7 +156,13 @@ export function GoogleButton() {
         or
         <span className="h-px flex-1 bg-border" />
       </div>
-      <Button type="button" variant="outline" className="w-full font-medium" onClick={signInWithGoogle} disabled={busy}>
+      <Button
+        type="button"
+        variant="outline"
+        className="w-full font-medium"
+        onClick={signInWithGoogle}
+        disabled={busy}
+      >
         Continue with Google
       </Button>
       {error ? (

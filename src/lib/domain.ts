@@ -34,8 +34,14 @@ export const tripInputSchema = z.object({
   extraDestinations: z.array(z.string().max(80)).max(5).default([]),
   startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-  arrivalTime: z.string().regex(/^\d{2}:\d{2}$/).default("14:00"),
-  departureTime: z.string().regex(/^\d{2}:\d{2}$/).default("16:00"),
+  arrivalTime: z
+    .string()
+    .regex(/^\d{2}:\d{2}$/)
+    .default("14:00"),
+  departureTime: z
+    .string()
+    .regex(/^\d{2}:\d{2}$/)
+    .default("16:00"),
   adults: z.number().int().min(1).max(12),
   children: z.number().int().min(0).max(12),
   budget: z.number().min(0).max(100_000_000),
@@ -45,13 +51,20 @@ export const tripInputSchema = z.object({
   preferences: z.object({
     indoorOutdoor: z.enum(["mostly_indoor", "balanced", "mostly_outdoor"]).default("balanced"),
     pace: z.enum(["relaxed", "moderate", "packed"]).default("moderate"),
-    transport: z.enum(["walking", "public_transit", "rideshare", "rental_car"]).default("public_transit"),
-    accommodation: z.enum(["hostel", "budget_hotel", "boutique", "hotel", "resort"]).default("budget_hotel"),
+    transport: z
+      .enum(["walking", "public_transit", "rideshare", "rental_car"])
+      .default("public_transit"),
+    accommodation: z
+      .enum(["hostel", "budget_hotel", "boutique", "hotel", "resort"])
+      .default("budget_hotel"),
     country: z.string().max(80).optional(),
     tripStyles: z.array(z.string().max(40)).max(12).optional(),
     budgetLevel: z.enum(["budget", "moderate", "premium", "luxury"]).optional(),
     foodPreference: z.enum(["street_food", "local_casual", "mixed", "fine_dining"]).optional(),
-    wakeUpTime: z.string().regex(/^\d{2}:\d{2}$/).optional(),
+    wakeUpTime: z
+      .string()
+      .regex(/^\d{2}:\d{2}$/)
+      .optional(),
     maxTravelMinutes: z.number().int().min(5).max(240).optional(),
     dietary: z.array(z.string().max(40)).max(12).optional(),
     accessibility: z.array(z.string().max(60)).max(12).optional(),
@@ -77,8 +90,14 @@ export const updateTripSchema = z.object({
 export const duplicateTripSchema = z.object({
   sourceTripId: z.string().uuid(),
   newName: z.string().min(2).max(80).optional(),
-  startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
-  endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  startDate: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional(),
+  endDate: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional(),
 });
 
 export type UpdateTripInput = z.infer<typeof updateTripSchema>;
@@ -95,12 +114,20 @@ export const itineraryItemSchema = z.object({
   latitude: z.number().min(-90).max(90).nullable().default(null),
   longitude: z.number().min(-180).max(180).nullable().default(null),
   estimated_cost: z.number().min(0).max(10_000_000).default(0),
+  cost_min: z.number().min(0).nullable().optional(),
+  cost_max: z.number().min(0).nullable().optional(),
+  cost_type: z.enum(["free", "estimated", "listed", "unknown"]).default("estimated"),
+  opening_hours: z.string().nullable().optional(),
+  rating: z.number().min(0).max(5).nullable().optional(),
+  verification_status: z.enum(["verified", "estimated", "ai_planned"]).default("estimated"),
+  why_fits: z.string().max(300).nullable().optional(),
   travel_minutes: z.number().int().min(0).max(600).default(0),
   indoor_outdoor: z.enum(["indoor", "outdoor", "mixed"]).default("indoor"),
   weather_suitability: z.enum(["any", "clear_only", "rain_ok"]).default("any"),
   booking_url: z.string().url().nullable().default(null),
   is_locked: z.boolean().default(false),
   uniqueness_key: z.string().optional(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
 });
 
 export const itineraryResponseSchema = z.object({

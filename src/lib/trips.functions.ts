@@ -3,7 +3,14 @@ import { z } from "zod";
 
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { demoFlight, demoItinerary, demoTripPayload } from "./demo.server";
-import { duplicateTripSchema, tripInputSchema, updateTripSchema, type RecoveryMode, type TravelStyle, type TripInput } from "./domain";
+import {
+  duplicateTripSchema,
+  tripInputSchema,
+  updateTripSchema,
+  type RecoveryMode,
+  type TravelStyle,
+  type TripInput,
+} from "./domain";
 import { generateItinerary, generateUniquenessKey, normalizeTitle } from "./itinerary.server";
 import { geocodeItineraryItems } from "@/lib/maps/geocoding";
 import { fetchPriceOffers, fetchWeather, notifyN8n, providerMode } from "./providers.server";
@@ -37,7 +44,8 @@ export const createTrip = createServerFn({ method: "POST" })
       })
       .select("id")
       .single();
-    if (error || !trip) throw new Error(error?.message || "We couldn't save your trip. Please try again.");
+    if (error || !trip)
+      throw new Error(error?.message || "We couldn't save your trip. Please try again.");
 
     const generated = await generateItinerary(data);
     const rows = generated.items.map((item, index) => ({
@@ -60,6 +68,15 @@ export const createTrip = createServerFn({ method: "POST" })
       status: item.indoor_outdoor === "outdoor" ? "flexible" : "confirmed",
       is_locked: item.is_locked,
       sort_order: index,
+      metadata: {
+        cost_min: item.cost_min,
+        cost_max: item.cost_max,
+        cost_type: item.cost_type,
+        opening_hours: item.opening_hours,
+        rating: item.rating,
+        verification_status: item.verification_status,
+        why_fits: item.why_fits,
+      },
     }));
 
     const geocodedRows = await geocodeItineraryItems(rows, data.destination);
@@ -79,7 +96,12 @@ export const createTrip = createServerFn({ method: "POST" })
     });
     await notifyN8n("trip-created", { tripId: trip.id, destination: data.destination });
 
-    return { tripId: trip.id as string, itemCount: rows.length, source: generated.source, warning: generated.error };
+    return {
+      tripId: trip.id as string,
+      itemCount: rows.length,
+      source: generated.source,
+      warning: generated.error,
+    };
   });
 
 export const createDemoTrip = createServerFn({ method: "POST" })
@@ -88,7 +110,11 @@ export const createDemoTrip = createServerFn({ method: "POST" })
     const { supabase, userId } = context;
     const payload = demoTripPayload(userId);
 
-    const { data: trip, error } = await supabase.from("trips").insert(payload).select("id, start_date").single();
+    const { data: trip, error } = await supabase
+      .from("trips")
+      .insert(payload)
+      .select("id, start_date")
+      .single();
     if (error || !trip) throw new Error("We couldn't create the demo trip. Please try again.");
 
     const items = demoItinerary(trip.start_date as string).map((item, index) => ({
@@ -108,7 +134,9 @@ export const createDemoTrip = createServerFn({ method: "POST" })
       indoor_outdoor: item.indoor_outdoor,
       weather_suitability: item.weather_suitability,
       booking_url: item.booking_url,
-      status: (item as unknown as { status?: string }).status ?? (item.indoor_outdoor === "outdoor" ? "flexible" : "confirmed"),
+      status:
+        (item as unknown as { status?: string }).status ??
+        (item.indoor_outdoor === "outdoor" ? "flexible" : "confirmed"),
       is_locked: item.is_locked,
       sort_order: index,
     }));
@@ -178,7 +206,9 @@ export const generateTripItinerary = createServerFn({ method: "POST" })
     const mode = data.replaceExisting ? "regenerate" : "initial";
     const generationId = crypto.randomUUID();
 
-    console.log(`[REGENERATE] serverFn generateTripItinerary started | tripId: ${data.tripId} | generationId: ${generationId} | replaceExisting: ${data.replaceExisting}`);
+    console.log(
+      `[REGENERATE] serverFn generateTripItinerary started | tripId: ${data.tripId} | generationId: ${generationId} | replaceExisting: ${data.replaceExisting}`,
+    );
 
     // 3. Fetch all existing itinerary items to preserve locked items and avoid duplicate insertions
     const { data: existingDbItems = [] } = await supabase
@@ -194,14 +224,16 @@ export const generateTripItinerary = createServerFn({ method: "POST" })
       (item) => item.is_locked && item.status !== "replaced",
     );
 
-    console.log(`[REGENERATE] existing active items in DB: ${(existingDbItems || []).length} | locked: ${lockedItems.length} | previousTitles: ${previousTitles.length}`);
+    console.log(
+      `[REGENERATE] existing active items in DB: ${(existingDbItems || []).length} | locked: ${lockedItems.length} | previousTitles: ${previousTitles.length}`,
+    );
 
     // 4. Call server-side generateItinerary
     const generated = await generateItinerary(tripInput, {
       mode,
       generationId,
       previousTitles,
-      lockedItems: lockedItems as any,
+      lockedItems: lockedItems as unknown as GeneratedItem[],
       isRegeneration: mode === "regenerate",
     });
 
@@ -213,7 +245,9 @@ export const generateTripItinerary = createServerFn({ method: "POST" })
         .eq("trip_id", trip.id)
         .eq("is_locked", false)
         .neq("status", "replaced");
-      console.log(`[REGENERATE] deleted old unlocked active items from DB for tripId: ${data.tripId}`);
+      console.log(
+        `[REGENERATE] deleted old unlocked active items from DB for tripId: ${data.tripId}`,
+      );
     }
 
     // 6. Fetch preserved locked active items
@@ -223,7 +257,13 @@ export const generateTripItinerary = createServerFn({ method: "POST" })
 
     // 7. Track locked items reserved in DB separately from new candidate items
     const lockedTrackingList = [...preservedActiveItems];
-    const newlyAddedList: { title: string; day_date: string; start_time: string; location?: string | null; category?: string | null }[] = [];
+    const newlyAddedList: {
+      title: string;
+      day_date: string;
+      start_time: string;
+      location?: string | null;
+      category?: string | null;
+    }[] = [];
 
     const rowsToInsert = [];
 
@@ -259,7 +299,15 @@ export const generateTripItinerary = createServerFn({ method: "POST" })
         if (candNormTitle === addedNormTitle && candNormTitle.length > 2) {
           return true;
         }
-        const addedKey = generateUniquenessKey(added as any);
+        const addedKey = generateUniquenessKey(
+          added as {
+            title: string;
+            category?: string | null;
+            location?: string | null;
+            day_date: string;
+            start_time: string;
+          },
+        );
         if (candKey === addedKey) {
           return true;
         }
@@ -288,6 +336,15 @@ export const generateTripItinerary = createServerFn({ method: "POST" })
           status: item.indoor_outdoor === "outdoor" ? "flexible" : "confirmed",
           is_locked: Boolean(item.is_locked),
           sort_order: preservedActiveItems.length + rowsToInsert.length,
+          metadata: {
+            cost_min: item.cost_min,
+            cost_max: item.cost_max,
+            cost_type: item.cost_type,
+            opening_hours: item.opening_hours,
+            rating: item.rating,
+            verification_status: item.verification_status,
+            why_fits: item.why_fits,
+          },
         });
       }
     }
@@ -298,7 +355,9 @@ export const generateTripItinerary = createServerFn({ method: "POST" })
       if (insertErr) {
         throw new Error("Failed to save itinerary items to database.");
       }
-      console.log(`[REGENERATE] inserted ${rowsToInsert.length} new geocoded items into Supabase | generationId: ${generationId}`);
+      console.log(
+        `[REGENERATE] inserted ${rowsToInsert.length} new geocoded items into Supabase | generationId: ${generationId}`,
+      );
     }
 
     // 6. Log event in trip_history & notification
@@ -323,7 +382,11 @@ export const loadTripProvidersData = createServerFn({ method: "GET" })
   .handler(async ({ data, context }) => {
     const { supabase } = context;
 
-    const { data: trip } = await supabase.from("trips").select("destination, currency").eq("id", data.tripId).single();
+    const { data: trip } = await supabase
+      .from("trips")
+      .select("destination, currency")
+      .eq("id", data.tripId)
+      .single();
     if (!trip) throw new Error("Trip not found");
 
     const { data: anchor } = await supabase
@@ -467,7 +530,13 @@ export const updateTrip = createServerFn({ method: "POST" })
         : `Trip details updated. Existing itinerary preserved.`,
     });
 
-    return { success: true, tripId, regenerated: regenerateItinerary, count: regeneratedCount, source };
+    return {
+      success: true,
+      tripId,
+      regenerated: regenerateItinerary,
+      count: regeneratedCount,
+      source,
+    };
   });
 
 export const deleteTrip = createServerFn({ method: "POST" })
@@ -528,7 +597,10 @@ export const duplicateTrip = createServerFn({ method: "POST" })
     if (!data.startDate && !data.endDate) {
       const origStart = new Date(sourceTrip.start_date);
       const origEnd = new Date(sourceTrip.end_date);
-      const durationDays = Math.max(1, Math.round((origEnd.getTime() - origStart.getTime()) / (1000 * 60 * 60 * 24)));
+      const durationDays = Math.max(
+        1,
+        Math.round((origEnd.getTime() - origStart.getTime()) / (1000 * 60 * 60 * 24)),
+      );
 
       const today = new Date();
       const newStart = new Date(today);
@@ -541,6 +613,7 @@ export const duplicateTrip = createServerFn({ method: "POST" })
     }
 
     const newTripName = data.newName?.trim() || `Copy of ${sourceTrip.name}`;
+    const sourceRec = sourceTrip as Record<string, unknown>;
 
     // 2. Insert new trip record for authenticated user
     const { data: newTrip, error: insertErr } = await supabase
@@ -579,22 +652,22 @@ export const duplicateTrip = createServerFn({ method: "POST" })
       extraDestinations: sourceTrip.extra_destinations || [],
       startDate,
       endDate,
-      arrivalTime: (sourceTrip as any).arrival_time || "14:00",
-      departureTime: (sourceTrip as any).departure_time || "16:00",
+      arrivalTime: (sourceRec["arrival_time"] as string) || "14:00",
+      departureTime: (sourceRec["departure_time"] as string) || "16:00",
       adults: sourceTrip.adults || 1,
       children: sourceTrip.children || 0,
       budget: Number(sourceTrip.budget || 0),
       currency: sourceTrip.currency || "INR",
       travelStyle: (sourceTrip.travel_style as TravelStyle) || "balanced",
       interests: sourceTrip.interests || [],
-      preferences: (sourceTrip.preferences as any) || {
+      preferences: (sourceTrip.preferences as TripInput["preferences"]) || {
         indoorOutdoor: "balanced",
         pace: "moderate",
         transport: "public_transit",
         accommodation: "budget_hotel",
       },
       recoveryMode: (sourceTrip.recovery_mode as RecoveryMode) || "assisted",
-      automationSettings: (sourceTrip.automation_settings as any) || {
+      automationSettings: (sourceTrip.automation_settings as TripInput["automationSettings"]) || {
         maxExtraSpend: 2000,
         autoReplace: ["flexible", "weather_sensitive"],
         alwaysAsk: ["flights", "hotels", "above_limit"],
@@ -622,6 +695,15 @@ export const duplicateTrip = createServerFn({ method: "POST" })
       status: item.indoor_outdoor === "outdoor" ? "flexible" : "confirmed",
       is_locked: Boolean(item.is_locked),
       sort_order: index,
+      metadata: {
+        cost_min: item.cost_min,
+        cost_max: item.cost_max,
+        cost_type: item.cost_type,
+        opening_hours: item.opening_hours,
+        rating: item.rating,
+        verification_status: item.verification_status,
+        why_fits: item.why_fits,
+      },
     }));
 
     if (rows.length > 0) {
@@ -643,7 +725,12 @@ export const duplicateTrip = createServerFn({ method: "POST" })
       message: `Duplicated trip to ${sourceTrip.destination} created with fresh itinerary.`,
     });
 
-    return { success: true, newTripId: newTrip.id as string, count: rows.length, source: generated.source };
+    return {
+      success: true,
+      newTripId: newTrip.id as string,
+      count: rows.length,
+      source: generated.source,
+    };
   });
 
 export const saveProfile = createServerFn({ method: "POST" })

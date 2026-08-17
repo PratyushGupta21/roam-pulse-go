@@ -13,12 +13,12 @@ export interface RouteResult {
 const geocodeCache = new Map<string, Coordinates | null>();
 
 /**
-  * Free OpenStreetMap Nominatim Geocoding service.
-  * Resolves location names to latitude and longitude with destination context.
-  */
+ * Free OpenStreetMap Nominatim Geocoding service.
+ * Resolves location names to latitude and longitude with destination context.
+ */
 export async function geocodeLocation(
   locationName: string,
-  destinationContext?: string
+  destinationContext?: string,
 ): Promise<Coordinates | null> {
   const queryStr = locationName.trim();
   if (!queryStr) return null;
@@ -36,7 +36,7 @@ export async function geocodeLocation(
 
   try {
     const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(
-      fullQuery
+      fullQuery,
     )}&limit=1`;
 
     const res = await fetch(url, {
@@ -66,7 +66,7 @@ export async function geocodeLocation(
     // Secondary fallback: Try geocoding just the destination context if specific location fails
     if (destinationContext && queryStr !== destinationContext) {
       const destUrl = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(
-        destinationContext
+        destinationContext,
       )}&limit=1`;
 
       const destRes = await fetch(destUrl, {
@@ -99,10 +99,10 @@ export async function geocodeLocation(
 }
 
 /**
-  * Batch geocode multiple itinerary items concurrently.
-  */
+ * Batch geocode multiple itinerary items concurrently.
+ */
 export async function geocodeItineraryItems<
-  T extends { location?: string | null; latitude?: number | null; longitude?: number | null }
+  T extends { location?: string | null; latitude?: number | null; longitude?: number | null },
 >(items: T[], destinationContext?: string): Promise<T[]> {
   const updatedItems = await Promise.all(
     items.map(async (item) => {
@@ -126,19 +126,19 @@ export async function geocodeItineraryItems<
       }
 
       return item;
-    })
+    }),
   );
 
   return updatedItems;
 }
 
 /**
-  * Free OSRM Directions Routing Service.
-  * Calculates driving/walking route polyline between consecutive points.
-  */
+ * Free OSRM Directions Routing Service.
+ * Calculates driving/walking route polyline between consecutive points.
+ */
 export async function getDirectionsRoute(
   waypoints: [number, number][], // [[lat, lng], ...]
-  profile: "driving" | "walking" = "driving"
+  profile: "driving" | "walking" = "driving",
 ): Promise<RouteResult | null> {
   if (waypoints.length < 2) return null;
 
@@ -169,9 +169,10 @@ export async function getDirectionsRoute(
     const route = data.routes?.[0];
     if (route && route.geometry?.coordinates) {
       // Convert OSRM [lng, lat] back to Leaflet [lat, lng]
-      const leafletCoords: [number, number][] = route.geometry.coordinates.map(
-        ([lng, lat]) => [lat, lng]
-      );
+      const leafletCoords: [number, number][] = route.geometry.coordinates.map(([lng, lat]) => [
+        lat,
+        lng,
+      ]);
 
       return {
         coordinates: leafletCoords,
@@ -187,8 +188,8 @@ export async function getDirectionsRoute(
 }
 
 /**
-  * Fallback polyline and distance estimator when OSRM routing is offline or times out.
-  */
+ * Fallback polyline and distance estimator when OSRM routing is offline or times out.
+ */
 function calculateFallbackPolyline(waypoints: [number, number][]): RouteResult {
   let totalKm = 0;
   for (let i = 0; i < waypoints.length - 1; i++) {
@@ -208,13 +209,13 @@ function calculateFallbackPolyline(waypoints: [number, number][]): RouteResult {
 }
 
 /**
-  * Haversine formula to compute great-circle distance between two coordinates in km.
-  */
+ * Haversine formula to compute great-circle distance between two coordinates in km.
+ */
 export function haversineDistanceKm(
   lat1: number,
   lon1: number,
   lat2: number,
-  lon2: number
+  lon2: number,
 ): number {
   const R = 6371; // Earth's radius in km
   const dLat = toRad(lat2 - lat1);

@@ -1,16 +1,55 @@
-import { AlertTriangle, CalendarCheck, CheckCircle2, CircleDashed, RefreshCcw, ShieldAlert } from "lucide-react";
+import {
+  AlertTriangle,
+  CalendarCheck,
+  CheckCircle2,
+  CircleDashed,
+  RefreshCcw,
+  ShieldAlert,
+} from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
 const MAP = {
-  confirmed: { label: "Confirmed", icon: CalendarCheck, className: "border-primary/30 bg-primary/10 text-primary" },
-  planning: { label: "Planning", icon: CircleDashed, className: "border-primary/30 bg-primary/10 text-primary" },
-  in_progress: { label: "Active", icon: CalendarCheck, className: "border-success/30 bg-success/15 text-success font-semibold" },
-  flexible: { label: "Flexible", icon: CircleDashed, className: "border-border bg-muted text-muted-foreground" },
-  at_risk: { label: "At risk", icon: AlertTriangle, className: "border-accent/40 bg-accent/15 text-accent-foreground" },
-  disrupted: { label: "Disrupted", icon: ShieldAlert, className: "border-destructive/30 bg-destructive/10 text-destructive" },
-  replaced: { label: "Replaced", icon: RefreshCcw, className: "border-border bg-muted text-muted-foreground line-through" },
-  completed: { label: "Completed", icon: CheckCircle2, className: "border-success/30 bg-success/10 text-success" },
+  confirmed: {
+    label: "Confirmed",
+    icon: CalendarCheck,
+    className: "border-primary/30 bg-primary/10 text-primary",
+  },
+  planning: {
+    label: "Planning",
+    icon: CircleDashed,
+    className: "border-primary/30 bg-primary/10 text-primary",
+  },
+  in_progress: {
+    label: "Active",
+    icon: CalendarCheck,
+    className: "border-success/30 bg-success/15 text-success font-semibold",
+  },
+  flexible: {
+    label: "Flexible",
+    icon: CircleDashed,
+    className: "border-border bg-muted text-muted-foreground",
+  },
+  at_risk: {
+    label: "At risk",
+    icon: AlertTriangle,
+    className: "border-accent/40 bg-accent/15 text-accent-foreground",
+  },
+  disrupted: {
+    label: "Disrupted",
+    icon: ShieldAlert,
+    className: "border-destructive/30 bg-destructive/10 text-destructive",
+  },
+  replaced: {
+    label: "Replaced",
+    icon: RefreshCcw,
+    className: "border-border bg-muted text-muted-foreground line-through",
+  },
+  completed: {
+    label: "Completed",
+    icon: CheckCircle2,
+    className: "border-success/30 bg-success/10 text-success",
+  },
 } as const;
 
 export function StatusBadge({ status, className }: { status: string; className?: string }) {

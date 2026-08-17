@@ -41,12 +41,17 @@ export function StepProgress({
                 className={cn(
                   "inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-colors",
                   active && "border-primary bg-primary/10 text-primary",
-                  done && "border-border bg-background text-muted-foreground hover:border-primary/50",
+                  done &&
+                    "border-border bg-background text-muted-foreground hover:border-primary/50",
                   !active && !done && "border-dashed border-border/70 text-muted-foreground/70",
                   clickable ? "cursor-pointer" : "cursor-default",
                 )}
               >
-                {done ? <Check className="h-3 w-3" /> : <span className="text-[10px]">{index + 1}</span>}
+                {done ? (
+                  <Check className="h-3 w-3" />
+                ) : (
+                  <span className="text-[10px]">{index + 1}</span>
+                )}
                 {label}
               </button>
             </li>
@@ -69,7 +74,9 @@ export function StepShell({
   return (
     <div className="rise-in space-y-6">
       <div>
-        <h2 className="font-display text-xl font-bold tracking-tight text-foreground sm:text-2xl">{title}</h2>
+        <h2 className="font-display text-xl font-bold tracking-tight text-foreground sm:text-2xl">
+          {title}
+        </h2>
         <p className="mt-1 text-sm text-muted-foreground">{description}</p>
       </div>
       {children}
@@ -92,7 +99,10 @@ export function Field({
 }) {
   return (
     <div className="space-y-1.5">
-      <label htmlFor={htmlFor} className="block text-xs font-semibold uppercase tracking-wide text-foreground">
+      <label
+        htmlFor={htmlFor}
+        className="block text-xs font-semibold uppercase tracking-wide text-foreground"
+      >
         {label} {required ? <span className="text-destructive">*</span> : null}
       </label>
       {children}
@@ -138,7 +148,9 @@ export function OptionCard({
         </span>
       ) : null}
       {emoji ? <span className="text-lg leading-none">{emoji}</span> : null}
-      <span className={cn("text-sm font-semibold", selected ? "text-primary" : "text-foreground")}>{title}</span>
+      <span className={cn("text-sm font-semibold", selected ? "text-primary" : "text-foreground")}>
+        {title}
+      </span>
       {hint ? <span className="text-xs text-muted-foreground">{hint}</span> : null}
     </button>
   );
@@ -173,7 +185,9 @@ export function Chip({
 export function SummaryRow({ label, value }: { label: string; value: ReactNode }) {
   return (
     <div className="flex flex-wrap items-start justify-between gap-2 border-b border-border/60 py-2 last:border-0">
-      <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</span>
+      <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+        {label}
+      </span>
       <span className="max-w-[65%] text-right text-sm text-foreground">{value}</span>
     </div>
   );

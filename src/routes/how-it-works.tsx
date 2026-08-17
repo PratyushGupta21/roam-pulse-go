@@ -55,7 +55,6 @@ const PROCESS_STAGES = [
     desc: "Instant alternative path when reality slips.",
     color: "border-success/40 text-success",
   },
-
 ] as const;
 
 const STEPS = [
@@ -149,15 +148,21 @@ function HowItWorks() {
             <span className="font-mono text-xs font-bold text-accent uppercase tracking-wider">
               Architecture Deep Dive
             </span>
-            <h2 className="font-display text-3xl font-bold tracking-tight">How RoamPulse Monitors &amp; Repairs</h2>
+            <h2 className="font-display text-3xl font-bold tracking-tight">
+              How RoamPulse Monitors &amp; Repairs
+            </h2>
             <p className="text-muted-foreground text-sm leading-relaxed">
-              Unlike static PDF itineraries or passive calendar apps, RoamPulse treats your trip as a living state machine.
+              Unlike static PDF itineraries or passive calendar apps, RoamPulse treats your trip as
+              a living state machine.
             </p>
           </div>
 
           <div className="grid gap-6 md:grid-cols-2">
             {STEPS.map((step) => (
-              <div key={step.n} className="rounded-xl border border-border bg-background p-6 space-y-3 shadow-2xs">
+              <div
+                key={step.n}
+                className="rounded-xl border border-border bg-background p-6 space-y-3 shadow-2xs"
+              >
                 <div className="flex items-center justify-between">
                   <span className="font-mono text-xs font-bold text-primary bg-primary/10 px-2.5 py-0.5 rounded">
                     STEP {step.n}
@@ -178,7 +183,8 @@ function HowItWorks() {
         <div className="max-w-2xl space-y-2">
           <h2 className="font-display text-2xl font-bold">The 7-Step Recovery Algorithm</h2>
           <p className="text-sm text-muted-foreground">
-            Every disruption passes through a deterministic evaluation engine before any alternative is recommended.
+            Every disruption passes through a deterministic evaluation engine before any alternative
+            is recommended.
           </p>
         </div>
 
@@ -197,7 +203,8 @@ function HowItWorks() {
           <div className="mt-8 rounded-xl border border-primary/30 bg-primary/5 p-4 text-xs text-muted-foreground flex items-center gap-3">
             <Gauge className="h-5 w-5 text-primary shrink-0" />
             <p>
-              <strong>Zero unapproved purchases:</strong> RoamPulse never automatically books paid flights, hotels, or tickets without your explicit consent.
+              <strong>Zero unapproved purchases:</strong> RoamPulse never automatically books paid
+              flights, hotels, or tickets without your explicit consent.
             </p>
           </div>
         </div>

@@ -44,12 +44,36 @@ export const Route = createFileRoute("/")({
 });
 
 const PROBLEMS = [
-  { icon: Clock, title: "Flight Delayed 3h", body: "Losing your afternoon booking and arrival transit." },
-  { icon: CloudRain, title: "Heavy Rain Midday", body: "Outdoor walking tour cancelled with no indoor backup." },
-  { icon: Wallet, title: "Hotel Price Drops ₹4k", body: "Paying original price because nobody re-checked." },
-  { icon: Map, title: "Overbooked Rail", body: "Scrambling for buses while standing at the terminal." },
-  { icon: Search, title: "Scattered App Panic", body: "Juggling 5 tabs while trying to re-plan manually." },
-  { icon: Compass, title: "Zero Travel Context", body: "Generic recommendations that ignore your budget." },
+  {
+    icon: Clock,
+    title: "Flight Delayed 3h",
+    body: "Losing your afternoon booking and arrival transit.",
+  },
+  {
+    icon: CloudRain,
+    title: "Heavy Rain Midday",
+    body: "Outdoor walking tour cancelled with no indoor backup.",
+  },
+  {
+    icon: Wallet,
+    title: "Hotel Price Drops ₹4k",
+    body: "Paying original price because nobody re-checked.",
+  },
+  {
+    icon: Map,
+    title: "Overbooked Rail",
+    body: "Scrambling for buses while standing at the terminal.",
+  },
+  {
+    icon: Search,
+    title: "Scattered App Panic",
+    body: "Juggling 5 tabs while trying to re-plan manually.",
+  },
+  {
+    icon: Compass,
+    title: "Zero Travel Context",
+    body: "Generic recommendations that ignore your budget.",
+  },
 ] as const;
 
 const SOLUTION = [
@@ -61,23 +85,63 @@ const SOLUTION = [
 ] as const;
 
 const FEATURES = [
-  { icon: RouteIcon, title: "Live Itinerary Graphs", body: "Every item connected to real-time status signals." },
-  { icon: ShieldCheck, title: "Autonomous Recovery Modes", body: "From manual prompts to auto-replacing flexible items." },
-  { icon: Wallet, title: "Spend Protection", body: "Strict spend limits — no surprise charges ever." },
-  { icon: CloudRain, title: "Weather Sentinel", body: "Swaps outdoor activities for indoor alternatives during rain." },
+  {
+    icon: RouteIcon,
+    title: "Live Itinerary Graphs",
+    body: "Every item connected to real-time status signals.",
+  },
+  {
+    icon: ShieldCheck,
+    title: "Autonomous Recovery Modes",
+    body: "From manual prompts to auto-replacing flexible items.",
+  },
+  {
+    icon: Wallet,
+    title: "Spend Protection",
+    body: "Strict spend limits — no surprise charges ever.",
+  },
+  {
+    icon: CloudRain,
+    title: "Weather Sentinel",
+    body: "Swaps outdoor activities for indoor alternatives during rain.",
+  },
 ] as const;
 
 const STEPS = [
-  { n: "01", title: "Create your trip", body: "Set origin, destination, dates, party & budget limits." },
-  { n: "02", title: "Generate AI itinerary", body: "Receive a destination-aware, pace-matched day-by-day plan." },
-  { n: "03", title: "Enable monitoring", body: "RoamPulse watches flights, weather & prices 24/7." },
-  { n: "04", title: "Enjoy smooth travel", body: "Disruptions resolved with one-click approved fixes." },
+  {
+    n: "01",
+    title: "Create your trip",
+    body: "Set origin, destination, dates, party & budget limits.",
+  },
+  {
+    n: "02",
+    title: "Generate AI itinerary",
+    body: "Receive a destination-aware, pace-matched day-by-day plan.",
+  },
+  {
+    n: "03",
+    title: "Enable monitoring",
+    body: "RoamPulse watches flights, weather & prices 24/7.",
+  },
+  {
+    n: "04",
+    title: "Enjoy smooth travel",
+    body: "Disruptions resolved with one-click approved fixes.",
+  },
 ] as const;
 
 const MODES = [
   { icon: Hand, title: "Manual", body: "Recommendations only. Nothing changes without you." },
-  { icon: Gauge, title: "Assisted", body: "Low-risk changes handled automatically; important ones ask first." },
-  { icon: ShieldCheck, title: "Autonomous", body: "Eligible items recovered automatically within your spend and preference limits." },
+  {
+    icon: Gauge,
+    title: "Assisted",
+    body: "Low-risk changes handled automatically; important ones ask first.",
+  },
+  {
+    icon: ShieldCheck,
+    title: "Autonomous",
+    body: "Eligible items recovered automatically within your spend and preference limits.",
+  },
 ];
 
 function Home() {
@@ -103,7 +167,10 @@ function Home() {
         <div className="mx-auto grid w-full max-w-6xl gap-10 px-4 pb-16 pt-28 lg:grid-cols-2 lg:items-center lg:pb-24 lg:pt-32">
           <div>
             <span className="inline-flex items-center gap-2 rounded-full border border-white/25 bg-white/10 px-3 py-1 text-xs font-medium text-white backdrop-blur">
-              <span className="live-dot inline-block h-2 w-2 rounded-full bg-success" aria-hidden="true" />
+              <span
+                className="live-dot inline-block h-2 w-2 rounded-full bg-success"
+                aria-hidden="true"
+              />
               Real-time trip monitoring
             </span>
             <h1 className="mt-5 font-display text-4xl font-semibold leading-tight text-white drop-shadow-sm sm:text-5xl">
@@ -133,7 +200,9 @@ function Home() {
 
       {/* Problem */}
       <section className="mx-auto max-w-6xl px-4 py-16">
-        <h2 className="font-display text-2xl font-semibold sm:text-3xl">Travel breaks in predictable ways</h2>
+        <h2 className="font-display text-2xl font-semibold sm:text-3xl">
+          Travel breaks in predictable ways
+        </h2>
         <p className="mt-3 max-w-2xl text-muted-foreground">
           Every traveller runs the same manual recovery loop. RoamPulse automates it.
         </p>
@@ -151,7 +220,9 @@ function Home() {
       {/* Solution */}
       <section className="border-y border-border bg-card">
         <div className="mx-auto max-w-6xl px-4 py-16">
-          <h2 className="font-display text-2xl font-semibold sm:text-3xl">One continuous loop, five jobs</h2>
+          <h2 className="font-display text-2xl font-semibold sm:text-3xl">
+            One continuous loop, five jobs
+          </h2>
           <ol className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
             {SOLUTION.map((item) => (
               <li key={item.title} className="rounded-xl border border-border bg-background p-5">
@@ -172,7 +243,9 @@ function Home() {
       {/* Features */}
       <section className="border-y border-border bg-card">
         <div className="mx-auto max-w-6xl px-4 py-16">
-          <h2 className="font-display text-2xl font-semibold sm:text-3xl">Everything the recovery loop needs</h2>
+          <h2 className="font-display text-2xl font-semibold sm:text-3xl">
+            Everything the recovery loop needs
+          </h2>
           <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             {FEATURES.map((f) => (
               <article key={f.title} className="rounded-xl border border-border bg-background p-5">
@@ -202,7 +275,9 @@ function Home() {
       {/* Automation modes */}
       <section className="border-y border-border bg-card">
         <div className="mx-auto max-w-6xl px-4 py-16">
-          <h2 className="font-display text-2xl font-semibold sm:text-3xl">You choose how much autonomy to give</h2>
+          <h2 className="font-display text-2xl font-semibold sm:text-3xl">
+            You choose how much autonomy to give
+          </h2>
           <div className="mt-8 grid gap-4 md:grid-cols-3">
             {MODES.map((m) => (
               <article key={m.title} className="rounded-xl border border-border bg-background p-6">
@@ -256,7 +331,9 @@ function Home() {
       <section className="surface-ink">
         <div className="mx-auto flex max-w-4xl flex-col items-center gap-6 px-4 py-20 text-center">
           <Bell className="h-7 w-7 text-accent" aria-hidden="true" />
-          <h2 className="font-display text-3xl font-semibold sm:text-4xl">Don't Let One Delay Ruin Your Trip.</h2>
+          <h2 className="font-display text-3xl font-semibold sm:text-4xl">
+            Don't Let One Delay Ruin Your Trip.
+          </h2>
           <p className="max-w-xl opacity-80">
             Build your trip once. RoamPulse keeps it alive while you travel.
           </p>
