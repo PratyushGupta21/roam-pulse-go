@@ -36,11 +36,162 @@ export function normalizeTitle(title: string): string {
   return title
     .toLowerCase()
     .replace(
-      /\b(visit|explore|experience|tour|attend|go to|see|famous|historic|historical|local|traditional|morning|evening|afternoon|night|day \d+|discover|stroll|walk|around)\b/g,
+      /\b(visit|explore|experience|tour|attend|go to|see|famous|historic|historical|local|traditional|morning|evening|afternoon|night|day \d+|discover|stroll|walk|around|lunch at|dinner at|breakfast at|meal at|food at|cafe at|restaurant at|dining at)\b/g,
       "",
     )
     .replace(/[^a-z0-9]/g, "")
     .trim();
+}
+
+export interface CanonicalIdentity {
+  canonicalName: string;
+  coordKey: string | null;
+  isStructural: boolean;
+}
+
+/**
+ * Extracts a canonical place/activity identity for robust, cross-day semantic duplicate detection.
+ */
+export function extractCanonicalIdentity(item: {
+  title: string;
+  location?: string | null | undefined;
+  latitude?: number | null | undefined;
+  longitude?: number | null | undefined;
+  category?: string | null | undefined;
+}): CanonicalIdentity {
+  const normTitle = (item.title || "").toLowerCase().trim();
+  const category = (item.category || "").toLowerCase().trim();
+
+  // Structural items exception (Arrival, Check-in, Checkout, Departure)
+  const isStructural =
+    category === "transit" ||
+    category === "wellness" ||
+    category === "accommodation" ||
+    normTitle.includes("arrival") ||
+    normTitle.includes("hotel check-in") ||
+    normTitle.includes("hotel checkout") ||
+    normTitle.includes("pack souvenirs") ||
+    normTitle.includes("transfer") ||
+    normTitle.includes("departure");
+
+  if (isStructural) {
+    return {
+      canonicalName: normTitle.replace(/[^a-z0-9]/g, ""),
+      coordKey: null,
+      isStructural: true,
+    };
+  }
+
+  // Extract core venue/place name by stripping action verbs and meal prefixes
+  let cleanName = normTitle
+    .replace(
+      /\b(visit|explore|experience|tour|attend|go to|see|famous|historic|historical|local|traditional|morning|evening|afternoon|night|day \d+|discover|stroll|walk|around|lunch at|dinner at|breakfast at|meal at|food at|cafe at|restaurant at|dining at)\b/gi,
+      "",
+    )
+    .replace(/[^a-z0-9]/g, "")
+    .trim();
+
+  if (cleanName.length < 3) {
+    cleanName = normTitle.replace(/[^a-z0-9]/g, "").trim();
+  }
+
+  let coordKey: string | null = null;
+  if (
+    typeof item.latitude === "number" &&
+    typeof item.longitude === "number" &&
+    (item.latitude !== 0 || item.longitude !== 0)
+  ) {
+    coordKey = `${item.latitude.toFixed(3)},${item.longitude.toFixed(3)}`;
+  }
+
+  return {
+    canonicalName: cleanName,
+    coordKey,
+    isStructural: false,
+  };
+}
+
+/**
+ * Global trip-wide deduplication system that prevents the same real place, restaurant,
+ * or activity from repeating across different days.
+ */
+export function deduplicateItineraryItemsGlobal(items: GeneratedItem[]): {
+  uniqueItems: GeneratedItem[];
+  duplicatesRemovedCount: number;
+} {
+  const usedCanonicalNames = new Set<string>();
+  const usedCoordKeys = new Set<string>();
+  const usedStructuralKeysPerDay = new Set<string>();
+
+  const uniqueItems: GeneratedItem[] = [];
+  let removedCount = 0;
+
+  for (const item of items) {
+    const { canonicalName, coordKey, isStructural } = extractCanonicalIdentity(item);
+
+    if (isStructural) {
+      const dayStructKey = `${item.day_date}_${canonicalName}`;
+      if (usedStructuralKeysPerDay.has(dayStructKey)) {
+        console.log(
+          `[RoamPulse] Duplicate structural item on same day removed: "${item.title}" on ${item.day_date}`,
+        );
+        removedCount++;
+        continue;
+      }
+      usedStructuralKeysPerDay.add(dayStructKey);
+      uniqueItems.push(item);
+      continue;
+    }
+
+    // 1. Check exact canonical name match anywhere in the trip
+    if (canonicalName.length >= 3 && usedCanonicalNames.has(canonicalName)) {
+      console.log(
+        `[RoamPulse] Duplicate global real place removed: "${item.title}" (canonical: "${canonicalName}") on ${item.day_date}`,
+      );
+      removedCount++;
+      continue;
+    }
+
+    // 2. Check near substring match for place names > 5 chars
+    let isSubstringDuplicate = false;
+    for (const existingName of usedCanonicalNames) {
+      if (
+        canonicalName.length > 5 &&
+        existingName.length > 5 &&
+        (canonicalName.includes(existingName) || existingName.includes(canonicalName))
+      ) {
+        console.log(
+          `[RoamPulse] Near-duplicate real place removed: "${item.title}" matches existing "${existingName}"`,
+        );
+        isSubstringDuplicate = true;
+        break;
+      }
+    }
+    if (isSubstringDuplicate) {
+      removedCount++;
+      continue;
+    }
+
+    // 3. Check coordinate match anywhere in the trip
+    if (coordKey && usedCoordKeys.has(coordKey)) {
+      console.log(
+        `[RoamPulse] Duplicate global coordinates removed: "${item.title}" at (${coordKey}) on ${item.day_date}`,
+      );
+      removedCount++;
+      continue;
+    }
+
+    if (canonicalName.length >= 3) {
+      usedCanonicalNames.add(canonicalName);
+    }
+    if (coordKey) {
+      usedCoordKeys.add(coordKey);
+    }
+
+    uniqueItems.push(item);
+  }
+
+  return { uniqueItems, duplicatesRemovedCount: removedCount };
 }
 
 /**
@@ -205,54 +356,7 @@ export function generateUniquenessKey(item: {
 }
 
 /**
- * Checks if a candidate activity title/location is a duplicate or near-duplicate of any previously planned activity.
- */
-export function isDuplicateOrNearDuplicate(
-  candidate: GeneratedItem,
-  existingItems: GeneratedItem[],
-): boolean {
-  const candKey = generateUniquenessKey(candidate);
-  const candNormTitle = normalizeTitle(candidate.title);
-
-  if (candNormTitle.length < 3) return false;
-
-  return existingItems.some((existing) => {
-    if (candidate.day_date !== existing.day_date) {
-      return false;
-    }
-
-    const existKey = generateUniquenessKey(existing);
-    if (candKey === existKey) return true;
-
-    const existNormTitle = normalizeTitle(existing.title);
-    if (existNormTitle.length < 3) return false;
-
-    if (candNormTitle === existNormTitle) return true;
-    if (
-      candNormTitle.length > 5 &&
-      existNormTitle.length > 5 &&
-      (candNormTitle.includes(existNormTitle) || existNormTitle.includes(candNormTitle))
-    ) {
-      return true;
-    }
-
-    if (
-      candidate.location &&
-      existing.location &&
-      normalizeTitle(candidate.location) === normalizeTitle(existing.location) &&
-      candidate.category.toLowerCase() === existing.category.toLowerCase() &&
-      candidate.category.toLowerCase() !== "food" &&
-      candidate.category.toLowerCase() !== "transit"
-    ) {
-      return true;
-    }
-
-    return false;
-  });
-}
-
-/**
- * Validates and cleans itinerary items against trip constraints (date boundary, start < end, non-negative costs).
+ * Validates and cleans itinerary items against trip constraints.
  */
 export function validateAndCleanItineraryItems(
   items: GeneratedItem[],
@@ -347,7 +451,7 @@ export function validateAndCleanItineraryItems(
 
 /**
  * Guarantees that every date in the trip range has itinerary items.
- * Fills missing dates automatically to eliminate skipped intermediate days.
+ * Fills missing dates automatically using ONLY unused real places to prevent repeats.
  */
 export function guaranteeAllDatesPresent(
   items: GeneratedItem[],
@@ -355,6 +459,35 @@ export function guaranteeAllDatesPresent(
   realPlaces: RealPlace[],
 ): GeneratedItem[] {
   const expectedDates = dayList(input.startDate, input.endDate);
+
+  // Track all canonical names and coords already used anywhere in the trip
+  const usedCanonicalNames = new Set<string>();
+  const usedCoordKeys = new Set<string>();
+
+  for (const item of items) {
+    const { canonicalName, coordKey, isStructural } = extractCanonicalIdentity(item);
+    if (!isStructural && canonicalName.length >= 3) {
+      usedCanonicalNames.add(canonicalName);
+    }
+    if (coordKey) {
+      usedCoordKeys.add(coordKey);
+    }
+  }
+
+  // Filter realPlaces to ONLY those not yet used anywhere in the trip
+  const unusedRealPlaces = realPlaces.filter((p) => {
+    const { canonicalName, coordKey } = extractCanonicalIdentity({
+      title: p.name,
+      location: p.address,
+      latitude: p.latitude,
+      longitude: p.longitude,
+      category: p.category,
+    });
+    if (canonicalName.length >= 3 && usedCanonicalNames.has(canonicalName)) return false;
+    if (coordKey && usedCoordKeys.has(coordKey)) return false;
+    return true;
+  });
+
   const presentDates = new Set(items.map((i) => i.day_date));
   const missingDates = expectedDates.filter((d) => !presentDates.has(d));
 
@@ -363,18 +496,27 @@ export function guaranteeAllDatesPresent(
   }
 
   console.warn(
-    `[RoamPulse] Missing dates detected: ${missingDates.join(", ")}; repairing date gaps now...`,
+    `[RoamPulse] Missing dates detected: ${missingDates.join(", ")}; repairing date gaps with unused real places now...`,
   );
 
   const repaired = [...items];
+  let unusedPlaceIdx = 0;
 
-  missingDates.forEach((missingDay, idx) => {
-    const dayPlaces =
-      realPlaces.length > 0
-        ? realPlaces.filter(
-            (_, pIdx) => pIdx % missingDates.length === idx || realPlaces.length <= 3,
-          )
-        : [];
+  missingDates.forEach((missingDay) => {
+    const dayPlaces: RealPlace[] = [];
+    while (dayPlaces.length < 3 && unusedPlaceIdx < unusedRealPlaces.length) {
+      const p = unusedRealPlaces[unusedPlaceIdx++]!;
+      dayPlaces.push(p);
+      const { canonicalName, coordKey } = extractCanonicalIdentity({
+        title: p.name,
+        location: p.address,
+        latitude: p.latitude,
+        longitude: p.longitude,
+        category: p.category,
+      });
+      if (canonicalName.length >= 3) usedCanonicalNames.add(canonicalName);
+      if (coordKey) usedCoordKeys.add(coordKey);
+    }
 
     if (dayPlaces.length > 0) {
       dayPlaces.forEach((p, pIdx) => {
@@ -413,13 +555,57 @@ export function guaranteeAllDatesPresent(
         });
       });
     } else {
+      const uniqueTemplates = [
+        {
+          title: `${input.destination} Heritage Promenade & Cultural Center`,
+          cat: "culture",
+          time: "10:00",
+        },
+        {
+          title: `Lunch at Town Center Bistro in ${input.destination}`,
+          cat: "food",
+          time: "12:30",
+        },
+        {
+          title: `${input.destination} Scenic Viewpoint & Botanical Park`,
+          cat: "nature",
+          time: "14:30",
+        },
+        {
+          title: `${input.destination} State Art Gallery & History Museum`,
+          cat: "culture",
+          time: "10:00",
+        },
+        {
+          title: `Regional Culinary Tasting in ${input.destination}`,
+          cat: "food",
+          time: "13:00",
+        },
+        {
+          title: `${input.destination} Local Crafts Market & Souvenir Shops`,
+          cat: "shopping",
+          time: "15:00",
+        },
+      ];
+
+      const availableTemplates = uniqueTemplates.filter((t) => {
+        const { canonicalName } = extractCanonicalIdentity({ title: t.title, category: t.cat });
+        return !usedCanonicalNames.has(canonicalName);
+      });
+
+      const t1 = availableTemplates[0] || {
+        title: `${input.destination} Sightseeing Spot (${missingDay})`,
+        cat: "culture",
+        time: "10:00",
+      };
+
       repaired.push({
-        title: `${input.destination} Historic Promenade & Landmarks`,
-        description: `Visit iconic historic sites and local landmarks in ${input.destination}.`,
+        title: t1.title,
+        description: `Explore iconic sights and cultural landmarks in ${input.destination}.`,
         day_date: missingDay,
-        start_time: "10:00",
-        end_time: "12:00",
-        category: "culture",
+        start_time: t1.time,
+        end_time: addMinutes(t1.time, 120),
+        category: t1.cat,
         location: input.destination,
         latitude: null,
         longitude: null,
@@ -432,48 +618,6 @@ export function guaranteeAllDatesPresent(
         booking_url: null,
         is_locked: false,
         uniqueness_key: `repaired_${missingDay}_1`,
-      });
-
-      repaired.push({
-        title: `Lunch near ${input.destination} Town Center`,
-        description: `Sample regional specialties and local dining in ${input.destination}.`,
-        day_date: missingDay,
-        start_time: "12:30",
-        end_time: "13:30",
-        category: "food",
-        location: input.destination,
-        latitude: null,
-        longitude: null,
-        estimated_cost: Math.round(input.currency === "USD" ? 8 : 500),
-        cost_type: "estimated",
-        verification_status: "estimated",
-        travel_minutes: 15,
-        indoor_outdoor: "indoor",
-        weather_suitability: "any",
-        booking_url: null,
-        is_locked: false,
-        uniqueness_key: `repaired_${missingDay}_2`,
-      });
-
-      repaired.push({
-        title: `${input.destination} Scenic Viewpoint & Gardens`,
-        description: `Enjoy scenic views and local atmosphere in ${input.destination}.`,
-        day_date: missingDay,
-        start_time: "14:30",
-        end_time: "16:30",
-        category: "nature",
-        location: input.destination,
-        latitude: null,
-        longitude: null,
-        estimated_cost: 0,
-        cost_type: "free",
-        verification_status: "estimated",
-        travel_minutes: 20,
-        indoor_outdoor: "outdoor",
-        weather_suitability: "any",
-        booking_url: null,
-        is_locked: false,
-        uniqueness_key: `repaired_${missingDay}_3`,
       });
     }
   });
@@ -623,7 +767,7 @@ export interface GenerateItineraryOptions {
 }
 
 /**
- * Fallback Itinerary Generator using Real Places catalog.
+ * Fallback Itinerary Generator using Real Places catalog with zero repeated places across days.
  */
 export function fallbackItinerary(
   input: TripInput,
@@ -640,34 +784,31 @@ export function fallbackItinerary(
       name: `${input.destination} Historic Mall & Promenade`,
       category: "culture",
       cost: 200,
-      time: "10:00",
     },
     {
       name: `Lunch near ${input.destination} City Center`,
       category: "food",
       cost: 500,
-      time: "12:30",
     },
     {
       name: `${input.destination} Botanical Gardens & Viewpoint`,
       category: "nature",
       cost: 150,
-      time: "14:30",
     },
     {
       name: `${input.destination} State Museum & Heritage Center`,
       category: "culture",
       cost: 250,
-      time: "10:00",
     },
-    { name: `Regional Dining in ${input.destination}`, category: "food", cost: 600, time: "13:00" },
+    { name: `Regional Dining in ${input.destination}`, category: "food", cost: 600 },
     {
       name: `${input.destination} Local Handicrafts Market`,
       category: "shopping",
       cost: 300,
-      time: "15:00",
     },
   ];
+
+  let placeIndex = 0;
 
   days.forEach((day, dayIndex) => {
     let currentTimeMins = 9 * 60;
@@ -675,10 +816,11 @@ export function fallbackItinerary(
       currentTimeMins = minutesOf(input.arrivalTime || "14:00") + 120;
     }
 
-    const dayPlaces =
-      places.length > 0
-        ? places.filter((_, idx) => idx % days.length === dayIndex || places.length <= 3)
-        : [];
+    // Assign non-overlapping candidate real places to each day
+    const dayPlaces: RealPlace[] = [];
+    while (dayPlaces.length < 2 && placeIndex < places.length) {
+      dayPlaces.push(places[placeIndex++]!);
+    }
 
     if (dayPlaces.length > 0) {
       dayPlaces.forEach((p) => {
@@ -775,8 +917,9 @@ export function fallbackItinerary(
     }
   });
 
+  const { uniqueItems } = deduplicateItineraryItemsGlobal(rawItems);
   const cleaned = validateAndCleanItineraryItems(
-    enforceArrivalAndDepartureConstraints(rawItems, input),
+    enforceArrivalAndDepartureConstraints(uniqueItems, input),
     input,
   );
   return guaranteeAllDatesPresent(cleaned, input, places);
@@ -841,20 +984,21 @@ export async function generateItinerary(
     ``,
     `CRITICAL REAL-WORLD REQUIREMENTS:`,
     `1. REAL PLACE SELECTION ONLY: You MUST select attractions, museums, markets, landmarks, parks, and restaurants ONLY from the verified real-place list provided below. NEVER invent or hallucinate fictional venue names.`,
-    `2. NO GENERIC ACTIVITY TITLES: NEVER emit generic activity titles like "Sightseeing & Local Exploration", "Explore the city", "Explore local attractions", "Discover the city", "Explore historic attractions", "City sightseeing", or "Free time". EVERY activity title MUST be the exact name of a real place or specific venue (e.g. "Kohima War Cemetery", "Nagaland State Museum", "Naga Bazaar", "Lunch at Dzüko Cafe").`,
-    `3. COMPLETE DAY-BY-DAY COVERAGE: You MUST generate 3 to 5 items for EVERY date in the list (${days.join(", ")}). NEVER skip an intermediate date.`,
-    `4. DAILY STRUCTURE & MEALS:`,
-    `   - Include lunch (around 12:30 - 13:30) and dinner (around 19:30 - 20:30) at real restaurant candidates from the list whenever available.`,
+    `2. STRICT GLOBAL UNICITY (ZERO REPEATS): EVERY real attraction, landmark, restaurant, activity, shopping location, museum, viewpoint, temple, park, or cultural site MUST appear ONLY ONCE in the entire itinerary across all ${days.length} days.`,
+    `   - Do NOT reuse the same location or restaurant on multiple days.`,
+    `   - Do NOT create different titles for the same place (e.g. "The Ridge" and "Explore The Ridge" are the same place and must not appear on different days).`,
+    `   - Do NOT repeat restaurants across different days unless user explicitly requested.`,
+    `   - Each day MUST use completely different real places from the other days.`,
+    `3. NO GENERIC ACTIVITY TITLES: NEVER emit generic activity titles like "Sightseeing & Local Exploration", "Explore the city", "Explore local attractions", "Discover the city", "Explore historic attractions", "City sightseeing", or "Free time". EVERY activity title MUST be the exact name of a real place or specific venue (e.g. "Kohima War Cemetery", "Nagaland State Museum", "Naga Bazaar", "Lunch at Dzüko Cafe").`,
+    `4. COMPLETE DAY-BY-DAY COVERAGE: You MUST generate 3 to 5 items for EVERY date in the list (${days.join(", ")}). NEVER skip an intermediate date.`,
+    `5. DAILY STRUCTURE & MEALS:`,
+    `   - Include lunch (around 12:30 - 13:30) and dinner (around 19:30 - 20:30) at real restaurant candidates from the list whenever available. Use DIFFERENT restaurants for every meal.`,
     `   - Provide realistic time slots (e.g. 09:00–10:30, 10:50–12:15, 12:30–13:30 lunch, 14:00–16:00, 16:30–18:00). Leave realistic 15–30 minute buffers for travel between places.`,
-    `5. GEOGRAPHIC CLUSTERING: Group nearby venues together on the same day so travelers don't waste hours crisscrossing the city.`,
-    `6. ARRIVAL & DEPARTURE TIMING:`,
+    `6. GEOGRAPHIC CLUSTERING: Group nearby venues together on the same day so travelers don't waste hours crisscrossing the city.`,
+    `7. ARRIVAL & DEPARTURE TIMING:`,
     `   - Day 1: Do NOT schedule any morning activities before arrival time (${input.arrivalTime || "14:00"}). Start Day 1 with arrival transfer, hotel check-in, and an evening dinner/activity.`,
     `   - Final Day: Conclude major tours at least 3 hours prior to departure (${input.departureTime || "16:00"}). Include hotel checkout and station/airport transfer.`,
-    `7. PACING & INTEREST MATCHING:`,
-    `   - Match pace "${input.preferences.pace}": ${input.preferences.pace === "relaxed" ? "2-3 leisurely items/day with longer breaks" : input.preferences.pace === "packed" ? "4-5 active items/day" : "3-4 balanced items/day"}.`,
-    `   - Align activities directly with user interests: ${input.interests.join(", ")}.`,
-    `8. REALISTIC COSTS:`,
-    `   - Estimate realistic costs per item in ${input.currency} (e.g. 0 for free public places, 200–500 for entry tickets/dining). Use clean rounded numbers.`,
+    `8. REALISTIC COSTS: Estimate realistic costs per item in ${input.currency} (e.g. 0 for free public places, 200–500 for entry tickets/dining). Use clean rounded numbers.`,
   ];
 
   if (realPlaces.length > 0) {
@@ -879,7 +1023,7 @@ export async function generateItinerary(
         null,
         2,
       ),
-      `INSTRUCTION: Select your attractions and restaurants strictly from this verified real-place list for ${input.destination}.`,
+      `INSTRUCTION: Select your attractions and restaurants strictly from this verified real-place list for ${input.destination}. Ensure NO place from this list is repeated on multiple days.`,
     );
   }
 
@@ -906,7 +1050,7 @@ export async function generateItinerary(
             systemInstruction: {
               parts: [
                 {
-                  text: 'You are RoamPulse\'s expert local travel planner. Return ONLY valid JSON matching schema {"items": [...]}. Every item title MUST be a specific real place name from the supplied candidate list (e.g. "Kohima War Cemetery", "Nagaland State Museum", "Naga Bazaar", "Lunch at Dzüko Cafe"). NEVER emit generic titles like "Sightseeing & Local Exploration".',
+                  text: 'You are RoamPulse\'s expert local travel planner. Return ONLY valid JSON matching schema {"items": [...]}. Every item title MUST be a specific real place name from the supplied candidate list. EVERY place must appear ONLY ONCE in the entire itinerary across all days. Do NOT repeat attractions, restaurants, or landmarks on multiple days.',
                 },
               ],
             },
@@ -942,7 +1086,7 @@ export async function generateItinerary(
               {
                 role: "system",
                 content:
-                  "You are RoamPulse's expert local travel planner. Every item title must be a specific real place name from candidate list. Always return structured JSON via emit_itinerary tool.",
+                  "You are RoamPulse's expert local travel planner. Every item title must be a specific real place name from candidate list. Every place must appear ONLY ONCE across all days. Always return structured JSON via emit_itinerary tool.",
               },
               { role: "user", content: promptParts.join("\n") },
             ],
@@ -1085,19 +1229,14 @@ export async function generateItinerary(
         return item;
       });
 
-      const existingItems: GeneratedItem[] = [];
-      const validItems: GeneratedItem[] = [];
-
-      for (const item of matchedItems) {
-        item.uniqueness_key = generateUniquenessKey(item);
-        if (!isDuplicateOrNearDuplicate(item, existingItems)) {
-          existingItems.push(item);
-          validItems.push(item);
-        }
-      }
+      // GLOBAL TRIP-WIDE DEDUPLICATION (Zero Repeats Across Days)
+      const { uniqueItems, duplicatesRemovedCount } = deduplicateItineraryItemsGlobal(matchedItems);
+      console.log(
+        `[RoamPulse] global duplicate candidates detected & removed: ${duplicatesRemovedCount}`,
+      );
 
       const constrainedItems = enforceArrivalAndDepartureConstraints(
-        validItems.length > 0 ? validItems : matchedItems,
+        uniqueItems.length > 0 ? uniqueItems : matchedItems,
         input,
       );
 
@@ -1105,11 +1244,11 @@ export async function generateItinerary(
 
       const cleanedItems = validateAndCleanItineraryItems(clusteredItems, input);
 
-      // GUARANTEE date coverage for every date in range
+      // GUARANTEE date coverage for every date in range using ONLY UNUSED real places
       const finalItems = guaranteeAllDatesPresent(cleanedItems, input, realPlaces);
 
       console.log(`[RoamPulse] validation item count: ${cleanedItems.length}`);
-      console.log(`[RoamPulse] final item count: ${finalItems.length}`);
+      console.log(`[RoamPulse] final unique item count: ${finalItems.length}`);
 
       const hasAccommodation = finalItems.some(
         (i) => i.category === "accommodation" || i.title.toLowerCase().startsWith("accommodation:"),
@@ -1221,15 +1360,11 @@ export async function reoptimizeItinerary(
   const result = await generateItinerary(input, { previousTitles, isRegeneration: true });
 
   const finalItems: GeneratedItem[] = [...locked];
-  for (const item of result.items) {
-    if (!isDuplicateOrNearDuplicate(item, finalItems)) {
-      finalItems.push(item);
-    }
-  }
+  const { uniqueItems } = deduplicateItineraryItemsGlobal([...locked, ...result.items]);
 
   return {
     items: validateAndCleanItineraryItems(
-      enforceArrivalAndDepartureConstraints(finalItems, input),
+      enforceArrivalAndDepartureConstraints(uniqueItems, input),
       input,
     ),
     source: result.source,
