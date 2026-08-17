@@ -47,8 +47,8 @@ export function normalizeTitle(title: string): string {
  */
 export function generateUniquenessKey(item: {
   title: string;
-  category?: string;
-  location?: string;
+  category?: string | null | undefined;
+  location?: string | null | undefined;
 }): string {
   const normTitle = normalizeTitle(item.title);
   const normLoc = item.location ? normalizeTitle(item.location) : "";
@@ -254,6 +254,8 @@ export function enforceArrivalAndDepartureConstraints(
           latitude: null,
           longitude: null,
           estimated_cost: Math.round(input.currency === "USD" ? 10 : 500),
+          cost_type: "estimated",
+          verification_status: "estimated",
           travel_minutes: 30,
           indoor_outdoor: "mixed",
           weather_suitability: "any",
@@ -273,6 +275,8 @@ export function enforceArrivalAndDepartureConstraints(
           latitude: null,
           longitude: null,
           estimated_cost: 0,
+          cost_type: "free",
+          verification_status: "estimated",
           travel_minutes: 15,
           indoor_outdoor: "indoor",
           weather_suitability: "any",
@@ -303,6 +307,8 @@ export function enforceArrivalAndDepartureConstraints(
         latitude: null,
         longitude: null,
         estimated_cost: 0,
+        cost_type: "free",
+        verification_status: "estimated",
         travel_minutes: 15,
         indoor_outdoor: "indoor",
         weather_suitability: "any",
@@ -323,6 +329,8 @@ export function enforceArrivalAndDepartureConstraints(
         latitude: null,
         longitude: null,
         estimated_cost: Math.round(input.currency === "USD" ? 12 : 600),
+        cost_type: "estimated",
+        verification_status: "estimated",
         travel_minutes: 45,
         indoor_outdoor: "mixed",
         weather_suitability: "any",
@@ -657,6 +665,7 @@ export function fallbackItinerary(
 
       let itemTitle = `${t.title} (${input.destination})`;
 
+      const itemCost = Math.round(t.cost * (input.currency === "USD" ? 0.012 : 1));
       const candItem: GeneratedItem = {
         title: itemTitle,
         description: `Explore ${t.title.toLowerCase()} in ${input.destination}, curated for your ${input.travelStyle} trip.`,
@@ -667,7 +676,9 @@ export function fallbackItinerary(
         location: input.destination,
         latitude: null,
         longitude: null,
-        estimated_cost: Math.round(t.cost * (input.currency === "USD" ? 0.012 : 1)),
+        estimated_cost: itemCost,
+        cost_type: itemCost === 0 ? "free" : "estimated",
+        verification_status: "estimated",
         travel_minutes: 20,
         indoor_outdoor: t.io,
         weather_suitability: t.io === "outdoor" ? ("clear_only" as const) : ("any" as const),

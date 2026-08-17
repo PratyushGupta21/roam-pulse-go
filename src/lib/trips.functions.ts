@@ -7,6 +7,7 @@ import {
   duplicateTripSchema,
   tripInputSchema,
   updateTripSchema,
+  type GeneratedItem,
   type RecoveryMode,
   type TravelStyle,
   type TripInput,

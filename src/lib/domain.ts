@@ -103,6 +103,22 @@ export const duplicateTripSchema = z.object({
 export type UpdateTripInput = z.infer<typeof updateTripSchema>;
 export type DuplicateTripInput = z.infer<typeof duplicateTripSchema>;
 
+export interface ItineraryItemMetadata {
+  cost_min?: number | null;
+  cost_max?: number | null;
+  cost_type?: "free" | "estimated" | "listed" | "unknown";
+  opening_hours?: string | null;
+  rating?: number | null;
+  verification_status?: "verified" | "estimated" | "ai_planned";
+  why_fits?: string | null;
+  address?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  provider?: string | null;
+  place_id?: string | null;
+  [key: string]: unknown;
+}
+
 export const itineraryItemSchema = z.object({
   title: z.string().min(2).max(120),
   description: z.string().max(600).default(""),

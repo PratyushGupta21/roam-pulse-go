@@ -19,16 +19,16 @@ export interface RealPlace {
     | "culture"
     | "transit"
     | "wellness";
-  address?: string;
-  latitude?: number;
-  longitude?: number;
-  rating?: number;
-  priceLevel?: number;
-  estimatedCostMin?: number;
-  estimatedCostMax?: number;
-  costType?: "free" | "estimated" | "listed";
-  openingHours?: string;
-  description?: string;
+  address?: string | undefined;
+  latitude?: number | undefined;
+  longitude?: number | undefined;
+  rating?: number | undefined;
+  priceLevel?: number | undefined;
+  estimatedCostMin?: number | undefined;
+  estimatedCostMax?: number | undefined;
+  costType?: "free" | "estimated" | "listed" | undefined;
+  openingHours?: string | undefined;
+  description?: string | undefined;
   isVerified: boolean;
   source: "google_places" | "osm" | "curated";
 }

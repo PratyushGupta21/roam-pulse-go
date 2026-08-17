@@ -224,6 +224,7 @@ export type Database = {
           trip_id: string;
           updated_at: string;
           weather_suitability: string;
+          metadata: Json;
         };
         Insert: {
           booking_url?: string | null;
@@ -241,6 +242,7 @@ export type Database = {
           latitude?: number | null;
           location?: string;
           longitude?: number | null;
+          metadata?: Json;
           sort_order?: number;
           start_time?: string;
           status?: string;
@@ -266,6 +268,7 @@ export type Database = {
           latitude?: number | null;
           location?: string;
           longitude?: number | null;
+          metadata?: Json;
           sort_order?: number;
           start_time?: string;
           status?: string;
