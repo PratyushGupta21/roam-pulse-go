@@ -120,25 +120,84 @@ export interface ItineraryItemMetadata {
 }
 
 export const itineraryItemSchema = z.object({
-  title: z.string().min(2).max(120),
-  description: z.string().max(600).default(""),
-  day_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-  start_time: z.string().regex(/^\d{2}:\d{2}$/),
-  end_time: z.string().regex(/^\d{2}:\d{2}$/),
+  title: z.string().min(2).max(160),
+  description: z.string().max(1000).default(""),
+  day_date: z.preprocess(
+    (val) => {
+      if (typeof val === "string") {
+        const parts = val.trim().split("-");
+        if (parts.length === 3) {
+          const y = parts[0];
+          const m = parts[1]?.padStart(2, "0");
+          const d = parts[2]?.padStart(2, "0");
+          return `${y}-${m}-${d}`;
+        }
+      }
+      return val;
+    },
+    z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  ),
+  start_time: z.preprocess(
+    (val) => {
+      if (typeof val === "string") {
+        const parts = val.trim().split(":");
+        if (parts.length === 2) {
+          return `${parts[0]?.padStart(2, "0")}:${parts[1]?.padStart(2, "0")}`;
+        }
+      }
+      return val;
+    },
+    z.string().regex(/^\d{2}:\d{2}$/),
+  ),
+  end_time: z.preprocess(
+    (val) => {
+      if (typeof val === "string") {
+        const parts = val.trim().split(":");
+        if (parts.length === 2) {
+          return `${parts[0]?.padStart(2, "0")}:${parts[1]?.padStart(2, "0")}`;
+        }
+      }
+      return val;
+    },
+    z.string().regex(/^\d{2}:\d{2}$/),
+  ),
   category: z.string().max(40).default("activity"),
-  location: z.string().max(160).default(""),
-  latitude: z.number().min(-90).max(90).nullable().default(null),
-  longitude: z.number().min(-180).max(180).nullable().default(null),
-  estimated_cost: z.number().min(0).max(10_000_000).default(0),
-  cost_min: z.number().min(0).nullable().optional(),
-  cost_max: z.number().min(0).nullable().optional(),
-  cost_type: z.enum(["free", "estimated", "listed", "unknown"]).default("estimated"),
+  location: z.string().max(200).default(""),
+  latitude: z.coerce.number().min(-90).max(90).nullable().default(null),
+  longitude: z.coerce.number().min(-180).max(180).nullable().default(null),
+  estimated_cost: z.coerce.number().min(0).max(10_000_000).default(0),
+  cost_min: z.coerce.number().min(0).nullable().optional(),
+  cost_max: z.coerce.number().min(0).nullable().optional(),
+  cost_type: z.preprocess(
+    (val) => {
+      if (typeof val === "string") {
+        const norm = val.toLowerCase();
+        if (norm === "free") return "free";
+        if (norm === "listed") return "listed";
+        if (norm === "unknown") return "unknown";
+        return "estimated";
+      }
+      return "estimated";
+    },
+    z.enum(["free", "estimated", "listed", "unknown"]).default("estimated"),
+  ),
   opening_hours: z.string().nullable().optional(),
-  rating: z.number().min(0).max(5).nullable().optional(),
+  rating: z.coerce.number().min(0).max(5).nullable().optional(),
   verification_status: z.enum(["verified", "estimated", "ai_planned"]).default("estimated"),
-  why_fits: z.string().max(300).nullable().optional(),
-  travel_minutes: z.number().int().min(0).max(600).default(0),
-  indoor_outdoor: z.enum(["indoor", "outdoor", "mixed"]).default("indoor"),
+  why_fits: z.string().max(500).nullable().optional(),
+  travel_minutes: z.coerce.number().int().min(0).max(600).default(0),
+  indoor_outdoor: z.preprocess(
+    (val) => {
+      if (typeof val === "string") {
+        const norm = val.toLowerCase();
+        if (norm.includes("outdoor") || norm === "outside") return "outdoor";
+        if (norm.includes("indoor") || norm === "inside") return "indoor";
+        return "mixed";
+      }
+      return "mixed";
+    },
+    z.enum(["indoor", "outdoor", "mixed"]).default("indoor"),
+  ),
   weather_suitability: z.enum(["any", "clear_only", "rain_ok"]).default("any"),
   booking_url: z.string().url().nullable().default(null),
   is_locked: z.boolean().default(false),

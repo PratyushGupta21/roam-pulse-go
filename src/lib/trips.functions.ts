@@ -365,7 +365,7 @@ export const generateTripItinerary = createServerFn({ method: "POST" })
     await supabase.from("trip_history").insert({
       trip_id: trip.id,
       event: "Itinerary generated",
-      detail: `${rowsToInsert.length} items created (${generated.source === "ai" ? "AI planner" : "starter template"}).`,
+      detail: `${rowsToInsert.length} items created (${generated.source === "ai" ? "Gemini AI planner" : "starter template (Gemini unavailable)"}).`,
     });
 
     return {

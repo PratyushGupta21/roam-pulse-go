@@ -3,7 +3,7 @@ import { addMinutes, formatDateStr, minutesOf, parseDateParts } from "./format";
 import { fetchRealWorldPlaces, type RealPlace } from "./places/real-places.server";
 import { getAccommodationPricing } from "./hotels/hotel-pricing.server";
 
-const MODEL = "google/gemini-3.5-flash";
+const MODEL = "google/gemini-2.0-flash";
 
 /**
  * Generates an inclusive list of YYYY-MM-DD calendar dates.
@@ -41,6 +41,36 @@ export function normalizeTitle(title: string): string {
     )
     .replace(/[^a-z0-9]/g, "")
     .trim();
+}
+
+/**
+ * Safely extracts valid JSON string from AI model output text, stripping markdown code blocks.
+ */
+export function extractJsonFromText(text: string): string {
+  const trimmed = text.trim();
+
+  // 1. Direct JSON starting with '{' and ending with '}'
+  if (trimmed.startsWith("{") && trimmed.endsWith("}")) {
+    return trimmed;
+  }
+
+  // 2. Fenced code block extraction (```json ... ``` or ``` ... ```)
+  const codeBlockMatch = trimmed.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
+  if (codeBlockMatch && codeBlockMatch[1]) {
+    const blockContent = codeBlockMatch[1].trim();
+    if (blockContent.startsWith("{") && blockContent.endsWith("}")) {
+      return blockContent;
+    }
+  }
+
+  // 3. Substring extraction between first '{' and last '}'
+  const firstBrace = trimmed.indexOf("{");
+  const lastBrace = trimmed.lastIndexOf("}");
+  if (firstBrace !== -1 && lastBrace > firstBrace) {
+    return trimmed.slice(firstBrace, lastBrace + 1);
+  }
+
+  return trimmed;
 }
 
 /**
@@ -110,7 +140,6 @@ export function clusterAndSortItemsByProximity(items: GeneratedItem[]): Generate
       continue;
     }
 
-    // Sort flexible activities by nearest neighbor
     const orderedFlex: GeneratedItem[] = [];
     const remaining = [...flexItems];
 
@@ -249,11 +278,38 @@ export function validateAndCleanItineraryItems(
         endTime = addMinutes(startTime, 60);
       }
 
+      let cleanTitle = item.title.trim();
+      const normTitle = cleanTitle.toLowerCase();
+
+      // Safety net: Replace any generic starter-template activity titles with place/location names
+      if (
+        normTitle.includes("sightseeing & local exploration") ||
+        normTitle.includes("local exploration") ||
+        normTitle === "explore the city" ||
+        normTitle === "explore local attractions" ||
+        normTitle === "city sightseeing" ||
+        normTitle === "free time" ||
+        normTitle.includes("starter template")
+      ) {
+        if (
+          item.location &&
+          item.location.toLowerCase() !== input.destination.toLowerCase() &&
+          item.location.trim().length > 3
+        ) {
+          cleanTitle = item.location.trim();
+        } else {
+          const categoryName = item.category
+            ? item.category.charAt(0).toUpperCase() + item.category.slice(1)
+            : "Landmark";
+          cleanTitle = `${input.destination} ${categoryName}`;
+        }
+      }
+
       const cost = Math.max(0, Math.round(Number(item.estimated_cost) || 0));
 
       return {
         ...item,
-        title: item.title.trim(),
+        title: cleanTitle,
         description: (item.description || "").trim(),
         day_date: date,
         start_time: startTime,
@@ -283,47 +339,6 @@ export function validateAndCleanItineraryItems(
             : "any",
       };
     });
-}
-
-/**
- * Evaluates candidate activity quality against user preferences, interests, pacing, and budget.
- */
-export function scoreCandidateActivity(
-  item: GeneratedItem,
-  input: TripInput,
-  existingTripItems: GeneratedItem[],
-  dayItemsCount: number,
-): number {
-  let score = 50;
-
-  const userInterests = (input.interests || []).map((i) => i.toLowerCase());
-  const matchesInterest = userInterests.some(
-    (interest) =>
-      item.category.toLowerCase().includes(interest) || item.title.toLowerCase().includes(interest),
-  );
-  if (matchesInterest) score += 30;
-
-  if (item.location && item.location.toLowerCase().includes(input.destination.toLowerCase())) {
-    score += 20;
-  }
-
-  if (!isDuplicateOrNearDuplicate(item, existingTripItems)) {
-    score += 25;
-  } else {
-    score -= 100;
-  }
-
-  if (dayItemsCount >= 5) score -= 40;
-
-  if (
-    item.estimated_cost > 0 ||
-    item.title.toLowerCase().includes("free") ||
-    item.title.toLowerCase().includes("viewpoint")
-  ) {
-    score += 15;
-  }
-
-  return score;
 }
 
 /**
@@ -468,12 +483,13 @@ export interface GenerateItineraryOptions {
 }
 
 /**
- * Rich Dynamic Fallback Itinerary Generator with Real-Place Priority.
+ * Fallback Itinerary Generator using Real Places catalog.
  */
 export function fallbackItinerary(
   input: TripInput,
   options?: GenerateItineraryOptions,
 ): GeneratedItem[] {
+  console.warn("[RoamPulse] Using fallback itinerary because Gemini failed or is unconfigured");
   const days = dayList(input.startDate, input.endDate);
   const places = options?.realPlacesOverride || [];
 
@@ -485,11 +501,10 @@ export function fallbackItinerary(
       currentTimeMins = minutesOf(input.arrivalTime || "14:00") + 120;
     }
 
-    // Pick 2-3 real places for this day if available
     const dayPlaces = places.slice(dayIndex * 3, dayIndex * 3 + 3);
 
     if (dayPlaces.length > 0) {
-      dayPlaces.forEach((p, idx) => {
+      dayPlaces.forEach((p) => {
         const startTime = `${String(Math.floor(currentTimeMins / 60)).padStart(2, "0")}:${String(currentTimeMins % 60).padStart(2, "0")}`;
         const durationMins = p.category === "restaurant" ? 75 : 120;
         const endTime = addMinutes(startTime, durationMins);
@@ -530,11 +545,10 @@ export function fallbackItinerary(
         });
       });
     } else {
-      // Generic backup items if no real places available
-      const backupTitle = `Sightseeing & Local Exploration Day ${dayIndex + 1}`;
+      const backupTitle = `${input.destination} Central Landmark & Culture`;
       rawItems.push({
         title: backupTitle,
-        description: `Explore historic attractions and dining in ${input.destination}.`,
+        description: `Discover iconic landmarks, cultural venues, and local dining in ${input.destination}.`,
         day_date: day,
         start_time: "10:00",
         end_time: "13:00",
@@ -562,7 +576,7 @@ export function fallbackItinerary(
 }
 
 /**
- * Calls the RoamPulse AI gateway or Gemini API to generate a real-world, destination-specific itinerary.
+ * Calls Google Gemini API or AI Gateway to generate a real-world, destination-specific itinerary.
  */
 export async function generateItinerary(
   input: TripInput,
@@ -570,6 +584,8 @@ export async function generateItinerary(
 ): Promise<{ items: GeneratedItem[]; source: "ai" | "fallback"; error: string | null }> {
   const mode = options?.mode || (options?.isRegeneration ? "regenerate" : "initial");
   const genId = options?.generationId || crypto.randomUUID();
+
+  console.log(`[RoamPulse] Gemini itinerary generation started | generationId: ${genId}`);
 
   const geminiApiKey = process.env["GEMINI_API_KEY"]?.trim();
   const gatewayApiKey = (
@@ -593,6 +609,9 @@ export async function generateItinerary(
   );
 
   if (!isGeminiConfigured && !isGatewayConfigured) {
+    console.warn(
+      "[RoamPulse] Using fallback itinerary because Gemini failed (No API keys configured)",
+    );
     const items = fallbackItinerary(input, { ...options, realPlacesOverride: realPlaces });
     return { items, source: "fallback", error: null };
   }
@@ -600,31 +619,36 @@ export async function generateItinerary(
   const days = dayList(input.startDate, input.endDate);
 
   const promptParts = [
-    `Create a practical, real-world ${days.length}-day travel itinerary for ${input.destination} (traveling from ${input.origin}).`,
+    `You are an expert, local travel planner creating a practical, real-world ${days.length}-day travel itinerary for ${input.destination} (traveling from ${input.origin}).`,
     `Calendar Dates: ${days.join(", ")} (Day 1 is ${days[0]}, Day ${days.length} is ${days[days.length - 1]}).`,
     `Travelers: ${input.adults} adults, ${input.children} children.`,
     `Budget: ${input.budget} ${input.currency}. Travel style: ${input.travelStyle}.`,
     `Interests: ${input.interests.join(", ") || "General exploration"}.`,
     `Arrival Time on Day 1: ${input.arrivalTime || "14:00"}. Departure Time on Day ${days.length}: ${input.departureTime || "16:00"}.`,
-    `Pace: ${input.preferences.pace}. Indoor/outdoor balance: ${input.preferences.indoorOutdoor}. Transport: ${input.preferences.transport}.`,
-    `STRICT ARRIVAL & DEPARTURE TIMING RULES:`,
-    `1. DAY 1 ARRIVAL: Do NOT schedule any activities before ${input.arrivalTime || "14:00"}. Start Day 1 with Arrival and Hotel Check-in.`,
-    `2. FINAL DAY DEPARTURE: Do NOT schedule any major tours within 3 hours of departure (${input.departureTime || "16:00"}). Include Checkout and Transit.`,
-    `STRICT REAL-PLACE MANDATE:`,
-    `1. Use ONLY places supplied in the verified real-place context when a real place is required. Do NOT invent attractions, restaurants, hotels, museums, cafés, or landmarks.`,
-    `2. Every attraction and dining stop must represent a real physical venue in ${input.destination}.`,
-    `3. PACING: Schedule 2 to 4 major activities per day plus lunch and dinner. Do not overload days.`,
-    `4. GEOGRAPHY & CLUSTERING: Cluster places on the same day in the same district or neighborhood to eliminate unnecessary transit across the city.`,
-    `5. OPENING HOURS: Respect opening hours provided in the context (e.g. 09:00 - 17:30). Never schedule visits when a place is closed.`,
-    `STRICT REAL-WORLD PRICING RULES:`,
-    `1. Mark price type explicitly ("free", "estimated", or "listed").`,
-    `2. If an activity is genuinely free (public viewpoint, park, beach, photo spot), set estimated_cost: 0 and cost_type: "free".`,
-    `3. If an activity has a cost, provide realistic non-zero cost estimates in ${input.currency} (e.g. cost_min: 200, cost_max: 500, estimated_cost: 350, cost_type: "estimated").`,
+    `Pace: ${input.preferences.pace}. Indoor/outdoor balance: ${input.preferences.indoorOutdoor}. Transport mode: ${input.preferences.transport}.`,
+    ``,
+    `CRITICAL REAL-WORLD REQUIREMENTS:`,
+    `1. REAL PLACE SELECTION ONLY: You MUST select attractions, museums, markets, landmarks, parks, and restaurants ONLY from the verified real-place list provided below. NEVER invent or hallucinate fictional venue names.`,
+    `2. NO GENERIC ACTIVITY TITLES: NEVER emit generic activity titles like "Sightseeing & Local Exploration", "Explore the city", "Explore local attractions", "Discover the city", "Explore historic attractions", "City sightseeing", or "Free time". EVERY activity title MUST be the exact name of a real place or specific venue (e.g. "Kohima War Cemetery", "Nagaland State Museum", "Naga Bazaar", "Lunch at Dzüko Cafe").`,
+    `3. DAILY STRUCTURE & MEALS:`,
+    `   - For full days, create 3 to 5 distinct activities.`,
+    `   - Include lunch (around 12:30 - 13:30) and dinner (around 19:30 - 20:30) at real restaurant candidates from the list whenever available.`,
+    `   - Provide realistic time slots (e.g. 09:00–10:30, 10:50–12:15, 12:30–13:30 lunch, 14:00–16:00, 16:30–18:00). Leave realistic 15–30 minute buffers for travel between places.`,
+    `4. GEOGRAPHIC CLUSTERING: Group nearby venues together on the same day so travelers don't waste hours crisscrossing the city.`,
+    `5. ARRIVAL & DEPARTURE TIMING:`,
+    `   - Day 1: Do NOT schedule any morning activities before arrival time (${input.arrivalTime || "14:00"}). Start Day 1 with arrival transfer, hotel check-in, and an evening dinner/activity.`,
+    `   - Final Day: Conclude major tours at least 3 hours prior to departure (${input.departureTime || "16:00"}). Include hotel checkout and station/airport transfer.`,
+    `6. PACING & INTEREST MATCHING:`,
+    `   - Match pace "${input.preferences.pace}": ${input.preferences.pace === "relaxed" ? "2-3 leisurely items/day with longer breaks" : input.preferences.pace === "packed" ? "4-5 active items/day" : "3-4 balanced items/day"}.`,
+    `   - Align activities directly with user interests: ${input.interests.join(", ")}.`,
+    `7. REALISTIC COSTS:`,
+    `   - Estimate realistic costs per item in ${input.currency} (e.g. 0 for free public places, 200–500 for entry tickets/dining). Use clean rounded numbers.`,
   ];
 
   if (realPlaces.length > 0) {
     promptParts.push(
-      `REAL-WORLD DESTINATION PLACES DATA FOR ${input.destination.toUpperCase()}:`,
+      ``,
+      `VERIFIED REAL-WORLD PLACES CANDIDATES FOR ${input.destination.toUpperCase()}:`,
       JSON.stringify(
         realPlaces.map((p) => ({
           name: p.name,
@@ -653,18 +677,17 @@ export async function generateItinerary(
     );
   }
 
-  const attempt = 1;
   const maxAttempts = 2;
 
-  while (attempt <= maxAttempts) {
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
       let rawJsonText: string | null = null;
 
       if (isGeminiConfigured) {
         console.log(
-          `[REGENERATE] Calling Google Gemini API | attempt: ${attempt} | generationId: ${genId}`,
+          `[RoamPulse] Gemini API call attempt ${attempt} for model ${MODEL} | generationId: ${genId}`,
         );
-        const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiApiKey}`;
+        const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${geminiApiKey}`;
         const res = await fetch(geminiUrl, {
           method: "POST",
           headers: { "content-type": "application/json" },
@@ -673,7 +696,7 @@ export async function generateItinerary(
             systemInstruction: {
               parts: [
                 {
-                  text: 'You are RoamPulse\'s real-world travel planner. Return JSON matching object schema {"items": [...]}. Every item must use real-world place info, realistic timing, cost ranges, opening_hours, and rating if available.',
+                  text: 'You are RoamPulse\'s expert local travel planner. Return ONLY valid JSON matching schema {"items": [...]}. Every item title MUST be a specific real place name from the supplied candidate list (e.g. "Kohima War Cemetery", "Nagaland State Museum", "Naga Bazaar", "Lunch at Dzüko Cafe"). NEVER emit generic titles like "Sightseeing & Local Exploration".',
                 },
               ],
             },
@@ -688,6 +711,11 @@ export async function generateItinerary(
             candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
           };
           rawJsonText = geminiData.candidates?.[0]?.content?.parts?.[0]?.text ?? null;
+        } else {
+          const errText = await res.text().catch(() => "");
+          console.warn(
+            `[RoamPulse] Gemini API returned HTTP ${res.status}: ${errText.slice(0, 200)}`,
+          );
         }
       }
 
@@ -696,12 +724,12 @@ export async function generateItinerary(
           method: "POST",
           headers: { authorization: `Bearer ${gatewayApiKey}`, "content-type": "application/json" },
           body: JSON.stringify({
-            model: MODEL,
+            model: "google/gemini-2.0-flash",
             messages: [
               {
                 role: "system",
                 content:
-                  "You are RoamPulse's expert local travel planner. Always return structured JSON via emit_itinerary tool.",
+                  "You are RoamPulse's expert local travel planner. Every item title must be a specific real place name from candidate list. Always return structured JSON via emit_itinerary tool.",
               },
               { role: "user", content: promptParts.join("\n") },
             ],
@@ -787,9 +815,22 @@ export async function generateItinerary(
         throw new Error("No response content returned from AI services.");
       }
 
-      const parsed = itineraryResponseSchema.safeParse(JSON.parse(rawJsonText));
+      console.log("[RoamPulse] Gemini response received");
+
+      const extractedJson = extractJsonFromText(rawJsonText);
+      let jsonParsed: unknown;
+      try {
+        jsonParsed = JSON.parse(extractedJson);
+      } catch (pErr) {
+        const msg = pErr instanceof Error ? pErr.message : String(pErr);
+        console.warn(`[RoamPulse] Gemini response parsing failed: ${msg}`);
+        throw new Error(`JSON parsing failed: ${msg}`);
+      }
+
+      const parsed = itineraryResponseSchema.safeParse(jsonParsed);
       if (!parsed.success) {
-        throw new Error("Schema validation failed on AI output: " + parsed.error.message);
+        console.warn(`[RoamPulse] Gemini itinerary validation failed: ${parsed.error.message}`);
+        throw new Error(`Validation failed: ${parsed.error.message}`);
       }
 
       // Real-place matching & metadata attachment
@@ -839,7 +880,6 @@ export async function generateItinerary(
         input,
       );
 
-      // Geographic proximity clustering & sorting per day
       const clusteredItems = clusterAndSortItemsByProximity(constrainedItems);
 
       const finalItems = validateAndCleanItineraryItems(clusteredItems, input);
@@ -898,6 +938,9 @@ export async function generateItinerary(
         finalItems.unshift(accommodationItem);
       }
 
+      console.log(
+        `[RoamPulse] Gemini itinerary generation succeeded with ${finalItems.length} items`,
+      );
       return {
         items: finalItems,
         source: "ai",
@@ -905,18 +948,20 @@ export async function generateItinerary(
       };
     } catch (err: unknown) {
       const errMsg = err instanceof Error ? err.message : String(err);
-      console.log(
-        `[REGENERATE] AI request failed | reason: ${errMsg} | fallback activated | generationId: ${genId}`,
-      );
-      const items = fallbackItinerary(input, { ...options, realPlacesOverride: realPlaces });
-      return {
-        items,
-        source: "fallback",
-        error: "AI planner is temporarily busy — generated a diverse backup schedule.",
-      };
+      console.warn(`[RoamPulse] Gemini itinerary attempt ${attempt} failed: ${errMsg}`);
+      if (attempt === maxAttempts) {
+        console.warn("[RoamPulse] Using fallback itinerary because Gemini failed");
+        const items = fallbackItinerary(input, { ...options, realPlacesOverride: realPlaces });
+        return {
+          items,
+          source: "fallback",
+          error: "AI planner is temporarily busy — generated a diverse backup schedule.",
+        };
+      }
     }
   }
 
+  console.warn("[RoamPulse] Using fallback itinerary because Gemini failed");
   const items = fallbackItinerary(input, { ...options, realPlacesOverride: realPlaces });
   return {
     items,
