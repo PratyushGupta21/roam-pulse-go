@@ -1,6 +1,7 @@
-@import "tailwindcss" source(none);
+@import "tailwindcss";
 @source "../src";
 @import "tw-animate-css";
+
 
 @custom-variant dark (&:is(.dark *));
 
@@ -321,8 +322,8 @@
     background-image:
       linear-gradient(
         to bottom,
-        color-mix(in oklab, var(--color-background) 88%, transparent),
-        color-mix(in oklab, var(--color-background) 94%, transparent)
+        color-mix(in oklab, var(--color-background) 45%, transparent),
+        color-mix(in oklab, var(--color-background) 58%, transparent)
       ),
       url('/dashboard-bg.jpg');
     background-size: cover;
@@ -330,21 +331,6 @@
     background-repeat: no-repeat;
     pointer-events: none;
   }
-
-  &::after {
-    content: "";
-    position: fixed;
-    inset: 0;
-    z-index: -9;
-    background-image:
-      radial-gradient(at 10% 10%, color-mix(in oklab, var(--primary) 4%, transparent) 0px, transparent 45%),
-      radial-gradient(at 90% 15%, color-mix(in oklab, var(--accent) 3%, transparent) 0px, transparent 40%),
-      linear-gradient(to right, oklch(0.29 0.04 258 / 0.015) 1px, transparent 1px),
-      linear-gradient(to bottom, oklch(0.29 0.04 258 / 0.015) 1px, transparent 1px);
-    background-size: auto, auto, 32px 32px, 32px 32px;
-    pointer-events: none;
-  }
 }
-
 
 
