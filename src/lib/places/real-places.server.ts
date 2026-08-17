@@ -164,6 +164,54 @@ const CURATED_DESTINATION_PLACES: Record<string, RealPlace[]> = {
       isVerified: true,
       source: "curated",
     },
+    {
+      name: "Panna Meena ka Kund",
+      category: "history",
+      address: "Near Anokhi Museum, Amer, Jaipur, Rajasthan 302001",
+      latitude: 26.9892,
+      longitude: 75.8496,
+      rating: 4.5,
+      estimatedCostMin: 0,
+      estimatedCostMax: 100,
+      costType: "free",
+      openingHours: "07:00 – 18:00",
+      description:
+        "16th-century symmetrical stepwell near Amer Fort, famous for geometric staircases.",
+      isVerified: true,
+      source: "curated",
+    },
+    {
+      name: "Jaigarh Fort & Jaivana Cannon",
+      category: "history",
+      address: "Devisinghpura, Amer, Jaipur, Rajasthan 302001",
+      latitude: 26.9839,
+      longitude: 75.8427,
+      rating: 4.6,
+      estimatedCostMin: 150,
+      estimatedCostMax: 300,
+      costType: "listed",
+      openingHours: "09:00 – 16:30",
+      description:
+        "Formidable hilltop fortress connected to Amer Fort, housing the world's largest cannon on wheels.",
+      isVerified: true,
+      source: "curated",
+    },
+    {
+      name: "Tapri Central Tea House",
+      category: "restaurant",
+      address: "C-Scheme, Ashok Nagar, Jaipur, Rajasthan 302001",
+      latitude: 26.9085,
+      longitude: 75.8089,
+      rating: 4.6,
+      estimatedCostMin: 300,
+      estimatedCostMax: 700,
+      costType: "estimated",
+      openingHours: "07:30 – 22:15",
+      description:
+        "Vibrant rooftop tea café overlooking Central Park, serving cutting chai, vada pav, and fusion bites.",
+      isVerified: true,
+      source: "curated",
+    },
   ],
   tokyo: [
     {
@@ -250,9 +298,9 @@ const CURATED_DESTINATION_PLACES: Record<string, RealPlace[]> = {
 };
 
 /**
- * Searches Google Places Text Search API if API Key is configured.
+ * Searches single query against Google Places Text Search API.
  */
-async function searchGooglePlaces(query: string, apiKey: string): Promise<RealPlace[]> {
+async function fetchGooglePlacesQuery(query: string, apiKey: string): Promise<RealPlace[]> {
   try {
     const url = `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(query)}&key=${apiKey}`;
     const res = await fetch(url);
@@ -301,7 +349,40 @@ async function searchGooglePlaces(query: string, apiKey: string): Promise<RealPl
       };
     });
   } catch (err) {
-    console.warn("[REAL PLACES] Google Places API fetch error:", (err as Error).message);
+    console.warn("[REAL PLACES] Query fetch error:", (err as Error).message);
+    return [];
+  }
+}
+
+/**
+ * Executes multi-query search against Google Places API to gather diverse attractions and restaurants.
+ */
+async function searchGooglePlaces(destination: string, apiKey: string): Promise<RealPlace[]> {
+  const queries = [
+    `top tourist attractions in ${destination}`,
+    `best restaurants and cafes in ${destination}`,
+    `historic landmarks and culture in ${destination}`,
+  ];
+
+  try {
+    const resultsArrays = await Promise.all(queries.map((q) => fetchGooglePlacesQuery(q, apiKey)));
+    const combined = resultsArrays.flat();
+
+    // Deduplicate by normalized name
+    const seen = new Set<string>();
+    const deduplicated: RealPlace[] = [];
+
+    for (const place of combined) {
+      const norm = place.name.toLowerCase().trim();
+      if (!seen.has(norm)) {
+        seen.add(norm);
+        deduplicated.push(place);
+      }
+    }
+
+    return deduplicated;
+  } catch (err) {
+    console.warn("[REAL PLACES] Multi-query search error:", (err as Error).message);
     return [];
   }
 }
@@ -312,7 +393,7 @@ async function searchGooglePlaces(query: string, apiKey: string): Promise<RealPl
 async function searchOSMPlaces(destination: string): Promise<RealPlace[]> {
   try {
     const query = `tourist attraction in ${destination}`;
-    const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=8`;
+    const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=10`;
     const res = await fetch(url, {
       headers: {
         "User-Agent": "RoamPulseTravelApp/1.0 (roampulse@example.com)",
@@ -362,11 +443,8 @@ export async function fetchRealWorldPlaces(
   // Level 1: Google Places API if key exists
   const googleApiKey = process.env["GOOGLE_PLACES_API_KEY"] || process.env["GOOGLE_MAPS_API_KEY"];
   if (googleApiKey && googleApiKey.trim().length > 0) {
-    console.log(`[REAL PLACES] Fetching live Google Places API for ${destination}`);
-    const places = await searchGooglePlaces(
-      `top attractions and restaurants in ${destination}`,
-      googleApiKey,
-    );
+    console.log(`[REAL PLACES] Fetching multi-query Google Places API for ${destination}`);
+    const places = await searchGooglePlaces(destination, googleApiKey);
     if (places.length > 0) return places;
   }
 

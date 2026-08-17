@@ -28,6 +28,10 @@ export interface ActivityPriceDisplay {
 export function isExplicitlyFreeActivity(title?: string | null, category?: string | null): boolean {
   if (!title && !category) return false;
   const str = `${title ?? ""} ${category ?? ""}`.toLowerCase();
+  // Do NOT count hotel check-in/checkout as free activities
+  if (str.includes("check-in") || str.includes("checkout") || category === "accommodation") {
+    return false;
+  }
   return (
     str.includes("free") ||
     str.includes("viewpoint") ||
@@ -38,19 +42,18 @@ export function isExplicitlyFreeActivity(title?: string | null, category?: strin
     str.includes("self-guided") ||
     str.includes("orientation walk") ||
     str.includes("photo spot") ||
-    str.includes("check-in") ||
     str.includes("rest hour")
   );
 }
 
 /**
- * Formats an activity price strictly adhering to RoamPulse pricing semantics:
+ * Formats an activity or accommodation price strictly adhering to RoamPulse pricing semantics:
  * - Free -> "Free"
  * - Estimated -> "~₹500 estimated"
  * - Live -> "₹800 live"
- * - Unavailable -> "Price unavailable"
+ * - Unavailable -> "Price unavailable" or "Hotel price unavailable"
  *
- * NEVER displays "₹0" or "$0" for an activity.
+ * NEVER displays "₹0" or "$0" for accommodation or paid activities.
  */
 export function formatActivityPrice(
   cost: number | null | undefined,
@@ -63,6 +66,32 @@ export function formatActivityPrice(
   costMax?: number | null,
   costType?: string | null,
 ): ActivityPriceDisplay {
+  const isAccommodation =
+    category === "accommodation" || (title && title.toLowerCase().includes("accommodation:"));
+
+  if (isAccommodation) {
+    if (cost === null || cost === undefined || Number.isNaN(cost) || cost <= 0) {
+      return {
+        label: "Hotel price unavailable",
+        status: "unavailable",
+        numericAmount: null,
+      };
+    }
+    const formattedMoney = formatMoney(cost, currency);
+    if (isLive || costType === "listed") {
+      return {
+        label: `${formattedMoney} / stay (listed)`,
+        status: "live",
+        numericAmount: cost,
+      };
+    }
+    return {
+      label: `~${formattedMoney} estimated / stay`,
+      status: "estimated",
+      numericAmount: cost,
+    };
+  }
+
   const isFree =
     costType === "free" ||
     isExplicitFree ||

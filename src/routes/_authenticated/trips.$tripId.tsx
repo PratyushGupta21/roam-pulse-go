@@ -55,6 +55,7 @@ import {
   formatDate,
   formatMoney,
   formatTime,
+  parseDateParts,
   relativeTime,
 } from "@/lib/format";
 import { checkTripFlightStatus } from "@/lib/flights/flight.functions";
@@ -438,9 +439,15 @@ function TripDetailsPage() {
     return Array.from(map.entries()).sort(([a], [b]) => a.localeCompare(b));
   }, [itinerary]);
 
-  // Total itinerary cost breakdown summary
+  // Total itinerary cost breakdown summary with 5-category breakdown
   const itineraryTotalSummary = useMemo(() => {
     let sum = 0;
+    let accommodationSum = 0;
+    let activitiesSum = 0;
+    let foodSum = 0;
+    let transportSum = 0;
+    let otherSum = 0;
+
     let freeCount = 0;
     let estimatedCount = 0;
     let liveCount = 0;
@@ -460,21 +467,79 @@ function TripDetailsPage() {
         item.category,
       );
 
+      const amount = info.numericAmount || 0;
+
       if (info.status === "free") {
         freeCount++;
       } else if (info.status === "estimated") {
-        sum += info.numericAmount || 0;
+        sum += amount;
         estimatedCount++;
       } else if (info.status === "live") {
-        sum += info.numericAmount || 0;
+        sum += amount;
         liveCount++;
       } else {
         unavailableCount++;
+      }
+
+      const cat = (item.category || "").toLowerCase();
+      const isAccom =
+        cat === "accommodation" || item.title.toLowerCase().startsWith("accommodation:");
+
+      if (isAccom) {
+        accommodationSum += amount;
+      } else if (cat === "food" || cat === "restaurant" || cat === "breakfast") {
+        foodSum += amount;
+      } else if (cat === "transit" || cat === "transport" || cat === "flight") {
+        transportSum += amount;
+      } else if (
+        cat === "attraction" ||
+        cat === "culture" ||
+        cat === "history" ||
+        cat === "nature" ||
+        cat === "wellness" ||
+        cat === "shopping" ||
+        cat === "activity" ||
+        cat === "sightseeing" ||
+        cat === "adventure"
+      ) {
+        activitiesSum += amount;
+      } else {
+        otherSum += amount;
+      }
+    }
+
+    // Fallback for legacy trips without explicit accommodation items
+    if (accommodationSum === 0 && trip?.start_date && trip?.end_date) {
+      const pStart = parseDateParts(trip.start_date);
+      const pEnd = parseDateParts(trip.end_date);
+      if (pStart && pEnd) {
+        const utcStart = Date.UTC(pStart.year, pStart.month - 1, pStart.day);
+        const utcEnd = Date.UTC(pEnd.year, pEnd.month - 1, pEnd.day);
+        const nights = Math.max(1, Math.round((utcEnd - utcStart) / (1000 * 60 * 60 * 24)));
+        const pref =
+          ((trip.preferences as Record<string, unknown> | null)?.["accommodation"] as string) ||
+          "budget_hotel";
+        const baseRates: Record<string, number> = {
+          hostel: 1200,
+          budget_hotel: 3500,
+          hotel: 6000,
+          boutique: 8500,
+          resort: 15000,
+        };
+        const rateInr = baseRates[pref] || 3500;
+        const mult = (trip.currency || "INR").toUpperCase() === "USD" ? 0.012 : 1.0;
+        accommodationSum = Math.round(rateInr * mult * nights);
+        sum += accommodationSum;
       }
     }
 
     return {
       totalAmount: sum,
+      accommodationSum,
+      activitiesSum,
+      foodSum,
+      transportSum,
+      otherSum,
       freeCount,
       estimatedCount,
       liveCount,
@@ -1127,7 +1192,51 @@ function TripDetailsPage() {
                         </div>
                       </div>
 
-                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-[11px] text-muted-foreground">
+                      {/* 5-Category Budget Breakdown Pills */}
+                      <div className="pt-2 border-t border-border/40 grid grid-cols-2 sm:grid-cols-5 gap-2 text-[11px]">
+                        <div className="rounded-lg border border-border/80 bg-card p-2 text-center">
+                          <span className="text-muted-foreground block font-medium">
+                            🏨 Accommodation
+                          </span>
+                          <span className="font-bold text-foreground">
+                            {itineraryTotalSummary.accommodationSum > 0
+                              ? formatMoney(itineraryTotalSummary.accommodationSum, trip.currency)
+                              : "Price unavailable"}
+                          </span>
+                        </div>
+                        <div className="rounded-lg border border-border/80 bg-card p-2 text-center">
+                          <span className="text-muted-foreground block font-medium">
+                            🏛️ Activities
+                          </span>
+                          <span className="font-bold text-foreground">
+                            {formatMoney(itineraryTotalSummary.activitiesSum, trip.currency)}
+                          </span>
+                        </div>
+                        <div className="rounded-lg border border-border/80 bg-card p-2 text-center">
+                          <span className="text-muted-foreground block font-medium">
+                            🍜 Food & Dining
+                          </span>
+                          <span className="font-bold text-foreground">
+                            {formatMoney(itineraryTotalSummary.foodSum, trip.currency)}
+                          </span>
+                        </div>
+                        <div className="rounded-lg border border-border/80 bg-card p-2 text-center">
+                          <span className="text-muted-foreground block font-medium">
+                            🚆 Transport
+                          </span>
+                          <span className="font-bold text-foreground">
+                            {formatMoney(itineraryTotalSummary.transportSum, trip.currency)}
+                          </span>
+                        </div>
+                        <div className="rounded-lg border border-border/80 bg-card p-2 text-center">
+                          <span className="text-muted-foreground block font-medium">📍 Other</span>
+                          <span className="font-bold text-foreground">
+                            {formatMoney(itineraryTotalSummary.otherSum, trip.currency)}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-[11px] text-muted-foreground pt-1">
                         <div className="flex items-center gap-2 flex-wrap">
                           <span className="font-medium text-foreground">Pricing breakdown:</span>
                           {itineraryTotalSummary.estimatedCount > 0 ? (
@@ -1142,7 +1251,7 @@ function TripDetailsPage() {
                           ) : null}
                         </div>
                         <p className="text-muted-foreground italic">
-                          Prices are per-person estimates. Verify current details before booking.
+                          Prices are estimates. Verify current details before booking.
                         </p>
                       </div>
                     </div>
