@@ -1,1564 +1,1287 @@
-# 🌍 RoamPulse
+# RoamPulse
 
-> **Your Trip Changes. RoamPulse Adapts.**
+AI-Powered Practical Travel Planner for Real-World Itinerary Generation
 
-**RoamPulse** is an AI-powered, real-time adaptive travel planning platform designed to help travelers plan better trips and recover intelligently when those plans change.
+RoamPulse is an AI-powered travel planning application that helps users create practical, realistic, and personalized travel itineraries based on their destination, dates, budget, travel pace, and interests.
 
-Instead of treating a travel itinerary as a fixed schedule, RoamPulse treats it as a **living plan**.
+The project is designed to go beyond simply generating a list of tourist attractions. RoamPulse combines Gemini AI with real-world place data to create itineraries that are geographically practical, time-aware, budget-conscious, and easy to follow.
 
-Flights can be delayed.  
-Weather can change.  
-Transportation can become unavailable.  
-Activities can become impossible.  
-Prices can move.  
-Travelers can suddenly have more or less time than expected.
+Built as a hackathon project with a focus on demonstrating a realistic end-to-end travel planning workflow.
 
-RoamPulse is being built to continuously understand these changes and help travelers adapt their itinerary accordingly.
 
----
+## Table of Contents
 
-## 📌 Overview
+1. Overview
+2. Problem Statement
+3. Solution
+4. Key Features
+5. How RoamPulse Works
+6. AI Itinerary Generation Workflow
+7. Real Place Verification Workflow
+8. Itinerary Generation Workflow
+9. Content Workflow
+10. Practicality & Planning Rules
+11. Global Activity Uniqueness
+12. Budget Workflow
+13. Map & Location Workflow
+14. Regeneration Workflow
+15. Fallback & Reliability
+16. Technology Stack
+17. Project Architecture
+18. Data Flow
+19. Environment Variables
+20. Getting Started
+21. Running the Project
+22. Production Deployment
+23. Example Itinerary
+24. Hackathon Demo Flow
+25. Limitations
+26. Future Improvements
+27. Quality & Verification
+28. Project Goal
 
-Traditional travel planning requires travelers to manually coordinate information from multiple services:
 
-- Flights
-- Hotels
-- Weather
-- Maps
-- Transportation
-- Restaurants
-- Activities
-- Attractions
-- Prices
-- Booking platforms
-- Personal preferences
+## 1. Overview
 
-A single disruption can create a chain reaction.
+Planning a trip often requires combining information from multiple sources:
+
+- Places to visit
+- Restaurants and cafes
+- Opening hours
+- Travel time
+- Budget
+- Number of days
+- Personal interests
+- Arrival and departure constraints
+- Geographic location
+
+Traditional AI itinerary generators can produce attractive-looking plans but may include:
+
+- Invented places
+- Unrealistic schedules
+- Repeated attractions
+- Too many activities in one day
+- Impossible travel times
+- Restaurants that do not exist
+- Missing days
+- Incorrect accommodation costs
+- Generic activities such as "Explore the city"
+
+RoamPulse addresses these problems by combining AI planning with real-world place data and deterministic validation.
+
+The goal is not to generate the longest itinerary.
+
+The goal is to generate an itinerary that a real traveler could actually follow.
+
+
+## 2. Problem Statement
+
+Most AI travel planners focus primarily on generating natural-language recommendations.
+
+However, a practical itinerary requires much more than recommendations.
 
 For example:
 
-```text
-Flight delayed by 3 hours
-        ↓
-Arrival time changes
-        ↓
-Original activity no longer fits
-        ↓
-Dinner reservation becomes difficult
-        ↓
-Transportation plan becomes invalid
-        ↓
-Traveler manually searches for alternatives
-        ↓
-Hours of planning and stress
-```
+A user traveling to Shimla for four days should not receive:
 
-RoamPulse is designed to solve this problem by creating a more adaptive travel experience:
+Day 1:
+- Explore Shimla
 
-```text
-Trip created
-     ↓
-Traveler preferences understood
-     ↓
-Personalized itinerary generated
-     ↓
-Trip continuously monitored
-     ↓
-Disruption detected
-     ↓
-Affected itinerary items identified
-     ↓
-Alternative options evaluated
-     ↓
-Weather + distance + cost + preferences considered
-     ↓
-Recovery recommendation generated
-     ↓
-Traveler approves or automation handles eligible changes
-     ↓
-Itinerary + map + notifications updated
-```
+Day 2:
+- Visit local attractions
 
-The long-term goal is to make RoamPulse a **personal travel operating system** rather than simply another itinerary generator.
+Day 3:
+- Explore culture
 
----
+Day 4:
+- Free time
 
-# ✨ Core Idea
+Instead, the user should receive specific real places with realistic timings, travel buffers, meals, costs, and departure constraints.
 
-Most travel applications help users **plan a trip**.
+RoamPulse is designed around this practical planning problem.
 
-RoamPulse is designed to help users **continue the trip when the plan breaks**.
 
-Its core philosophy is:
+## 3. Solution
 
-> **Don't just plan the perfect trip. Build a trip that can recover when reality changes.**
+RoamPulse uses a multi-stage itinerary generation pipeline.
 
-The platform combines:
+The application:
 
-- AI itinerary generation
-- Traveler preferences
-- Real-time trip monitoring
-- Disruption detection
-- Weather awareness
-- Dynamic rerouting
-- Price comparison
-- Local experiences
-- Personalized recovery recommendations
-- Notifications
-- Optional automation
+1. Collects trip preferences.
+2. Identifies the destination and travel dates.
+3. Retrieves real-world places.
+4. Organizes those places into useful candidate categories.
+5. Sends verified place context to Gemini.
+6. Instructs Gemini to act as a practical travel planner.
+7. Generates structured itinerary data.
+8. Validates the generated response.
+9. Removes duplicate activities globally.
+10. Checks date coverage.
+11. Repairs missing dates when necessary.
+12. Adds location metadata.
+13. Calculates practical travel timing.
+14. Calculates budget categories.
+15. Stores the itinerary in Supabase.
+16. Displays the itinerary and map in the frontend.
 
----
+This creates a complete AI-to-application workflow rather than simply displaying an AI-generated text response.
 
-# 🚀 Key Features
 
-## 🧠 AI-Powered Trip Planning
+## 4. Key Features
 
-RoamPulse can generate personalized travel itineraries based on:
+### AI-Powered Itinerary Generation
+
+RoamPulse uses Google Gemini to generate personalized itineraries based on:
 
 - Destination
-- Travel dates
-- Number of travelers
+- Start date
+- End date
 - Budget
-- Travel style
+- Travel pace
 - Interests
-- Activity preferences
-- Transportation preferences
-- Accommodation preferences
-- Indoor/outdoor balance
-- Desired travel pace
-- Recovery preferences
+- Arrival time
+- Departure time
 
-Supported travel styles include:
+### Real Places
 
-- Backpacker
-- Budget
-- Balanced
-- Comfort
-- Luxury
+The AI is provided with real-world candidate places retrieved through Google Places.
 
-Possible interests include:
+These candidates can contain:
 
+- Place name
+- Address
+- Coordinates
+- Rating
+- Opening hours
+- Price level
+- Category
+
+This significantly reduces the possibility of fictional attractions or restaurants being generated.
+
+### Real Place Verification
+
+Generated places are matched against the verified place dataset.
+
+Verified places can display:
+
+"REAL PLACE"
+
+along with location metadata.
+
+### Practical Scheduling
+
+RoamPulse considers:
+
+- Opening hours
+- Activity duration
+- Meal windows
+- Travel time
+- Arrival time
+- Departure time
+- Travel pace
+
+### Geographic Clustering
+
+Activities are grouped geographically to reduce unnecessary movement across the city.
+
+The application uses geographic distance calculations to order activities more practically.
+
+### Global Activity Uniqueness
+
+A real attraction, restaurant, museum, market, viewpoint, temple, or cultural site should not be reused multiple times during the same trip.
+
+RoamPulse performs canonical identity matching to detect:
+
+- Exact duplicate places
+- Different titles for the same place
+- Restaurant name repetition
+- Coordinate-level duplicates
+- Similar attraction names
+
+### Personalized Interests
+
+Users can select interests such as:
+
+- Culture
 - Food
 - Nature
-- Adventure
-- Culture
-- History
-- Nightlife
 - Shopping
-- Photography
-- Local experiences
-- Wellness
+- Adventure
 
----
+These interests influence the type of places prioritized during itinerary generation.
 
-## ✈️ Flight Monitoring
+### Budget Breakdown
 
-The planned flight-monitoring architecture is designed to track:
+The trip budget is divided into:
 
-- Airline
-- Flight number
-- Departure
-- Arrival
-- Scheduled departure
-- Scheduled arrival
-- Estimated departure
-- Estimated arrival
-- Actual times
-- Current flight status
-- Last update time
-
-Potential flight states include:
-
-- Scheduled
-- Boarding
-- Departed
-- Delayed
-- Landed
-- Cancelled
-- Unknown
-
-When a flight status changes, RoamPulse can identify whether the change affects the user's itinerary.
-
-> Live flight-provider integrations are designed as a future production integration layer and should only be presented as live when a real provider is configured.
-
----
-
-# 🌦️ Weather-Aware Planning
-
-Weather is an important part of adaptive travel.
-
-For activities that depend on outdoor conditions, RoamPulse is designed to evaluate:
-
-- Current weather
-- Forecast
-- Rain probability
-- Temperature
-- Weather suitability
-
-Example:
-
-```text
-Outdoor walking tour
-        ↓
-82% rain probability
-        ↓
-Activity marked "At Risk"
-        ↓
-RoamPulse searches for suitable alternatives
-        ↓
-Indoor food experience recommended
-```
-
-If weather information becomes unavailable, the application should clearly communicate that limitation rather than inventing data.
-
----
-
-# 🔄 Dynamic Trip Recovery
-
-This is the central concept behind RoamPulse.
-
-When a disruption occurs, the system is designed to:
-
-1. Detect the disruption.
-2. Determine which itinerary items are affected.
-3. Preserve locked activities.
-4. Calculate newly available time.
-5. Identify scheduling conflicts.
-6. Search for alternative activities.
-7. Consider weather.
-8. Consider travel time.
-9. Consider cost.
-10. Compare alternatives.
-11. Score recommendations.
-12. Present recovery options.
-13. Apply the selected recovery.
-14. Save the updated itinerary.
-15. Update the map.
-16. Update the timeline.
-17. Notify the traveler.
-
-The system should never blindly replace activities simply because a disruption occurred.
-
----
-
-# 🛡️ Traveler-Controlled Automation
-
-RoamPulse is designed around three automation modes.
-
-### Manual
-
-RoamPulse recommends changes but does not automatically modify the itinerary.
-
-```text
-Detect → Recommend → Ask → Apply
-```
-
-### Assisted
-
-RoamPulse can automatically handle low-risk itinerary changes while requesting confirmation for important or expensive changes.
-
-```text
-Detect → Evaluate → Automatically handle safe changes
-                  ↓
-              Ask for approval
-                  ↓
-                Apply
-```
-
-### Autonomous
-
-The long-term vision allows RoamPulse to automatically recover eligible itinerary items within user-defined limits.
-
-Users can specify:
-
-- Maximum additional spending
-- Activities that may be automatically replaced
-- Activities that must never change
-- Other personal recovery preferences
-
-### Important safety principle
-
-**Autonomous mode must never mean unlimited spending or unrestricted booking.**
-
-RoamPulse should not automatically purchase something simply because autonomous mode is enabled.
-
----
-
-# 🗺️ Interactive Trip Maps
-
-The active trip experience is designed around two primary views:
-
-```text
-┌─────────────────────────────┐
-│       Trip Header           │
-├──────────────┬──────────────┤
-│              │              │
-│  Itinerary   │     Map      │
-│  Timeline    │              │
-│              │              │
-│              │              │
-└──────────────┴──────────────┘
-```
-
-The map can display:
-
-- Activity locations
-- Hotel/accommodation
-- Routes
-- Travel duration
-- Walking routes
-- Driving routes
-- Transit routes
-- Updated recovery routes
-
-The current application uses **Leaflet / React Leaflet** for map functionality.
-
----
-
-# 💰 Price Comparison
-
-RoamPulse is designed to normalize travel offers from multiple providers.
-
-Possible categories include:
-
-- Flights
 - Accommodation
 - Activities
-- Other travel products
+- Food & Dining
+- Transportation
+- Other
 
-The comparison system is designed to show:
+Accommodation is never incorrectly displayed as free or ₹0.
 
-| Provider   |   Price | Details                   | Last Checked |
-| ---------- | ------: | ------------------------- | ------------ |
-| Provider A | ₹XX,XXX | Flight / Hotel / Activity | Time         |
-| Provider B | ₹XX,XXX | Flight / Hotel / Activity | Time         |
-| Provider C | ₹XX,XXX | Flight / Hotel / Activity | Time         |
+### Interactive Map
 
-The platform should clearly communicate:
+The itinerary can be visualized geographically.
 
-> Prices can change. Last checked at [time].
+The map uses real coordinates when available and falls back to destination-aware coordinates instead of using an unrelated default location.
 
-Provider integrations should use approved APIs or affiliate mechanisms where available.
+### Regeneration
 
-RoamPulse should not scrape websites when scraping is prohibited.
+Users can regenerate an itinerary to receive a fresh plan.
 
----
+A clean regeneration removes old generated itinerary items and allows Gemini to create a new itinerary without being unnecessarily constrained by the previous itinerary.
 
-# 🔔 Real-Time Notifications
+### Reliable Fallback
 
-The notification system is designed to support events such as:
+If Gemini is unavailable because of:
 
-- Flight delay
-- Flight cancellation
-- Weather alert
-- Recovery recommendation
-- Price change
-- Booking update
-- Automation failure
+- Missing API key
+- Network failure
+- API failure
+- Invalid response
 
-Users can configure notification preferences.
+RoamPulse can use a fallback itinerary generation mechanism.
 
-The application is designed to use **Supabase Realtime** so relevant state changes can reach the interface without requiring a complete application refresh.
+Fallback output is clearly distinguished from Gemini-generated output.
 
----
 
-# 🕘 Trip History
+## 5. How RoamPulse Works
 
-Every major recovery should be traceable.
+The high-level flow is:
 
-For example:
-
-```text
-6:42 PM — Flight delay detected
-6:43 PM — Walking tour marked at risk
-6:44 PM — 4 alternatives found
-6:45 PM — Recovery applied
-6:45 PM — Map route updated
-```
-
-The long-term goal is to make every important itinerary change understandable and reversible.
-
-Previous itinerary versions should be preserved rather than silently overwritten.
-
----
-
-# 🔐 Authentication
-
-RoamPulse uses **Supabase Authentication**.
-
-The authentication architecture supports:
-
-- Sign up
-- Login
-- Logout
-- Password recovery
-- Password reset
-- Persistent sessions
-- Protected routes
-- Google authentication
-
-Authenticated users are directed toward the application dashboard.
-
-Authentication credentials and secrets must never be exposed in frontend code.
-
----
-
-# 🗄️ Backend & Database
-
-RoamPulse uses **Supabase** as the primary backend platform.
-
-The repository contains Supabase configuration and migration infrastructure. citeturn3view1
-
-The planned data model includes entities such as:
-
-### Profiles
-
-Stores user-level information and preferences.
-
-### Trips
-
-Stores:
-
-- User
-- Origin
-- Destination
-- Dates
-- Travelers
-- Budget
-- Currency
-- Travel style
-- Recovery mode
-
-### Itinerary Items
-
-Stores:
-
-- Date
-- Start time
-- End time
-- Title
-- Description
-- Category
-- Location
-- Coordinates
-- Estimated cost
-- Indoor/outdoor classification
-- Status
-- Lock state
-
-### Flights
-
-Stores:
-
-- Provider
-- Flight number
-- Departure
-- Arrival
-- Scheduled times
-- Estimated times
-- Status
-- Last update
-
-### Disruption Events
-
-Stores:
-
-- Type
-- Severity
-- Description
-- Affected itinerary items
-- Detection time
-- Resolution time
-
-### Recovery Recommendations
-
-Stores:
-
-- Trip
-- Disruption
-- Recommendation data
-- Status
-- Creation time
-
-### Notifications
-
-Stores:
-
-- User
-- Trip
-- Notification type
-- Title
-- Message
-- Read state
-
-### Price Snapshots
-
-Stores:
-
-- Provider
-- Product
-- Price
-- Currency
-- Booking URL
-- Capture time
-
-### Subscriptions
-
-Stores:
-
-- User
-- Plan
-- Status
-- Billing period
-
-### Automation Runs
-
-Stores:
-
-- Trip
-- Workflow
-- Status
-- Start time
-- Completion time
-- Error information
-
----
-
-# 🔒 Row Level Security
-
-Supabase Row Level Security is an important part of the architecture.
-
-Users should only be able to access data belonging to them.
-
-For example:
-
-```text
-User A
-  ├── Own profile
-  ├── Own trips
-  ├── Own itinerary
-  ├── Own notifications
-  └── Own preferences
-
-User B
-  ├── Own profile
-  ├── Own trips
-  ├── Own itinerary
-  ├── Own notifications
-  └── Own preferences
-```
-
-User A must never be able to access User B's private trip data simply by changing a frontend URL or request parameter.
-
-Frontend route protection alone is not considered sufficient security.
-
----
-
-# 🧱 Technology Stack
-
-The current repository is built around a modern TypeScript web stack. citeturn2view0turn3view0
-
-## Frontend
-
-- **React 19**
-- **TypeScript**
-- **Vite**
-- **TanStack Start**
-- **TanStack Router**
-- **TanStack Query**
-- **Tailwind CSS**
-- **shadcn/ui / Radix UI**
-- **Lucide React**
-- **React Hook Form**
-- **Zod**
-- **Recharts**
-
-## Maps
-
-- **Leaflet**
-- **React Leaflet**
-
-## Backend
-
-- **Supabase**
-- **PostgreSQL**
-- **Supabase Auth**
-- **Supabase Realtime**
-- **Supabase migrations**
-
-## Deployment
-
-- **Vercel**
-
-The current production deployment is associated with:
-
-`https://roam-pulse-go.vercel.app`
-
-## Automation — Planned Architecture
-
-- **n8n**
-- Flight provider APIs
-- Weather provider APIs
-- Travel/price provider APIs
-- Supabase Edge Functions
-
-These integrations should be added progressively as production APIs and credentials become available.
-
----
-
-# 🏗️ Repository Structure
-
-The project currently follows a structure similar to:
-
-```text
-roam-pulse-go/
-│
-├── public/
-│   └── Static public assets
-│
-├── src/
-│   ├── assets/
-│   ├── components/
-│   ├── hooks/
-│   ├── integrations/
-│   ├── lib/
-│   ├── routes/
-│   ├── router.tsx
-│   ├── routeTree.gen.ts
-│   ├── server.ts
-│   ├── start.ts
-│   └── styles.css
-│
-├── supabase/
-│   ├── migrations/
-│   └── config.toml
-│
-├── .env.example
-├── .gitignore
-├── components.json
-├── eslint.config.js
-├── package.json
-├── package-lock.json
-├── tsconfig.json
-├── vite.config.ts
-└── vercel.json
-```
-
-The actual repository currently contains the major application directories and configuration files shown above. citeturn0view0turn3view0turn3view1
-
----
-
-# ⚙️ Local Development
-
-## Prerequisites
-
-Install:
-
-- Node.js
-- npm
-- Git
-- A Supabase project
-
-Optional future integrations may additionally require:
-
-- n8n
-- Map provider credentials
-- Weather API credentials
-- Flight API credentials
-- Travel provider credentials
-- Stripe credentials
-
----
-
-## 1. Clone the repository
-
-```bash
-git clone https://github.com/PratyushGupta21/roam-pulse-go.git
-cd roam-pulse-go
-```
-
----
-
-## 2. Install dependencies
-
-```bash
-npm install
-```
-
-The repository currently provides standard Vite development/build scripts through `package.json`. citeturn2view0
-
----
-
-## 3. Configure environment variables
-
-Create a local environment file based on:
-
-```text
-.env.example
-```
-
-Never commit real secrets.
-
-Example structure:
-
-```env
-VITE_SUPABASE_URL=your_supabase_project_url
-VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
-```
-
-Additional provider variables should only be added when the corresponding integration is enabled.
-
----
-
-# ▶️ Start Development
-
-Run:
-
-```bash
-npm run dev
-```
-
-The Vite development server will start the local application.
-
----
-
-# 🏭 Production Build
-
-Run:
-
-```bash
-npm run build
-```
-
-To preview the production build locally:
-
-```bash
-npm run preview
-```
-
----
-
-# 🧹 Code Quality
-
-Lint the project:
-
-```bash
-npm run lint
-```
-
-Format the code:
-
-```bash
-npm run format
-```
-
-TypeScript validation should also be performed when making significant changes:
-
-```bash
-npx tsc --noEmit --pretty false
-```
-
----
-
-# 🔄 Technical Workflow
-
-The long-term RoamPulse architecture follows this workflow.
-
-## Step 1 — User creates a trip
-
-The traveler provides:
-
-```text
-Destination
-Dates
-Travelers
-Budget
-Travel style
-Interests
-Preferences
-Recovery mode
-```
-
-The data is validated before being stored.
-
----
-
-## Step 2 — Trip is persisted
-
-The trip is stored in Supabase.
-
-The system creates the required trip and itinerary structures.
-
----
-
-## Step 3 — AI generates itinerary
-
-The AI planning layer generates structured itinerary items.
-
-Each item should contain structured information such as:
-
-```text
-Title
-Description
-Date
-Start time
-End time
-Category
-Location
-Coordinates
-Estimated cost
-Travel time
-Indoor/outdoor
-Weather suitability
-Booking link
-Status
-Flexible/locked
-```
-
-Critical scheduling information should not depend on unvalidated free-form AI output.
-
-Structured responses should be validated before persistence.
-
----
-
-# Step 4 — Trip Monitoring
-
-Once the trip becomes active, RoamPulse can monitor relevant external signals.
-
-Conceptually:
-
-```text
-Flight API
-    │
-    ▼
-Status Monitor
-    │
-    ▼
-Change Detection
-    │
-    ▼
+User
+↓
+Trip Preferences
+↓
+Trip Creation
+↓
+Real Place Discovery
+↓
+Verified Place Context
+↓
+Gemini AI Planner
+↓
+Structured JSON
+↓
+Validation
+↓
+Real Place Matching
+↓
+Global Deduplication
+↓
+Date Coverage Validation
+↓
+Geographic Ordering
+↓
+Budget Calculation
+↓
 Supabase
-    │
-    ▼
-Disruption Engine
-```
+↓
+React UI
+↓
+Itinerary + Map
+
+
+## 6. AI Itinerary Generation Workflow
+
+Gemini is not asked to freely invent a travel itinerary.
+
+Instead, RoamPulse provides Gemini with structured information about the trip and verified place candidates.
+
+The AI receives information such as:
+
+- Destination
+- Number of days
+- Travel dates
+- Budget
+- Travel pace
+- User interests
+- Arrival time
+- Departure time
+- Available real places
+- Restaurant candidates
+- Attraction candidates
+- Previous itinerary constraints when applicable
+
+Gemini is instructed to behave like a practical local travel planner.
+
+The generated response must follow the application's structured itinerary schema.
+
+
+## 7. Real Place Verification Workflow
+
+The real-place workflow is:
+
+1. User selects a destination.
+2. RoamPulse queries Google Places.
+3. Multiple categories of places are discovered.
+4. Results are deduplicated.
+5. Useful metadata is retained.
+6. Candidates are passed into the Gemini prompt.
+7. Gemini selects from those candidates.
+8. Generated place names are matched against the candidate dataset.
+9. Coordinates and metadata are attached.
+10. The UI marks verified places accordingly.
+
+The system explicitly instructs Gemini:
+
+Use only places supplied in the verified real-place context when a real place is required.
+
+Gemini must not invent:
+
+- Attractions
+- Restaurants
+- Cafes
+- Museums
+- Hotels
+- Markets
+- Landmarks
+- Viewpoints
+
+
+## 8. Itinerary Generation Workflow
+
+The itinerary generation pipeline follows these stages:
+
+### Stage 1 — Input Collection
+
+The application collects:
+
+- Destination
+- Start date
+- End date
+- Budget
+- Pace
+- Interests
+- Arrival time
+- Departure time
+
+### Stage 2 — Candidate Discovery
+
+RoamPulse retrieves real places relevant to the destination.
+
+Candidate categories include:
+
+- Attractions
+- Cultural sites
+- Historic landmarks
+- Museums
+- Restaurants
+- Cafes
+- Markets
+- Nature locations
+- Viewpoints
+- Shopping locations
+
+### Stage 3 — AI Planning
+
+Gemini receives the candidate context and generates the itinerary.
+
+### Stage 4 — JSON Extraction
+
+Gemini responses are cleaned so that responses wrapped in Markdown code blocks can still be parsed correctly.
+
+### Stage 5 — Schema Validation
+
+The response is validated against the application's itinerary schema.
+
+Minor formatting variations such as:
+
+- "9:30" instead of "09:30"
+- Numeric values returned as strings
+- Slight enum variations
+
+can be normalized where appropriate.
+
+### Stage 6 — Real Place Matching
+
+Generated locations are matched against real-world candidates.
+
+### Stage 7 — Global Deduplication
+
+The entire itinerary is checked for repeated locations.
+
+### Stage 8 — Date Coverage
+
+Every date between the trip start and end date is checked.
+
+If a date is missing, the system attempts to repair that date using unused real-place candidates.
+
+### Stage 9 — Geographic Ordering
+
+Activities are ordered to reduce unnecessary travel.
+
+### Stage 10 — Database Storage
+
+The final itinerary is inserted into Supabase.
+
+### Stage 11 — UI Rendering
+
+The React application retrieves the stored itinerary and renders:
+
+- Daily itinerary cards
+- Activity details
+- Costs
+- Real-place indicators
+- Map locations
+- Budget breakdown
+
+
+## 9. Content Workflow
+
+RoamPulse follows a structured content workflow instead of directly displaying raw AI output.
+
+The content pipeline is:
+
+User Preferences
+↓
+Destination Context
+↓
+Real-World Place Research
+↓
+Candidate Place Dataset
+↓
+AI Content Generation
+↓
+Structured JSON
+↓
+Content Validation
+↓
+Place Verification
+↓
+Duplicate Detection
+↓
+Schedule Validation
+↓
+Budget Validation
+↓
+Final Itinerary Content
+↓
+Database
+↓
+Frontend
+
+This workflow ensures that generated content is not treated as trustworthy simply because it came from an AI model.
+
+AI creates the plan.
+
+The application validates and structures the plan.
+
+Real-world data grounds the plan.
+
+
+## 10. Practicality & Planning Rules
+
+RoamPulse follows several practical planning rules.
+
+### Travel Pace
+
+Relaxed:
+
+- Approximately 2–3 meaningful activities per day.
+
+Balanced:
+
+- Approximately 3–4 meaningful activities per day.
+
+Packed:
+
+- Approximately 4–5 meaningful activities per day.
+
+The application avoids unrealistic schedules containing 8–10 major activities in a single day.
+
+### Meal Windows
+
+Lunch is generally planned around:
+
+12:00–14:00
+
+Dinner is generally planned around:
+
+19:00–21:00
+
+Restaurants should come from verified place candidates where possible.
+
+### Activity Duration
+
+Typical durations are based on activity type.
+
+Museums:
+
+Approximately 1.5–2.5 hours.
+
+Landmarks and markets:
+
+Approximately 1–2 hours.
+
+Viewpoints:
+
+Approximately 30–60 minutes.
+
+Dining:
+
+Approximately 45–90 minutes.
+
+### Travel Buffers
+
+Travel time is accounted for between different locations.
+
+The system avoids scheduling attractions back-to-back with zero travel time.
+
+### Arrival Day
+
+The first day respects the user's arrival time.
+
+The typical flow is:
+
+Arrival
+↓
+Transfer
+↓
+Hotel check-in
+↓
+Refresh
+↓
+Evening activity
+↓
+Dinner
+
+### Departure Day
+
+The final day respects the user's departure time.
+
+Major sightseeing should finish sufficiently early to allow:
+
+- Hotel checkout
+- Packing
+- Transfer
+- Airport/station arrival
+
+
+## 11. Global Activity Uniqueness
+
+One of the important reliability features in RoamPulse is global activity deduplication.
+
+A place should not appear multiple times simply because the AI changed the wording.
+
+For example:
+
+"Visit Jakhoo Temple"
+
+and
+
+"Explore Jakhu Temple"
+
+should be recognized as the same location.
 
 Similarly:
 
-```text
-Weather API
-    │
-    ▼
-Weather Monitor
-    │
-    ▼
-Activity Risk Evaluation
-    │
-    ▼
-Recovery Engine
-```
+"Lunch at Cafe Simla Times"
 
----
+and
 
-# Step 5 — Disruption Detection
+"Dinner at Cafe Simla Times"
 
-Suppose a flight is delayed.
+should be recognized as the same restaurant.
 
-The system determines:
+The canonical identity system considers:
 
-```text
-Original arrival
-        ↓
-New arrival
-        ↓
-Available time
-        ↓
-Affected itinerary items
-        ↓
-Conflicts
-```
+1. External place ID
+2. Geographic coordinates
+3. Canonical place name
+4. Embedded restaurant/venue name
+5. Normalized titles
 
-Activities that are locked should be preserved.
+Action words such as:
 
-Flexible activities can be evaluated for replacement or rescheduling.
+- Visit
+- Explore
+- Discover
+- See
+- Tour
+- Experience
+- Walk around
 
----
+are removed during normalization.
 
-# Step 6 — Recovery Engine
+Meal prefixes such as:
 
-The recovery system evaluates alternatives using factors such as:
+- Lunch at
+- Dinner at
+- Breakfast at
+- Meal at
+- Dining at
 
-- Time compatibility
-- Distance
-- Travel duration
-- Weather
-- Cost
-- Traveler interests
-- Travel style
-- Activity type
-- Existing itinerary
-- Locked activities
-- User-defined automation limits
+are also normalized.
 
-The result is a ranked recovery recommendation.
+This prevents the AI from bypassing uniqueness rules by changing the wording.
 
----
 
-# Step 7 — Traveler Decision
+## 12. Budget Workflow
 
-The user can choose:
+RoamPulse provides a practical budget breakdown.
 
-```text
-Apply Recovery
-See Alternatives
-Keep Original
-Customize
-```
+The five primary categories are:
 
-The system should clearly explain **why** an alternative was recommended.
+### Accommodation
+
+Estimated or live hotel cost.
+
+### Activities
+
+Entry fees and activity-related expenses.
+
+### Food & Dining
+
+Estimated meal costs.
+
+### Transportation
+
+Local transport, transfers, and travel between locations.
+
+### Other
+
+Miscellaneous expenses.
+
+The application clearly distinguishes estimated accommodation pricing from live provider pricing.
+
+Examples:
+
+~₹14,000 estimated / stay
+
+or
+
+₹14,000 live / stay
+
+
+## 13. Map & Location Workflow
+
+Each verified place can contain:
+
+- Latitude
+- Longitude
+- Address
+- Rating
+- Place identifier
+
+These coordinates are used by the map.
+
+RoamPulse also uses destination-aware map centering.
+
+For example, if itinerary coordinates are temporarily unavailable, the map should center around the selected destination rather than an unrelated hardcoded city.
+
+This prevents issues such as:
+
+User selects Shimla
+
+but map opens in Jaipur.
+
+
+## 14. Regeneration Workflow
+
+When the user selects:
+
+Regenerate Itinerary
+
+RoamPulse performs a clean regeneration.
+
+The workflow is:
+
+Regenerate
+↓
+Remove previous generated itinerary items
+↓
+Reset previous-title restrictions
+↓
+Discover/use real place candidates
+↓
+Call Gemini
+↓
+Generate fresh itinerary
+↓
+Validate
+↓
+Deduplicate
+↓
+Repair missing dates
+↓
+Insert into Supabase
+↓
+Refresh UI
+
+The previous itinerary should not unnecessarily prevent Gemini from selecting valid real places again.
+
+Each regenerated itinerary should still maintain global uniqueness internally.
+
+
+## 15. Fallback & Reliability
+
+Gemini is the primary itinerary planner.
+
+The fallback system is only intended for situations where Gemini cannot be used.
+
+Possible fallback triggers include:
+
+- Missing Gemini API key
+- Gemini API error
+- Network error
+- Invalid response
+- Failed structured response validation
+
+Fallback generation should still attempt to:
+
+- Use real places
+- Cover every trip date
+- Avoid repeated activities
+- Produce practical schedules
+- Provide usable content
+
+The UI and trip history should distinguish between:
+
+Gemini AI planner
+
+and
+
+Starter template / Gemini unavailable
+
+This prevents the application from falsely claiming that an itinerary was generated by AI when it was actually generated by fallback logic.
+
+
+## 16. Technology Stack
+
+### Frontend
+
+- React
+- TypeScript
+- Vite
+- React-based route architecture
+- Responsive UI
+
+### Backend
+
+- TypeScript
+- Server functions
+- Nitro / Cloudflare-compatible server build
+
+### AI
+
+- Google Gemini API
+- Gemini 2.0 Flash
+
+### Places
+
+- Google Places API
+
+### Database
+
+- Supabase
+- PostgreSQL
+
+### Maps
+
+- Leaflet
+- Real-world latitude/longitude coordinates
+
+### Validation
+
+- Zod
+
+### Development
+
+- ESLint
+- Prettier
+- TypeScript
+
+
+## 17. Project Architecture
+
+A simplified project structure:
+
+src/
+│
+├── components/
+│   ├── maps/
+│   │   └── TripMap.tsx
+│   │
+│   └── ...
+│
+├── lib/
+│   ├── itinerary.server.ts
+│   ├── domain.ts
+│   │
+│   ├── places/
+│   │   └── real-places.server.ts
+│   │
+│   ├── trips.functions.ts
+│   └── ...
+│
+├── routes/
+│   └── _authenticated/
+│       └── trips.$tripId.tsx
+│
+└── ...
+
+
+## 18. Data Flow
+
+The core data flow is:
+
+Trip Input
+    |
+    v
+Trip Creation
+    |
+    v
+Google Places Discovery
+    |
+    v
+Real Place Candidate Dataset
+    |
+    v
+Gemini Prompt
+    |
+    v
+Gemini JSON Response
+    |
+    v
+JSON Extraction
+    |
+    v
+Zod Validation
+    |
+    v
+Real Place Matching
+    |
+    v
+Global Deduplication
+    |
+    v
+Date Coverage Validation
+    |
+    v
+Geographic Ordering
+    |
+    v
+Budget Calculation
+    |
+    v
+Supabase
+    |
+    v
+React UI
+    |
+    +----> Daily Itinerary
+    |
+    +----> Budget
+    |
+    +----> Map
+
+
+## 19. Environment Variables
+
+The application requires the appropriate API credentials to be configured.
 
 Example:
 
-```text
-Recommended because:
+GEMINI_API_KEY=your_gemini_api_key
 
-✓ Fits the new schedule
-✓ Indoor activity
-✓ Matches your food interest
-✓ 14 minutes from your hotel
-✓ Within your budget
-```
+Depending on the configured environment, Google Places and Supabase credentials may also be required.
 
----
+Never commit API keys directly into the repository.
 
-# Step 8 — Persist Recovery
+For local development, environment variables should be stored in the appropriate local environment file.
 
-Once approved:
+For Vercel production, configure the variables in:
 
-```text
-Recovery
-   ↓
-New itinerary version
-   ↓
-Database update
-   ↓
-Map update
-   ↓
-Timeline update
-   ↓
-Notification
-   ↓
-History entry
-```
+Vercel Dashboard
+→ Project
+→ Settings
+→ Environment Variables
 
-The previous itinerary should remain available in history.
 
----
+## 20. Getting Started
 
-# 🔌 Automation Architecture
+Clone the repository:
 
-The future automation architecture can use n8n for scheduled workflows and external service orchestration.
+git clone <repository-url>
 
-### Flight Monitoring
+Move into the project:
 
-```text
-Cron / Webhook
-      ↓
-Flight API
-      ↓
-Compare status
-      ↓
-Supabase
-      ↓
-Detect disruption
-      ↓
-Recovery Function
-      ↓
-Supabase Realtime
-      ↓
-User Notification
-```
+cd roam-pulse
 
-### Weather Monitoring
+Install dependencies:
 
-```text
-Cron
-  ↓
-Weather API
-  ↓
-Evaluate itinerary
-  ↓
-Detect weather risk
-  ↓
-Generate alternatives
-  ↓
-Store recovery
-  ↓
-Notify traveler
-```
+npm install
 
-### Price Monitoring
+Create your environment configuration.
 
-```text
-Cron
-  ↓
-Travel Providers
-  ↓
-Normalize prices
-  ↓
-Store snapshot
-  ↓
-Compare price
-  ↓
-Notify traveler
-```
+Add the required API keys.
 
-n8n should not become the sole security or authorization layer. Sensitive authorization decisions must remain protected by the backend and database security model.
+Then start the development server:
 
----
+npm run dev
 
-# 🧪 Demo Mode
 
-During development, RoamPulse can provide a clearly labeled Demo Mode when external production APIs are not configured.
+## 21. Running the Project
 
-Demo Mode should allow an evaluator to:
+Development:
 
-1. Create a sample trip.
-2. View a generated itinerary.
-3. Trigger a simulated flight delay.
-4. See affected activities.
-5. Generate recovery recommendations.
-6. Apply a recovery.
-7. Watch the timeline update.
-8. Watch the map update.
-9. Receive a notification.
+npm run dev
 
-All simulated information must be clearly marked:
+Formatting:
 
-> **Demo Data**
+npm run format
 
-Demo data must never be presented as real provider information.
+Type checking:
 
----
+npx tsc --noEmit
 
-# 🎯 Core Demo Scenario
+Linting:
 
-The primary demonstration scenario is:
-
-### Tokyo Adventure
-
-```text
-Traveler: 1
-Dates: August 18–25
-Budget: ₹75,000
-```
-
-Initial itinerary:
-
-```text
-09:00 — Breakfast
-10:30 — Temple visit
-13:00 — Lunch
-15:00 — Walking tour
-18:00 — Local food experience
-20:00 — Dinner
-```
-
-Then:
-
-```text
-✈ Flight delayed by 3 hours
-```
-
-RoamPulse should demonstrate:
-
-```text
-Flight delay detected
-        ↓
-Conflict detected
-        ↓
-Walking tour marked at risk
-        ↓
-Alternative activities evaluated
-        ↓
-Indoor alternative recommended
-        ↓
-User reviews recovery
-        ↓
-Recovery applied
-        ↓
-Timeline updated
-        ↓
-Map updated
-        ↓
-Notification generated
-```
-
-This scenario demonstrates the central value proposition of RoamPulse.
-
----
-
-# 📱 Mobile-First Experience
-
-RoamPulse is designed for travelers who are often using the application while moving.
-
-The mobile experience should prioritize:
-
-- Large touch targets
-- Important alerts
-- Current/next activity
-- Quick access to maps
-- Recovery actions
-- One-handed interaction
-- Minimal horizontal scrolling
-
-The intended mobile navigation is:
-
-```text
-Home
-Trips
-Active Trip
-Alerts
-Profile
-```
-
-The active trip experience should keep the next important action easily accessible.
-
----
-
-# ♿ Accessibility
-
-RoamPulse aims to provide an accessible experience using:
-
-- Semantic HTML
-- Keyboard navigation
-- Proper labels
-- Visible focus states
-- Accessible dialogs
-- Screen-reader labels
-- Accessible alerts
-- Sufficient contrast
-- Reduced-motion support
-
-Important information should never be communicated through color alone.
-
----
-
-# 🔐 Security Principles
-
-Security is a core requirement of the architecture.
-
-Never:
-
-- Put API secrets in frontend code.
-- Trust frontend authorization.
-- Trust frontend payment status.
-- Allow cross-user trip access.
-- Process unverified webhooks.
-- Expose provider secrets to users.
-- Automatically spend money without appropriate authorization.
-
-Sensitive integrations should use:
-
-- Environment variables
-- Supabase Edge Functions
-- Secure backend services
-- Row Level Security
-- Server-side validation
-- Verified webhooks
-
----
-
-# ⚡ Performance
-
-RoamPulse is designed to work well on real-world mobile networks.
-
-Performance strategies include:
-
-- Lazy loading
-- Safe caching
-- TanStack Query
-- Efficient database queries
-- Pagination
-- Optimized images
-- Debounced search
-- Minimal unnecessary JavaScript
-- Realtime updates
-
-A flight-status change should not require the entire application to reload.
-
----
-
-# 🌱 Future Vision
-
-RoamPulse is intended to evolve beyond itinerary generation.
-
-## Phase 1 — Intelligent Planning
-
-Focus:
-
-- Personalized trip planning
-- AI itinerary generation
-- User preferences
-- Trip management
-- Authentication
-- Maps
-- Basic itinerary editing
-
----
-
-## Phase 2 — Real-Time Awareness
-
-Add:
-
-- Live flight tracking
-- Weather monitoring
-- Real-time notifications
-- Trip risk detection
-- Dynamic itinerary updates
-
----
-
-## Phase 3 — Intelligent Recovery
-
-Build the recovery engine around:
-
-```text
-Detect
-↓
-Understand
-↓
-Predict
-↓
-Recommend
-↓
-Recover
-```
-
-The system should increasingly understand the consequences of disruptions before the traveler has to manually solve them.
-
----
-
-## Phase 4 — Autonomous Travel Assistant
-
-Introduce controlled automation.
-
-RoamPulse could eventually handle eligible changes within user-defined boundaries.
-
-For example:
-
-```text
-Flight delayed
-      ↓
-Hotel unaffected
-      ↓
-Walking tour conflicts
-      ↓
-Find alternative
-      ↓
-Check budget
-      ↓
-Check weather
-      ↓
-Check traveler preferences
-      ↓
-Apply allowed recovery
-      ↓
-Notify traveler
-```
-
-The traveler remains in control.
-
----
-
-## Phase 5 — Intelligent Travel Marketplace
-
-The long-term platform could connect:
-
-- Flights
-- Hotels
-- Activities
-- Restaurants
-- Local experiences
-- Transportation
-- Travel insurance
-- Affiliate partners
-
-The goal is not simply to show listings.
-
-The goal is to recommend the **right option at the right moment** based on the traveler's actual situation.
-
----
-
-# 💼 Business Model
-
-RoamPulse can eventually combine several revenue streams.
-
-## Free
-
-Potential features:
-
-- Basic trip planning
-- Basic itinerary generation
-- Limited monitoring
-
-## Premium
-
-Potential features:
-
-- Real-time flight tracking
-- Advanced disruption alerts
-- More frequent monitoring
-- Advanced recovery recommendations
-- Autonomous recovery controls
-- Advanced price monitoring
-
-## Affiliate Revenue
-
-When users choose a booking provider through RoamPulse, the platform may use clearly disclosed affiliate relationships where appropriate.
-
-RoamPulse should never misrepresent itself as the direct seller of a product unless it actually is.
-
----
-
-# 🤝 Sponsored Experiences
-
-The platform may eventually support sponsored local experiences.
-
-Sponsored placements must always be clearly labeled:
-
-> **Sponsored**
-
-Paid placement should never be disguised as an organic recommendation.
-
-Sponsored experiences should still be relevant to:
-
-- Destination
-- Schedule
-- Budget
-- Traveler preferences
-
----
-
-# 🧭 Product Philosophy
-
-RoamPulse is built around several principles.
-
-### 1. Adaptation over perfection
-
-A perfect itinerary is impossible if reality keeps changing.
-
-### 2. Traveler control
-
-Automation should assist the traveler, not remove their control.
-
-### 3. Explainability
-
-The user should understand why something was recommended.
-
-### 4. Safety first
-
-The system should never spend money or make high-impact decisions without appropriate authorization.
-
-### 5. Real data over fake data
-
-Production interfaces must never pretend demo data is live.
-
-### 6. Graceful failure
-
-When an external provider fails, the application should remain usable and clearly communicate what happened.
-
-### 7. Privacy by design
-
-Travel data can be highly personal. Users should only have access to their own private trip information.
-
----
-
-# 🛣️ Roadmap
-
-The long-term roadmap includes:
-
-- [ ] Complete production authentication
-- [ ] Production-grade trip persistence
-- [ ] AI itinerary generation
-- [ ] Structured AI validation
-- [ ] Advanced itinerary editing
-- [ ] Live flight-provider integration
-- [ ] Weather-provider integration
-- [ ] Dynamic disruption detection
-- [ ] Recovery recommendation engine
-- [ ] Real-time notifications
-- [ ] Advanced interactive maps
-- [ ] Price comparison
-- [ ] Provider adapters
-- [ ] n8n automation workflows
-- [ ] Trip history/versioning
-- [ ] Subscription billing
-- [ ] Affiliate tracking
-- [ ] Sponsored experiences
-- [ ] Advanced autonomous recovery
-- [ ] Mobile/PWA improvements
-- [ ] Analytics and observability
-- [ ] Expanded travel-provider ecosystem
-
----
-
-# 🧩 Project Status
-
-RoamPulse is an actively developed product.
-
-The repository contains the core web application, frontend architecture, Supabase integration, routing structure, styling system, and the broader architecture/specification for the adaptive travel platform. citeturn0view0turn3view0turn3view1
-
-Some advanced capabilities described in this README represent the **product roadmap and intended production architecture**, rather than claiming that every external integration is already operational.
-
-This distinction is intentional.
-
-The project should always clearly separate:
-
-```text
-LIVE
-```
-
-from:
-
-```text
-DEMO
-```
-
-and:
-
-```text
-PLANNED
-```
-
----
-
-# 🤝 Contributing
-
-Contributions are welcome as the project evolves.
-
-Before submitting changes:
-
-1. Understand the existing architecture.
-2. Avoid unnecessary rewrites.
-3. Keep TypeScript strongly typed.
-4. Reuse existing components.
-5. Validate user input.
-6. Avoid exposing secrets.
-7. Preserve Row Level Security.
-8. Test authentication changes carefully.
-9. Test responsive behavior.
-10. Run the build and lint checks.
-
-Recommended workflow:
-
-```bash
-git checkout -b feature/your-feature
-```
-
-Make your changes, then:
-
-```bash
 npm run lint
+
+Production build:
+
 npm run build
-npx tsc --noEmit --pretty false
-```
 
-Commit your changes:
 
-```bash
-git add .
-git commit -m "feat: describe your change"
-```
+## 22. Production Deployment
 
-Push the branch:
+RoamPulse can be deployed using Vercel or another compatible hosting environment.
 
-```bash
-git push origin feature/your-feature
-```
+Before deploying, make sure production environment variables are configured.
 
-Then open a Pull Request.
+Important:
 
----
+The local .env file is normally not committed to Git.
 
-# 🐛 Bug Reports
+Therefore, having a working Gemini key locally does not automatically mean the deployed application has access to Gemini.
 
-When reporting a bug, include:
+For Vercel:
 
-- What happened
-- What you expected
-- Steps to reproduce
-- Browser/device
-- Relevant route
-- Whether the issue is reproducible
-- Console error if applicable
-- Whether the issue affects production or development
+1. Open the Vercel project.
+2. Go to Settings.
+3. Open Environment Variables.
+4. Add GEMINI_API_KEY.
+5. Enable it for Production.
+6. Enable it for Preview if required.
+7. Redeploy the application.
 
-Never include:
+After deployment, verify that the production application is actually using Gemini rather than silently falling back.
 
-- API secrets
-- Passwords
-- Authentication tokens
-- Private user data
-- Database credentials
 
----
+## 23. Example Itinerary
 
-# 🔒 Environment & Secrets
+Example: 4-Day Shimla Trip
 
-Never commit:
+Day 1 — Arrival & Local Evening
 
-```text
-.env
-.env.local
-```
+14:00 – 15:00
+Arrival in Shimla & Station/Airport Transfer
 
-Use:
+15:00 – 16:00
+Hotel Check-in & Refresh
 
-```text
-.env.example
-```
+16:30 – 18:00
+The Ridge & Shimla Mall Road
 
-for documenting required variables without exposing secret values.
+19:30 – 20:30
+Dinner at a verified local restaurant
 
-Production secrets should be configured through the appropriate deployment/backend environment.
 
----
+Day 2 — Heritage & Culture
 
-# 📜 License
+09:00 – 10:30
+Jakhoo Temple & Hanuman Statue
 
-The licensing model for RoamPulse should be defined before the project is distributed as a public open-source product.
+10:50 – 12:15
+Shimla State Museum
 
-Until an explicit license is added to the repository, contributors should not assume that the code is automatically available for unrestricted reuse.
+12:30 – 13:30
+Lunch at a verified cafe
 
----
+14:00 – 16:00
+Christ Church Shimla
 
-# 🌍 RoamPulse
+19:30 – 20:30
+Dinner at a different verified restaurant
 
-**Plan the trip.  
-Monitor the journey.  
-Adapt when reality changes.**
 
-RoamPulse is building toward a future where travel planning is no longer a static itinerary sitting in an app.
+Day 3 — History & Exploration
 
-Instead, your trip becomes a living system that understands:
+09:30 – 11:30
+Viceregal Lodge / Rashtrapati Niwas
 
-```text
-Where you are
-        +
-Where you're going
-        +
-What you planned
-        +
-What changed
-        +
-What you care about
-        +
-What you can afford
-        ↓
-What you should do next
-```
+12:30 – 13:30
+Lunch at another verified restaurant
 
-The ultimate vision is simple:
+14:30 – 16:30
+Annandale Ground & Army Heritage Museum
 
-> **When your trip changes, RoamPulse changes with it.**
+19:30 – 20:30
+Dinner at another unused restaurant
+
+
+Day 4 — Shopping & Departure
+
+09:30 – 10:30
+Lakkar Bazaar
+
+11:00 – 11:45
+Hotel Checkout & Packing
+
+12:30 onwards
+Transfer to departure point
+
+
+The exact locations and timings are dynamically generated based on the user's trip.
+
+
+## 24. Hackathon Demo Flow
+
+The recommended live demonstration flow is:
+
+### Step 1
+
+Open RoamPulse.
+
+### Step 2
+
+Create a new trip.
+
+Example:
+
+Destination:
+Shimla
+
+Duration:
+4 days
+
+Pace:
+Balanced
+
+Interests:
+Culture + Food + Nature
+
+### Step 3
+
+Generate the itinerary.
+
+Show that the application uses AI to create a personalized travel plan.
+
+### Step 4
+
+Demonstrate real places.
+
+Show:
+
+- Real-place indicators
+- Ratings
+- Addresses
+- Map locations
+
+### Step 5
+
+Demonstrate practical scheduling.
+
+Point out:
+
+- Arrival constraints
+- Meal windows
+- Travel buffers
+- Different activities on different days
+
+### Step 6
+
+Demonstrate budget.
+
+Show:
+
+- Accommodation
+- Activities
+- Food & Dining
+- Transportation
+- Other
+
+### Step 7
+
+Demonstrate regeneration.
+
+Click:
+
+Regenerate Itinerary
+
+Show that a fresh itinerary is generated while maintaining:
+
+- Real places
+- Date coverage
+- Practical scheduling
+- No repeated locations
+
+### Step 8
+
+Show the map.
+
+Explain that activities use real coordinates and are geographically organized.
+
+
+## 25. Limitations
+
+RoamPulse is designed as a practical hackathon prototype rather than a complete commercial travel platform.
+
+Some limitations include:
+
+### Live Hotel Rates
+
+Live hotel prices depend on available provider integrations and API credentials.
+
+When live pricing is unavailable, the application uses clearly labeled estimated pricing.
+
+### Traffic
+
+Travel duration is based on geographic distance and routing data rather than guaranteed real-time traffic conditions.
+
+### Opening Hours
+
+Opening hours depend on the availability and accuracy of the external place provider.
+
+### AI Limitations
+
+Although the system strongly constrains Gemini, AI output can still require validation.
+
+This is why the application uses deterministic post-processing and validation rather than trusting raw AI output.
+
+
+## 26. Future Improvements
+
+Potential future improvements include:
+
+### Real-Time Traffic
+
+Integrate live traffic-aware routing.
+
+### Live Hotel Booking
+
+Add hotel inventory and live booking providers.
+
+### Live Restaurant Availability
+
+Allow users to reserve restaurants directly.
+
+### Weather-Aware Replanning
+
+Automatically modify outdoor activities based on weather.
+
+### Public Transport Integration
+
+Use real bus, metro, train, and transit schedules.
+
+### Collaborative Trips
+
+Allow multiple users to plan a trip together.
+
+### Smart Replanning
+
+If a location is closed or unavailable, automatically replace it with the best nearby alternative.
+
+### Cost Optimization
+
+Automatically optimize an itinerary based on the user's remaining budget.
+
+### Multi-City Trips
+
+Support journeys such as:
+
+Delhi → Agra → Jaipur → Udaipur
+
+
+## 27. Quality & Verification
+
+RoamPulse includes multiple validation layers.
+
+The project has been repeatedly checked using:
+
+npm run format
+
+npx tsc --noEmit
+
+npm run lint
+
+npm run build
+
+The expected quality checks are:
+
+- Formatting passes
+- TypeScript passes
+- ESLint passes
+- Production build succeeds
+
+The application also includes runtime logging for itinerary generation.
+
+Example:
+
+[RoamPulse] GENERATION START
+
+[RoamPulse] destination: Shimla
+
+[RoamPulse] expected day count: 4
+
+[RoamPulse] Gemini API key present: true
+
+[RoamPulse] Gemini model: google/gemini-2.0-flash
+
+[RoamPulse] Gemini HTTP status: 200
+
+[RoamPulse] Gemini generated item count: 14
+
+[RoamPulse] validation item count: 14
+
+[RoamPulse] final item count: 14
+
+[RoamPulse] Items inserted into database: 14
+
+[RoamPulse] fallback used: false
+
+[RoamPulse] GENERATION COMPLETE
+
+
+These logs make it easier to determine whether an itinerary was generated by Gemini or by the fallback system.
+
+
+## 28. Project Goal
+
+The core idea behind RoamPulse is simple:
+
+AI should not just generate a travel plan that sounds good.
+
+It should generate a travel plan that makes sense.
+
+RoamPulse combines:
+
+AI intelligence
++
+Real-world place data
++
+Structured validation
++
+Geographic reasoning
++
+Budget awareness
++
+Schedule constraints
++
+Global activity uniqueness
+
+to create practical travel itineraries that are closer to what a real traveler would actually use.
+
+The project demonstrates how generative AI can be combined with deterministic software rules and real-world APIs to build a more reliable AI-powered application.
+
+Built for hackathons, designed with real-world practicality in mind.
+
+
+## License
+
+This project is intended as a hackathon project and demonstration of AI-powered travel planning.
