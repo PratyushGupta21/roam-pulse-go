@@ -244,16 +244,16 @@ export const generateTripItinerary = createServerFn({ method: "POST" })
 
     console.log(`[RoamPulse] Items generated: ${generated.items.length}`);
 
-    // 5. Clear old unlocked active items if replaceExisting is true (preserves user-locked items and replaced history items!)
     if (data.replaceExisting) {
-      await supabase
+      console.log(`[RoamPulse] REGENERATION START | tripId: ${data.tripId}`);
+      const { count: deletedCount } = await supabase
         .from("itinerary_items")
-        .delete()
+        .delete({ count: "exact" })
         .eq("trip_id", trip.id)
         .eq("is_locked", false)
         .neq("status", "replaced");
       console.log(
-        `[REGENERATE] deleted old unlocked active items from DB for tripId: ${data.tripId}`,
+        `[RoamPulse] previous itinerary deleted: ${deletedCount ?? 0} unlocked items from DB`,
       );
     }
 
@@ -373,7 +373,7 @@ export const generateTripItinerary = createServerFn({ method: "POST" })
         throw new Error("Failed to save itinerary items to database.");
       }
       console.log(
-        `[RoamPulse] Items inserted into database: ${rowsToInsert.length} | generationId: ${generationId}`,
+        `[RoamPulse] Database insertion count: ${rowsToInsert.length} | generationId: ${generationId}`,
       );
     }
 

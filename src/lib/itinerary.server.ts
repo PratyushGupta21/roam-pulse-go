@@ -48,6 +48,65 @@ export function normalizeTitle(title: string): string {
     .trim();
 }
 
+/**
+ * Fuzzy matches venue/place names taking into account title prefixes, alternate spellings, and token overlap.
+ */
+export function isFuzzyMatch(titleA: string, titleB: string): boolean {
+  const normA = normalizeTitle(titleA);
+  const normB = normalizeTitle(titleB);
+  if (normA === normB) return true;
+  if (normA.length > 3 && normB.length > 3 && (normA.includes(normB) || normB.includes(normA))) {
+    return true;
+  }
+  const stopWords = new Set([
+    "the",
+    "and",
+    "at",
+    "in",
+    "of",
+    "to",
+    "a",
+    "an",
+    "park",
+    "center",
+    "centre",
+    "city",
+    "place",
+    "spot",
+    "viewpoint",
+    "museum",
+    "temple",
+    "mosque",
+    "monument",
+    "lake",
+    "village",
+    "fort",
+    "bazaar",
+    "market",
+    "restaurant",
+    "cafe",
+    "hotel",
+  ]);
+  const tokensA = titleA
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, " ")
+    .split(/\s+/)
+    .filter((w) => w.length > 2 && !stopWords.has(w));
+  const tokensB = titleB
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, " ")
+    .split(/\s+/)
+    .filter((w) => w.length > 2 && !stopWords.has(w));
+
+  if (tokensA.length > 0 && tokensB.length > 0) {
+    const common = tokensA.filter((t) => tokensB.includes(t));
+    if (common.length >= 1 && common.length / Math.min(tokensA.length, tokensB.length) >= 0.5) {
+      return true;
+    }
+  }
+  return false;
+}
+
 export interface CanonicalIdentity {
   canonicalName: string;
   coordKey: string | null;
@@ -765,7 +824,9 @@ export function fallbackItinerary(
   const days = dayList(input.startDate, input.endDate);
   const places = options?.realPlacesOverride || [];
 
-  console.warn(`[RoamPulse] FALLBACK ITINERARY GENERATOR USED`);
+  const recoveryReason = places.length === 0 ? "GOOGLE_PLACES_EMPTY" : "GEMINI_FAILED";
+  console.warn(`[RoamPulse] RECOVERY TRIGGERED`);
+  console.warn(`reason: ${recoveryReason}`);
   console.warn(`[RoamPulse] destination: ${input.destination}`);
   console.warn(`[RoamPulse] verified realPlaces available: ${places.length}`);
 
@@ -1249,16 +1310,7 @@ export async function generateItinerary(
       const matchedItems = rawItems.map((item) => {
         let matchedPlace: RealPlace | undefined;
         if (realPlaces.length > 0) {
-          matchedPlace = realPlaces.find((p) => {
-            const normP = normalizeTitle(p.name);
-            const normI = normalizeTitle(item.title);
-            return (
-              normP === normI ||
-              (normP.length > 4 &&
-                normI.length > 4 &&
-                (normI.includes(normP) || normP.includes(normI)))
-            );
-          });
+          matchedPlace = realPlaces.find((p) => isFuzzyMatch(p.name, item.title));
         }
 
         let finalLat = matchedPlace?.latitude ?? item.latitude ?? null;
@@ -1406,6 +1458,16 @@ export async function generateItinerary(
         finalItems.unshift(accommodationItem);
       }
 
+      const realSightseeingCount = finalItems.filter(
+        (i) =>
+          i.verification_status === "verified" ||
+          (!i.category?.includes("transit") && i.category !== "accommodation"),
+      ).length;
+      const structuralCount = finalItems.length - realSightseeingCount;
+
+      console.log(`[RoamPulse] Final real-place items: ${realSightseeingCount}`);
+      console.log(`[RoamPulse] Final structural items: ${structuralCount}`);
+      console.log(`[RoamPulse] Recovery triggered: false`);
       console.log(`[RoamPulse] fallback used: false`);
       console.log(
         `[RoamPulse] GENERATION COMPLETE | Gemini itinerary succeeded with ${finalItems.length} items`,

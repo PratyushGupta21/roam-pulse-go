@@ -68,6 +68,46 @@ export async function resolveDestinationCoordinates(
   console.log(`[RoamPulse] DESTINATION RESOLUTION START`);
   console.log(`[RoamPulse] destination input: ${inputNorm}`);
 
+  // Level 1: Open-Meteo keyless geocoding API
+  try {
+    const omUrl = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(
+      inputNorm,
+    )}&count=1&language=en&format=json`;
+    const omRes = await fetch(omUrl);
+    if (omRes.ok) {
+      const omJson = (await omRes.json()) as {
+        results?: Array<{
+          name?: string;
+          country?: string;
+          latitude?: number;
+          longitude?: number;
+        }>;
+      };
+      if (omJson.results && omJson.results.length > 0 && omJson.results[0]) {
+        const item = omJson.results[0];
+        if (isValidCoordinates(item.latitude, item.longitude)) {
+          const resolved: ResolvedDestination = {
+            destinationInput: inputNorm,
+            city: item.name || inputNorm,
+            country: item.country,
+            latitude: item.latitude!,
+            longitude: item.longitude!,
+          };
+          console.log(`[RoamPulse] resolved city: ${resolved.city}`);
+          if (resolved.country) console.log(`[RoamPulse] resolved country: ${resolved.country}`);
+          console.log(
+            `[RoamPulse] resolved coordinates: ${resolved.latitude.toFixed(4)}, ${resolved.longitude.toFixed(4)}`,
+          );
+          destinationCache.set(cacheKey, resolved);
+          return resolved;
+        }
+      }
+    }
+  } catch (err) {
+    console.warn(`[RoamPulse] Open-Meteo geocoding warning: ${(err as Error).message}`);
+  }
+
+  // Level 2: Nominatim fallback
   try {
     const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(
       inputNorm,
