@@ -18,7 +18,7 @@ import {
   resolveDestinationCoordinates,
 } from "./maps/geocoding";
 
-const MODEL = "google/gemini-2.0-flash";
+const MODEL = "google/gemini-3.5-flash";
 
 /**
  * Generates an inclusive list of YYYY-MM-DD calendar dates.
@@ -873,7 +873,7 @@ export async function generateItinerary(
 
       if (isGeminiConfigured) {
         console.log(`[RoamPulse] Gemini request started | attempt: ${attempt}`);
-        const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${geminiApiKey}`;
+        const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${geminiApiKey}`;
         const systemInstructionText = [
           "You are RoamPulse's expert local travel planner. Your ONLY job is to SCHEDULE the verified places provided to you.",
           "Return ONLY valid JSON matching schema {\"items\": [...]}.",
@@ -920,7 +920,7 @@ export async function generateItinerary(
           method: "POST",
           headers: { authorization: `Bearer ${gatewayApiKey}`, "content-type": "application/json" },
           body: JSON.stringify({
-            model: "google/gemini-2.0-flash",
+            model: "google/gemini-3.5-flash",
             messages: [
               {
                 role: "system",

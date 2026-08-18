@@ -1,13 +1,16 @@
 /**
- * Real-World Place Data Retrieval Service (Multi-City & High-Capacity Discovery)
+ * Real-World Place Data Retrieval Service (Multi-City & Bounded Discovery)
  *
  * Provides real attractions, restaurants, landmarks, and neighborhoods for trip planning.
- * Hierarchy / Pipeline:
- * 1. Google Places API (New) Text Search with FieldMask & LocationBias & Pagination.
- * 2. Fallback to Google Places Legacy API Text Search.
- * 3. Gemini Google Search Grounding research layer for discovered place verification.
- * 4. OpenStreetMap Nominatim POI Search fallback.
- * 5. Curated real-world landmark database for popular global & regional destinations.
+ * Pipeline (August 2026 — Bounded Strategy):
+ * 1. Google Places API (New) Text Search — BOUNDED to 3 queries per city max.
+ * 2. Gemini Search Grounding research layer — bounded verification (5 queries max).
+ * 3. Curated real-world landmark database for popular global & regional destinations.
+ * 4. OpenStreetMap Overpass API POI Search fallback.
+ * 5. In-memory cache (6h TTL) to avoid redundant API calls on regeneration.
+ *
+ * REMOVED: Legacy Places API (maps.googleapis.com), 18-query aggressive search,
+ * Stage 2 expansion queries, unbounded parallel verification, Nominatim POI search.
  */
 
 import {
@@ -767,8 +770,20 @@ const CURATED_DESTINATION_PLACES: Record<string, RealPlace[]> = {
   ],
 };
 
+// Track quota exhaustion globally within a generation to prevent further requests
+let _placesQuotaExhausted = false;
+
+function resetPlacesQuotaFlag() {
+  _placesQuotaExhausted = false;
+}
+
+// In-memory cache for place discovery results (keyed by normalized city)
+const _placeDiscoveryCache = new Map<string, { places: RealPlace[]; cachedAt: number }>();
+const CACHE_TTL_MS = 6 * 60 * 60 * 1000; // 6 hours
+
 /**
  * Searches queries against Google Places API (New) endpoint POST https://places.googleapis.com/v1/places:searchText
+ * Returns a quotaExhausted flag so the caller can stop further requests.
  */
 async function searchGooglePlacesNew(
   query: string,
@@ -777,7 +792,12 @@ async function searchGooglePlacesNew(
   longitude?: number,
   pageToken?: string,
   radiusMeters?: number,
-): Promise<{ places: RealPlace[]; nextPageToken?: string }> {
+): Promise<{ places: RealPlace[]; nextPageToken?: string; quotaExhausted?: boolean }> {
+  // If quota was already exhausted in this generation, skip immediately
+  if (_placesQuotaExhausted) {
+    return { places: [], quotaExhausted: true };
+  }
+
   try {
     const url = "https://places.googleapis.com/v1/places:searchText";
     const fieldMask =
@@ -805,6 +825,9 @@ async function searchGooglePlacesNew(
       };
     }
 
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 10000);
+
     const res = await fetch(url, {
       method: "POST",
       headers: {
@@ -813,12 +836,25 @@ async function searchGooglePlacesNew(
         "X-Goog-FieldMask": fieldMask,
       },
       body: JSON.stringify(requestBody),
+      signal: controller.signal,
     });
+
+    clearTimeout(timeout);
 
     console.log(`[RoamPulse] Google Places (New) HTTP status: ${res.status} | query: ${query}`);
 
     if (!res.ok) {
       const errText = await res.text().catch(() => "");
+
+      // 429 = daily quota exhausted — stop ALL further Places requests
+      if (res.status === 429 || errText.includes("RESOURCE_EXHAUSTED") || errText.includes("Quota exceeded")) {
+        console.error(
+          `[RoamPulse] PLACES_QUOTA_EXHAUSTED | status: ${res.status} | query: ${query} | Stopping all further Places API requests for this generation.`,
+        );
+        _placesQuotaExhausted = true;
+        return { places: [], quotaExhausted: true };
+      }
+
       const isDenied =
         res.status === 403 ||
         res.status === 401 ||
@@ -826,13 +862,15 @@ async function searchGooglePlacesNew(
         errText.includes("PERMISSION_DENIED");
       if (isDenied) {
         console.error(
-          `[RoamPulse] GOOGLE PLACES FAILED\nreason: ${res.status === 403 ? "PERMISSION_DENIED/403" : res.status === 401 ? "UNAUTHORIZED/401" : "REQUEST_DENIED"}\nhint: Check Places API (New) billing, API key restrictions, and Vercel environment variables.\nquery: ${query}\ndetail: ${errText.slice(0, 300)}`,
+          `[RoamPulse] GOOGLE PLACES API_DENIED | status: ${res.status} | hint: Check Places API (New) billing and API key restrictions. | query: ${query}`,
         );
-      } else {
-        console.warn(
-          `[RoamPulse] GOOGLE PLACES (NEW) FAILED | status: ${res.status} | detail: ${errText.slice(0, 200)}`,
-        );
+        _placesQuotaExhausted = true; // treat as exhausted — no point retrying
+        return { places: [], quotaExhausted: true };
       }
+
+      console.warn(
+        `[RoamPulse] GOOGLE PLACES (NEW) FAILED | status: ${res.status} | detail: ${errText.slice(0, 200)}`,
+      );
       return { places: [] };
     }
 
@@ -924,82 +962,8 @@ async function searchGooglePlacesNew(
   }
 }
 
-/**
- * Fallback Legacy Google Places Text Search.
- */
-async function searchGooglePlacesLegacy(query: string, apiKey: string): Promise<RealPlace[]> {
-  try {
-    const url = `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(query)}&key=${apiKey}`;
-    const res = await fetch(url);
-    console.log(`[RoamPulse] Google Places Legacy HTTP status: ${res.status} | query: ${query}`);
-    if (!res.ok) return [];
-
-    const json = (await res.json()) as {
-      status?: string;
-      error_message?: string;
-      results?: Array<{
-        place_id?: string;
-        name?: string;
-        formatted_address?: string;
-        geometry?: { location?: { lat?: number; lng?: number } };
-        rating?: number;
-        user_ratings_total?: number;
-        price_level?: number;
-        types?: string[];
-      }>;
-    };
-
-    if (json.status && json.status !== "OK" && json.status !== "ZERO_RESULTS") {
-      console.warn(
-        `[RoamPulse] Google Places Legacy returned status ${json.status}: ${json.error_message || ""}`,
-      );
-    }
-
-    if (!json.results || json.results.length === 0) return [];
-
-    return json.results.slice(0, 15).map((p) => {
-      const types = p.types || [];
-      let category: RealPlace["category"] = "attraction";
-      if (types.includes("restaurant") || types.includes("food") || types.includes("cafe"))
-        category = "restaurant";
-      else if (
-        types.includes("shopping_mall") ||
-        types.includes("store") ||
-        types.includes("market")
-      )
-        category = "shopping";
-      else if (types.includes("park") || types.includes("natural_feature")) category = "nature";
-      else if (types.includes("museum") || types.includes("art_gallery")) category = "culture";
-      else if (
-        types.includes("place_of_worship") ||
-        types.includes("church") ||
-        types.includes("hindu_temple") ||
-        types.includes("mosque")
-      )
-        category = "history";
-
-      return {
-        placeId:
-          p.place_id || `gp-legacy-${(p.name || query).toLowerCase().replace(/[^a-z0-9]/g, "")}`,
-        name: p.name || query,
-        category,
-        address: p.formatted_address || "",
-        latitude: p.geometry?.location?.lat,
-        longitude: p.geometry?.location?.lng,
-        rating: p.rating,
-        userRatingCount: p.user_ratings_total,
-        priceLevel: p.price_level,
-        costType: p.price_level === 0 ? "free" : "estimated",
-        types,
-        isVerified: true,
-        source: "google_places",
-      };
-    });
-  } catch (err) {
-    console.warn("[RoamPulse] Google Places Legacy query error:", (err as Error).message);
-    return [];
-  }
-}
+// Legacy Places API has been REMOVED. The application uses Places API (New) exclusively.
+// Do not re-add maps.googleapis.com/maps/api/place/* endpoints.
 
 // Non-tourist type keywords to filter out from results
 const NON_TOURIST_TYPES = new Set([
@@ -1118,85 +1082,72 @@ function isQualityTouristPlace(types: string[], name: string): boolean {
 }
 
 /**
- * Executes high-capacity, multi-query search against Google Places API for a destination city.
- * All queries run in PARALLEL via Promise.allSettled for maximum speed and resilience.
+ * Bounded place discovery — uses at most 3 Google Places queries per city.
+ * This replaces the previous 18+ query aggressive search that caused quota exhaustion.
+ *
+ * Strategy:
+ * 1. One broad "things to do" query (covers attractions, landmarks, museums, parks)
+ * 2. One "restaurants and food" query
+ * 3. One interest-specific query (if user selected relevant interests)
+ *
+ * Each query returns up to 20 results = 60 max candidates per city.
+ * Quality filter + deduplication reduces to ~30-40 unique verified places.
  */
-async function searchGooglePlacesAggressive(
+async function searchGooglePlacesBounded(
   city: string,
   apiKey: string,
   lat?: number,
   lon?: number,
   interests: string[] = [],
-): Promise<RealPlace[]> {
-  console.log(`[RoamPulse] AGGRESSIVE PLACES DISCOVERY START | city: ${city}`);
+): Promise<{ places: RealPlace[]; quotaExhausted: boolean }> {
+  console.log(`[RoamPulse] BOUNDED PLACES DISCOVERY START | city: ${city} | maxQueries: 3`);
 
   const radius = getCitySearchRadius(city);
+  let quotaExhausted = false;
 
-  // 18 discovery query categories — cover all major tourist place types
-  const primaryQueries = [
-    `top tourist attractions in ${city}`,
-    `famous landmarks in ${city}`,
-    `museums in ${city}`,
-    `historical sites in ${city}`,
-    `cultural attractions in ${city}`,
-    `parks and gardens in ${city}`,
-    `viewpoints scenic spots in ${city}`,
-    `markets and bazaars in ${city}`,
-    `things to do in ${city}`,
-    `popular restaurants in ${city}`,
-    `monuments in ${city}`,
-    `churches cathedrals temples in ${city}`,
-    `palaces castles in ${city}`,
-    `art galleries in ${city}`,
-    `neighborhoods to visit in ${city}`,
-    `famous squares plazas in ${city}`,
-    `scenic places in ${city}`,
-    `must-see places in ${city}`,
-  ];
-
-  if (interests.includes("Food") || interests.includes("Local food")) {
-    primaryQueries.push(`famous local food street food cafes in ${city}`);
-  }
-  if (
-    interests.includes("Nature") ||
-    interests.includes("Mountains") ||
-    interests.includes("Beaches")
-  ) {
-    primaryQueries.push(`nature spots scenic landscapes in ${city}`);
-  }
-  if (interests.includes("Shopping")) {
-    primaryQueries.push(`shopping streets malls in ${city}`);
-  }
-  if (interests.includes("Nightlife")) {
-    primaryQueries.push(`nightlife entertainment districts in ${city}`);
-  }
-
-  // Override the radius passed to searchGooglePlacesNew for this city
-  const searchWithRadius = (q: string, pageToken?: string) =>
-    searchGooglePlacesNew(q, apiKey, lat, lon, pageToken, radius);
-
-  // Run ALL queries in parallel — dramatically faster and more resilient to individual failures
-  const primaryResults = await Promise.allSettled(
-    primaryQueries.map(async (q) => {
-      const { places, nextPageToken } = await searchWithRadius(q);
-      if (places.length === 0) {
-        // Try legacy endpoint as immediate fallback for this query
-        const legacyPlaces = await searchGooglePlacesLegacy(q, apiKey);
-        return legacyPlaces;
-      }
-      const allForQuery = [...places];
-      if (nextPageToken && places.length >= 10) {
-        const p2 = await searchWithRadius(q, nextPageToken);
-        if (p2.places.length > 0) allForQuery.push(...p2.places);
-      }
-      return allForQuery;
-    }),
+  // Query 1: Broad discovery (most important)
+  const q1Result = await searchGooglePlacesNew(
+    `top tourist attractions landmarks museums things to do in ${city}`,
+    apiKey, lat, lon, undefined, radius,
   );
+  if (q1Result.quotaExhausted) {
+    console.warn(`[RoamPulse] PLACES_QUOTA_EXHAUSTED on first query for ${city}. Using fallback pipeline.`);
+    return { places: [], quotaExhausted: true };
+  }
 
-  const allPlaces: RealPlace[] = [];
-  for (const result of primaryResults) {
-    if (result.status === "fulfilled") {
-      allPlaces.push(...result.value);
+  const allPlaces: RealPlace[] = [...q1Result.places];
+  console.log(`[RoamPulse] BOUNDED Q1 | city: ${city} | results: ${q1Result.places.length}`);
+
+  // Query 2: Food and restaurants
+  const q2Result = await searchGooglePlacesNew(
+    `popular restaurants cafes local food in ${city}`,
+    apiKey, lat, lon, undefined, radius,
+  );
+  if (q2Result.quotaExhausted) {
+    quotaExhausted = true;
+  } else {
+    allPlaces.push(...q2Result.places);
+    console.log(`[RoamPulse] BOUNDED Q2 | city: ${city} | results: ${q2Result.places.length}`);
+  }
+
+  // Query 3: Interest-specific (only if quota not exhausted)
+  if (!quotaExhausted) {
+    let q3Query = `scenic viewpoints parks nature in ${city}`; // default
+    if (interests.includes("Adventure") || interests.includes("Mountains")) {
+      q3Query = `adventure activities trekking viewpoints in ${city}`;
+    } else if (interests.includes("Shopping")) {
+      q3Query = `shopping markets bazaars malls in ${city}`;
+    } else if (interests.includes("History") || interests.includes("Culture")) {
+      q3Query = `historical sites temples monuments heritage in ${city}`;
+    } else if (interests.includes("Nightlife")) {
+      q3Query = `nightlife entertainment bars clubs in ${city}`;
+    }
+    const q3Result = await searchGooglePlacesNew(q3Query, apiKey, lat, lon, undefined, radius);
+    if (q3Result.quotaExhausted) {
+      quotaExhausted = true;
+    } else {
+      allPlaces.push(...q3Result.places);
+      console.log(`[RoamPulse] BOUNDED Q3 | city: ${city} | results: ${q3Result.places.length}`);
     }
   }
 
@@ -1223,48 +1174,9 @@ async function searchGooglePlacesAggressive(
   }
 
   console.log(
-    `[RoamPulse] CANDIDATES DISCOVERED | city: ${city} | raw: ${allPlaces.length} | quality-filtered: ${qualityFiltered.length} | unique: ${deduplicated.length}`,
+    `[RoamPulse] CANDIDATES DISCOVERED | city: ${city} | raw: ${allPlaces.length} | quality-filtered: ${qualityFiltered.length} | unique: ${deduplicated.length} | quotaExhausted: ${quotaExhausted}`,
   );
-  return deduplicated;
-}
-
-/**
- * Stage 2 expansion: run broader fallback queries when primary pool is thin.
- * Parallel execution.
- */
-async function expandCandidatePoolStage2(
-  city: string,
-  apiKey: string,
-  lat?: number,
-  lon?: number,
-): Promise<RealPlace[]> {
-  console.log(`[RoamPulse] STAGE 2 EXPANSION | city: ${city} | running broader queries`);
-  const radius = getCitySearchRadius(city);
-  const broaderQueries = [
-    `best things to do in ${city}`,
-    `popular sights in ${city}`,
-    `tourist spots in ${city}`,
-    `famous places to visit in ${city}`,
-    `top rated attractions in ${city}`,
-    `historic places in ${city}`,
-    `interesting places in ${city}`,
-    `must visit ${city}`,
-  ];
-
-  const results = await Promise.allSettled(
-    broaderQueries.map((q) => searchGooglePlacesNew(q, apiKey, lat, lon, undefined, radius)),
-  );
-
-  const found: RealPlace[] = [];
-  for (const r of results) {
-    if (r.status === "fulfilled") found.push(...r.value.places);
-  }
-
-  const quality = found.filter((p) => isQualityTouristPlace(p.types || [], p.name));
-  console.log(
-    `[RoamPulse] STAGE 2 EXPANSION RESULT | city: ${city} | found: ${quality.length} additional`,
-  );
-  return quality;
+  return { places: deduplicated, quotaExhausted };
 }
 
 /**
@@ -1281,7 +1193,7 @@ async function discoverPlacesViaGeminiSearch(
 ): Promise<string[]> {
   try {
     console.log(`[RoamPulse] GEMINI SEARCH GROUNDED DISCOVERY | city: ${city}`);
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${geminiApiKey}`;
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${geminiApiKey}`;
 
     // Do NOT set responseMimeType: "application/json" when using googleSearch grounding.
     // Grounded responses come back as text with citations — forcing JSON MIME breaks it silently.
@@ -1354,103 +1266,170 @@ async function discoverPlacesViaGeminiSearch(
 }
 
 /**
- * Searches OpenStreetMap Nominatim for real POIs for a destination city.
+ * Searches OpenStreetMap via Overpass API for real POIs near a destination city.
+ * Uses the actual Overpass QL query language to find tourism/amenity nodes,
+ * not Nominatim search (which returns administrative boundaries, not POIs).
  */
-async function searchOSMPlaces(city: string): Promise<RealPlace[]> {
-  const queries = [
-    `attractions in ${city}`,
-    `landmarks in ${city}`,
-    `restaurants in ${city}`,
-    `museums in ${city}`,
-    `${city}`,
-  ];
-
+async function searchOSMPlaces(
+  city: string,
+  lat?: number,
+  lon?: number,
+): Promise<RealPlace[]> {
   try {
-    const results = await Promise.all(
-      queries.map(async (query) => {
-        const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(
-          query,
-        )}&limit=15`;
-        const res = await fetch(url, {
-          headers: {
-            "User-Agent": "RoamPulseTravelApp/1.0 (roampulse@example.com)",
-            Accept: "application/json",
-          },
-        });
-        if (!res.ok) return [];
-
-        const data = (await res.json()) as Array<{
-          osm_id?: number;
-          display_name?: string;
-          lat?: string;
-          lon?: string;
-          type?: string;
-          class?: string;
-        }>;
-
-        if (!data || data.length === 0) return [];
-
-        return data.map((item) => {
-          const nameParts = (item.display_name || city).split(",");
-          const name = nameParts[0]?.trim() || city;
-          let cat: RealPlace["category"] = "attraction";
-          if (
-            item.class === "amenity" &&
-            (item.type === "restaurant" || item.type === "cafe" || item.type === "fast_food")
-          ) {
-            cat = "restaurant";
-          } else if (item.class === "tourism" || item.class === "historic") {
-            cat = "culture";
-          } else if (item.class === "leisure" || item.type === "park") {
-            cat = "nature";
-          }
-
-          return {
-            placeId: item.osm_id
-              ? `osm-${item.osm_id}`
-              : `osm-${name.toLowerCase().replace(/[^a-z0-9]/g, "")}`,
-            name,
-            category: cat,
-            address: item.display_name,
-            latitude: item.lat ? parseFloat(item.lat) : undefined,
-            longitude: item.lon ? parseFloat(item.lon) : undefined,
-            costType: "estimated" as const,
-            destinationCity: city,
-            isVerified: true,
-            source: "osm" as const,
-          };
-        });
-      }),
-    );
-
-    const combined = results.flat();
-    const seen = new Set<string>();
-    const deduplicated: RealPlace[] = [];
-
-    for (const place of combined) {
-      const norm = place.name.toLowerCase().trim();
-      if (!seen.has(norm) && norm.length > 3) {
-        seen.add(norm);
-        deduplicated.push(place);
-      }
+    // If we have coordinates, use a bounding box around the city center
+    // Otherwise, use Overpass area search by city name
+    let query: string;
+    if (typeof lat === "number" && typeof lon === "number" && isValidCoordinates(lat, lon)) {
+      // Search within ~15km radius (approx 0.135 degrees)
+      const delta = 0.135;
+      const south = lat - delta;
+      const north = lat + delta;
+      const west = lon - delta;
+      const east = lon + delta;
+      query = `[out:json][timeout:10];
+(
+  node["tourism"~"attraction|museum|viewpoint|artwork|gallery|information|picnic_site"](${south},${west},${north},${east});
+  node["historic"~"monument|memorial|castle|ruins|archaeological_site|fort"](${south},${west},${north},${east});
+  node["amenity"~"restaurant|cafe|place_of_worship"](${south},${west},${north},${east});
+  node["leisure"~"park|garden|nature_reserve"](${south},${west},${north},${east});
+  way["tourism"~"attraction|museum|viewpoint"](${south},${west},${north},${east});
+  way["historic"~"monument|memorial|castle|ruins|fort"](${south},${west},${north},${east});
+);
+out center 40;`;
+    } else {
+      // Fallback: search by area name
+      query = `[out:json][timeout:10];
+area[name~"${city}",i][admin_level~"[4-8]"]->.searchArea;
+(
+  node["tourism"~"attraction|museum|viewpoint|artwork|gallery"](area.searchArea);
+  node["historic"~"monument|memorial|castle|ruins|archaeological_site"](area.searchArea);
+  node["amenity"~"restaurant|cafe|place_of_worship"](area.searchArea);
+);
+out 40;`;
     }
 
-    console.log(`[RoamPulse] OSM POIs returned: ${deduplicated.length} for ${city}`);
-    return deduplicated;
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 12000);
+
+    const res = await fetch("https://overpass-api.de/api/interpreter", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: `data=${encodeURIComponent(query)}`,
+      signal: controller.signal,
+    });
+
+    clearTimeout(timeout);
+
+    if (!res.ok) {
+      console.warn(`[RoamPulse] Overpass API HTTP ${res.status} for ${city}`);
+      return [];
+    }
+
+    const data = (await res.json()) as {
+      elements?: Array<{
+        id?: number;
+        tags?: Record<string, string>;
+        lat?: number;
+        lon?: number;
+        center?: { lat?: number; lon?: number };
+      }>;
+    };
+
+    if (!data.elements || data.elements.length === 0) {
+      console.log(`[RoamPulse] OSM Overpass POIs returned: 0 for ${city}`);
+      return [];
+    }
+
+    const seen = new Set<string>();
+    const results: RealPlace[] = [];
+
+    for (const el of data.elements) {
+      const name = el.tags?.["name"] || el.tags?.["name:en"];
+      if (!name || name.length < 3) continue;
+
+      const normName = name.toLowerCase().trim();
+      if (seen.has(normName)) continue;
+      seen.add(normName);
+
+      const elLat = el.lat ?? el.center?.lat;
+      const elLon = el.lon ?? el.center?.lon;
+
+      let cat: RealPlace["category"] = "attraction";
+      const tourism = el.tags?.["tourism"] || "";
+      const historic = el.tags?.["historic"] || "";
+      const amenity = el.tags?.["amenity"] || "";
+      const leisure = el.tags?.["leisure"] || "";
+
+      if (amenity === "restaurant" || amenity === "cafe" || amenity === "fast_food") {
+        cat = "restaurant";
+      } else if (tourism === "museum" || tourism === "gallery") {
+        cat = "culture";
+      } else if (historic) {
+        cat = "history";
+      } else if (leisure === "park" || leisure === "garden" || leisure === "nature_reserve") {
+        cat = "nature";
+      } else if (tourism === "viewpoint") {
+        cat = "nature";
+      } else if (amenity === "place_of_worship") {
+        cat = "history";
+      }
+
+      results.push({
+        placeId: `osm-${el.id || normName.replace(/[^a-z0-9]/g, "")}`,
+        name,
+        category: cat,
+        address: el.tags?.["addr:full"] || el.tags?.["addr:street"] || city,
+        latitude: elLat,
+        longitude: elLon,
+        costType: "estimated",
+        destinationCity: city,
+        isVerified: true,
+        source: "osm",
+      });
+    }
+
+    console.log(`[RoamPulse] OSM Overpass POIs returned: ${results.length} for ${city}`);
+    return results;
   } catch (err) {
-    console.warn("[RoamPulse] OSM fetch warning:", (err as Error).message);
+    console.warn(`[RoamPulse] OSM Overpass fetch warning for ${city}:`, (err as Error).message);
     return [];
   }
 }
 
 /**
- * Stage 1–7 Pipeline for a single city candidate pool.
+ * Stage 1–5 Pipeline for a single city candidate pool.
+ *
+ * BOUNDED STRATEGY (August 2026 overhaul):
+ * - Stage 1: Google Places Bounded (3 queries max per city)
+ * - Stage 2: Gemini Search Grounding research (1 call) + bounded verification (5 queries max)
+ * - Stage 3: Curated catalog fallback
+ * - Stage 4: OpenStreetMap Overpass API fallback
+ * - Stage 5: Proximity validation (<150km) & deduplication
+ *
+ * Total max Google Places API calls per city: 3 (bounded) + 5 (verification) = 8
+ * Previous total: 18 (aggressive) + 8 (Stage 2) + N (verification) = 26+ calls
  */
 export async function fetchRealWorldPlacesForCity(
   city: string,
   interests: string[] = [],
 ): Promise<CityCandidatePool> {
   console.log(`[RoamPulse] CITY RESEARCH START | city: ${city}`);
+
+  // Check in-memory cache first
+  const cacheKey = city.toLowerCase().trim();
+  const cached = _placeDiscoveryCache.get(cacheKey);
+  if (cached && Date.now() - cached.cachedAt < CACHE_TTL_MS) {
+    console.log(`[RoamPulse] CACHE HIT | city: ${city} | cachedPlaces: ${cached.places.length}`);
+    const canonical = await resolveDestinationCoordinates(city);
+    return {
+      city,
+      country: canonical?.country,
+      latitude: canonical?.latitude ?? 0,
+      longitude: canonical?.longitude ?? 0,
+      order: 0,
+      candidates: cached.places.map((p) => ({ ...p, destinationCity: city })),
+    };
+  }
 
   const canonical = await resolveDestinationCoordinates(city);
   const cityLat = canonical?.latitude;
@@ -1461,82 +1440,72 @@ export async function fetchRealWorldPlacesForCity(
 
   const isGoogleKeyPresent = Boolean(googleApiKey && googleApiKey.trim().length > 0);
   const isGeminiKeyPresent = Boolean(geminiApiKey && geminiApiKey.length > 0);
-  console.log(`[RoamPulse] Google Places API key present: ${isGoogleKeyPresent}`);
-  console.log(`[RoamPulse] Gemini API key present: ${isGeminiKeyPresent}`);
+  console.log(`[RoamPulse] API keys | Google: ${isGoogleKeyPresent} | Gemini: ${isGeminiKeyPresent}`);
 
   let rawCandidates: RealPlace[] = [];
+  let quotaExhausted = false;
 
-  // Stage 1: Google Places Aggressive Multi-Query Search (18 categories, PARALLEL)
-  if (isGoogleKeyPresent) {
-    rawCandidates = await searchGooglePlacesAggressive(
+  // Stage 1: Google Places BOUNDED Discovery (3 queries max per city)
+  if (isGoogleKeyPresent && !_placesQuotaExhausted) {
+    const boundedResult = await searchGooglePlacesBounded(
       city,
       googleApiKey!.trim(),
       cityLat,
       cityLon,
       interests,
     );
+    rawCandidates = boundedResult.places;
+    quotaExhausted = boundedResult.quotaExhausted;
     console.log(
-      `[RoamPulse] PLACES QUERY STAGE 1 COMPLETE | city: ${city} | candidates: ${rawCandidates.length}`,
+      `[RoamPulse] STAGE 1 COMPLETE | city: ${city} | candidates: ${rawCandidates.length} | quotaExhausted: ${quotaExhausted}`,
     );
   }
 
-  // Stage 2: Broader expansion queries if pool is thin (< 20 verified candidates)
-  if (isGoogleKeyPresent && rawCandidates.length < 20) {
-    console.log(
-      `[RoamPulse] Stage 1 returned only ${rawCandidates.length} candidates for ${city}. Running Stage 2 expansion.`,
-    );
-    const stage2 = await expandCandidatePoolStage2(
-      city,
-      googleApiKey!.trim(),
-      cityLat,
-      cityLon,
-    );
-    rawCandidates.push(...stage2);
-  }
-
-  // Stage 3 & 4: Gemini Search Grounding Discovery (if pool still < 20 and Gemini key present)
-  if (rawCandidates.length < 20 && isGeminiKeyPresent) {
+  // Stage 2: Gemini Search Grounding Discovery (if pool still < 15 and Gemini key present)
+  // Only verify up to 5 discovered names against Google Places to keep API usage bounded
+  if (rawCandidates.length < 15 && isGeminiKeyPresent) {
     const discoveredNames = await discoverPlacesViaGeminiSearch(city, geminiApiKey!);
     if (discoveredNames.length > 0) {
       console.log(
-        `[RoamPulse] GEMINI RESEARCH | city: ${city} | count discovered: ${discoveredNames.length}`,
+        `[RoamPulse] GEMINI RESEARCH | city: ${city} | discovered: ${discoveredNames.length}`,
       );
-      if (isGoogleKeyPresent) {
-        // Verify all discovered names in parallel via Google Places
-        const verificationResults = await Promise.allSettled(
-          discoveredNames.map((name) =>
-            searchGooglePlacesNew(
-              `${name} ${city}`,
-              googleApiKey!.trim(),
-              cityLat,
-              cityLon,
-              undefined,
-              getCitySearchRadius(city),
-            ),
-          ),
-        );
+      if (isGoogleKeyPresent && !quotaExhausted && !_placesQuotaExhausted) {
+        // BOUNDED verification: verify at most 5 names to conserve quota
+        const namesToVerify = discoveredNames.slice(0, 5);
         let postVerifyCount = 0;
-        for (const r of verificationResults) {
-          if (r.status === "fulfilled" && r.value.places.length > 0) {
-            rawCandidates.push(...r.value.places);
-            postVerifyCount += r.value.places.length;
+        for (const name of namesToVerify) {
+          const r = await searchGooglePlacesNew(
+            `${name} ${city}`,
+            googleApiKey!.trim(),
+            cityLat,
+            cityLon,
+            undefined,
+            getCitySearchRadius(city),
+          );
+          if (r.quotaExhausted) {
+            quotaExhausted = true;
+            break;
+          }
+          if (r.places.length > 0) {
+            rawCandidates.push(...r.places);
+            postVerifyCount += r.places.length;
           }
         }
         console.log(
-          `[RoamPulse] POST-RESEARCH VERIFICATION | city: ${city} | verified: ${postVerifyCount}`,
+          `[RoamPulse] POST-RESEARCH VERIFICATION | city: ${city} | verified: ${postVerifyCount} | quotaExhausted: ${quotaExhausted}`,
         );
       }
     }
   }
 
-  // Stage 5: Curated catalog fallback if candidates still empty
+  // Stage 3: Curated catalog fallback if candidates still empty
   if (rawCandidates.length === 0) {
     const normCity = city.toLowerCase().trim();
     const matchedKey = Object.keys(CURATED_DESTINATION_PLACES).find(
       (k) => normCity.includes(k) || k.includes(normCity),
     );
     if (matchedKey && CURATED_DESTINATION_PLACES[matchedKey]) {
-      console.log(`[REAL PLACES] Using curated real-world place catalog for ${city}`);
+      console.log(`[RoamPulse] Using curated real-world place catalog for ${city}`);
       rawCandidates = CURATED_DESTINATION_PLACES[matchedKey]!.map((p) => ({
         ...p,
         destinationCity: city,
@@ -1544,13 +1513,13 @@ export async function fetchRealWorldPlacesForCity(
     }
   }
 
-  // Stage 6: OpenStreetMap POIs fallback if candidates still empty
+  // Stage 4: OpenStreetMap Overpass API fallback if candidates still empty
   if (rawCandidates.length === 0) {
-    console.log(`[REAL PLACES] Fetching OpenStreetMap POIs for ${city}`);
-    rawCandidates = await searchOSMPlaces(city);
+    console.log(`[RoamPulse] Fetching OpenStreetMap Overpass POIs for ${city}`);
+    rawCandidates = await searchOSMPlaces(city, cityLat, cityLon);
   }
 
-  // Stage 7: Proximity validation (<150km) & deduplication
+  // Stage 5: Proximity validation (<150km) & deduplication
   const verified: RealPlace[] = [];
   const seenIds = new Set<string>();
   const seenNames = new Set<string>();
@@ -1590,12 +1559,6 @@ export async function fetchRealWorldPlacesForCity(
       );
     }
 
-    console.log(`[RoamPulse] PLACE CANDIDATE`);
-    console.log(`name: ${place.name}`);
-    console.log(`destination: ${city}`);
-    console.log(`distanceKm: ${distKm.toFixed(1)}`);
-    console.log(`accepted: ${accepted}`);
-
     if (accepted) {
       seenIds.add(idKey);
       seenNames.add(normName);
@@ -1608,8 +1571,11 @@ export async function fetchRealWorldPlacesForCity(
   }
 
   console.log(
-    `[RoamPulse] CANDIDATES VERIFIED | city: ${city} | count: ${verified.length} | accepted: ${acceptedCount} | rejected: ${rejectedCount}`,
+    `[RoamPulse] CANDIDATES VERIFIED | city: ${city} | total: ${verified.length} | accepted: ${acceptedCount} | rejected: ${rejectedCount}`,
   );
+
+  // Write to in-memory cache
+  _placeDiscoveryCache.set(cacheKey, { places: verified, cachedAt: Date.now() });
 
   return {
     city,
@@ -1631,6 +1597,9 @@ export async function fetchMultiCityRealWorldPlaces(
 ): Promise<CityCandidatePool[]> {
   const cities = parseTripDestinations(destinationInput, extraDestinations);
   console.log(`[RoamPulse] MULTI-CITY DISCOVERY START | cities: [${cities.join(", ")}]`);
+
+  // Reset quota flag at the start of each multi-city generation
+  resetPlacesQuotaFlag();
 
   const pools: CityCandidatePool[] = [];
 
