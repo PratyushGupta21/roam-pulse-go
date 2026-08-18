@@ -1,1250 +1,451 @@
 # RoamPulse
 
-AI-Powered Practical Travel Planner for Real-World Itinerary Generation
+## Overview
 
-RoamPulse is an AI-powered travel planning application that helps users create practical, realistic, and personalized travel itineraries based on their destination, dates, budget, travel pace, and interests.
+RoamPulse is an AI-powered travel itinerary generation platform designed to create personalized, practical, and location-aware travel plans.
 
-The project is designed to go beyond simply generating a list of tourist attractions. RoamPulse combines Gemini AI with real-world place data to create itineraries that are geographically practical, time-aware, budget-conscious, and easy to follow.
+Users can enter their destination, travel dates, interests, preferences, and other trip requirements. RoamPulse then combines AI-powered itinerary generation with real-world place discovery, geocoding, geographic validation, and curated fallback data to produce a structured itinerary.
 
-Built as a hackathon project with a focus on demonstrating a realistic end-to-end travel planning workflow.
+The system is designed with a bounded discovery architecture to reduce unnecessary API usage, avoid quota exhaustion, handle unreliable external services, and maintain predictable performance in a serverless production environment.
 
-## Table of Contents
+## Tech Stack
 
-1. Overview
-2. Problem Statement
-3. Solution
-4. Key Features
-5. How RoamPulse Works
-6. AI Itinerary Generation Workflow
-7. Real Place Verification Workflow
-8. Itinerary Generation Workflow
-9. Content Workflow
-10. Practicality & Planning Rules
-11. Global Activity Uniqueness
-12. Budget Workflow
-13. Map & Location Workflow
-14. Regeneration Workflow
-15. Fallback & Reliability
-16. Technology Stack
-17. Project Architecture
-18. Data Flow
-19. Environment Variables
-20. Getting Started
-21. Running the Project
-22. Production Deployment
-23. Example Itinerary
-24. Hackathon Demo Flow
-25. Limitations
-26. Future Improvements
-27. Quality & Verification
-28. Project Goal
+- Frontend: React / TypeScript
+- Framework: Modern full-stack React framework with server-side functions
+- Styling: Tailwind CSS
+- Backend: TypeScript server functions
+- AI: Google Gemini
+- AI Gateway: Lovable AI Gateway
+- Maps & Places: Google Places API
+- Geographic Data: OpenStreetMap / Overpass API
+- Geocoding: Open-Meteo and Nominatim
+- Deployment: Vercel
+- Version Control: Git / GitHub
+- Runtime: Node.js
+- Build & Type Checking: npm, TypeScript
 
-## 1. Overview
+## Setup
 
-Planning a trip often requires combining information from multiple sources:
+### 1. Clone the Repository
 
-- Places to visit
-- Restaurants and cafes
-- Opening hours
-- Travel time
-- Budget
-- Number of days
-- Personal interests
-- Arrival and departure constraints
-- Geographic location
+```bash
+git clone <repository-url>
+cd roam-pulse-go
+```
 
-Traditional AI itinerary generators can produce attractive-looking plans but may include:
+### 2. Install Dependencies
 
-- Invented places
-- Unrealistic schedules
-- Repeated attractions
-- Too many activities in one day
-- Impossible travel times
-- Restaurants that do not exist
-- Missing days
-- Incorrect accommodation costs
-- Generic activities such as "Explore the city"
+```bash
+npm install
+```
 
-RoamPulse addresses these problems by combining AI planning with real-world place data and deterministic validation.
+### 3. Configure Environment Variables
 
-The goal is not to generate the longest itinerary.
+Create a `.env` file in the project root and configure the required API credentials.
 
-The goal is to generate an itinerary that a real traveler could actually follow.
+Typical configuration includes:
 
-## 2. Problem Statement
+```env
+GOOGLE_MAPS_API_KEY=your_google_maps_api_key
+GEMINI_API_KEY=your_gemini_api_key
+LOVABLE_API_KEY=your_lovable_api_key
+```
 
-Most AI travel planners focus primarily on generating natural-language recommendations.
+Use the exact environment variable names expected by the application.
 
-However, a practical itinerary requires much more than recommendations.
+Never commit API keys, secrets, or `.env` files to Git.
 
-For example:
+### 4. Run the Development Server
 
-A user traveling to Shimla for four days should not receive:
+```bash
+npm run dev
+```
 
-Day 1:
+Open the local development URL shown in the terminal.
 
-- Explore Shimla
+### 5. Type Check
 
-Day 2:
+```bash
+npx tsc --noEmit
+```
 
-- Visit local attractions
+### 6. Production Build
 
-Day 3:
+```bash
+npm run build
+```
 
-- Explore culture
-
-Day 4:
-
-- Free time
-
-Instead, the user should receive specific real places with realistic timings, travel buffers, meals, costs, and departure constraints.
-
-RoamPulse is designed around this practical planning problem.
-
-## 3. Solution
-
-RoamPulse uses a multi-stage itinerary generation pipeline.
-
-The application:
-
-1. Collects trip preferences.
-2. Identifies the destination and travel dates.
-3. Retrieves real-world places.
-4. Organizes those places into useful candidate categories.
-5. Sends verified place context to Gemini.
-6. Instructs Gemini to act as a practical travel planner.
-7. Generates structured itinerary data.
-8. Validates the generated response.
-9. Removes duplicate activities globally.
-10. Checks date coverage.
-11. Repairs missing dates when necessary.
-12. Adds location metadata.
-13. Calculates practical travel timing.
-14. Calculates budget categories.
-15. Stores the itinerary in Supabase.
-16. Displays the itinerary and map in the frontend.
-
-This creates a complete AI-to-application workflow rather than simply displaying an AI-generated text response.
-
-## 4. Key Features
+## Features
 
 ### AI-Powered Itinerary Generation
 
-RoamPulse uses Google Gemini to generate personalized itineraries based on:
+RoamPulse uses Gemini to generate personalized travel itineraries based on:
 
 - Destination
-- Start date
-- End date
-- Budget
-- Travel pace
-- Interests
-- Arrival time
-- Departure time
-
-### Real Places
-
-The AI is provided with real-world candidate places retrieved through Google Places.
-
-These candidates can contain:
-
-- Place name
-- Address
-- Coordinates
-- Rating
-- Opening hours
-- Price level
-- Category
-
-This significantly reduces the possibility of fictional attractions or restaurants being generated.
-
-### Real Place Verification
-
-Generated places are matched against the verified place dataset.
-
-Verified places can display:
-
-"REAL PLACE"
-
-along with location metadata.
-
-### Practical Scheduling
-
-RoamPulse considers:
-
-- Opening hours
-- Activity duration
-- Meal windows
-- Travel time
-- Arrival time
-- Departure time
-- Travel pace
-
-### Geographic Clustering
-
-Activities are grouped geographically to reduce unnecessary movement across the city.
-
-The application uses geographic distance calculations to order activities more practically.
-
-### Global Activity Uniqueness
-
-A real attraction, restaurant, museum, market, viewpoint, temple, or cultural site should not be reused multiple times during the same trip.
-
-RoamPulse performs canonical identity matching to detect:
-
-- Exact duplicate places
-- Different titles for the same place
-- Restaurant name repetition
-- Coordinate-level duplicates
-- Similar attraction names
-
-### Personalized Interests
-
-Users can select interests such as:
-
-- Culture
-- Food
-- Nature
-- Shopping
-- Adventure
-
-These interests influence the type of places prioritized during itinerary generation.
-
-### Budget Breakdown
-
-The trip budget is divided into:
-
-- Accommodation
-- Activities
-- Food & Dining
-- Transportation
-- Other
-
-Accommodation is never incorrectly displayed as free or ₹0.
-
-### Interactive Map
-
-The itinerary can be visualized geographically.
-
-The map uses real coordinates when available and falls back to destination-aware coordinates instead of using an unrelated default location.
-
-### Regeneration
-
-Users can regenerate an itinerary to receive a fresh plan.
-
-A clean regeneration removes old generated itinerary items and allows Gemini to create a new itinerary without being unnecessarily constrained by the previous itinerary.
-
-### Reliable Fallback
-
-If Gemini is unavailable because of:
-
-- Missing API key
-- Network failure
-- API failure
-- Invalid response
-
-RoamPulse can use a fallback itinerary generation mechanism.
-
-Fallback output is clearly distinguished from Gemini-generated output.
-
-## 5. How RoamPulse Works
-
-The high-level flow is:
-
-User
-↓
-Trip Preferences
-↓
-Trip Creation
-↓
-Real Place Discovery
-↓
-Verified Place Context
-↓
-Gemini AI Planner
-↓
-Structured JSON
-↓
-Validation
-↓
-Real Place Matching
-↓
-Global Deduplication
-↓
-Date Coverage Validation
-↓
-Geographic Ordering
-↓
-Budget Calculation
-↓
-Supabase
-↓
-React UI
-↓
-Itinerary + Map
-
-## 6. AI Itinerary Generation Workflow
-
-Gemini is not asked to freely invent a travel itinerary.
-
-Instead, RoamPulse provides Gemini with structured information about the trip and verified place candidates.
-
-The AI receives information such as:
-
-- Destination
-- Number of days
 - Travel dates
-- Budget
-- Travel pace
+- Trip duration
 - User interests
-- Arrival time
-- Departure time
-- Available real places
-- Restaurant candidates
-- Attraction candidates
-- Previous itinerary constraints when applicable
-
-Gemini is instructed to behave like a practical local travel planner.
-
-The generated response must follow the application's structured itinerary schema.
-
-## 7. Real Place Verification Workflow
-
-The real-place workflow is:
-
-1. User selects a destination.
-2. RoamPulse queries Google Places.
-3. Multiple categories of places are discovered.
-4. Results are deduplicated.
-5. Useful metadata is retained.
-6. Candidates are passed into the Gemini prompt.
-7. Gemini selects from those candidates.
-8. Generated place names are matched against the candidate dataset.
-9. Coordinates and metadata are attached.
-10. The UI marks verified places accordingly.
-
-The system explicitly instructs Gemini:
-
-Use only places supplied in the verified real-place context when a real place is required.
-
-Gemini must not invent:
-
+- Travel preferences
+- Activities
+- Food preferences
 - Attractions
-- Restaurants
-- Cafes
-- Museums
-- Hotels
-- Markets
-- Landmarks
-- Viewpoints
+- Experiences
+- Geographic context
 
-## 8. Itinerary Generation Workflow
+### Real-World Place Discovery
 
-The itinerary generation pipeline follows these stages:
+The application combines multiple sources to discover actual places and experiences:
 
-### Stage 1 — Input Collection
+- Google Places
+- Gemini research
+- OpenStreetMap / Overpass
+- Curated fallback catalog
 
-The application collects:
+This prevents the application from depending entirely on a single external API.
 
-- Destination
-- Start date
-- End date
-- Budget
-- Pace
-- Interests
-- Arrival time
-- Departure time
+### Bounded API Discovery
 
-### Stage 2 — Candidate Discovery
+The place-discovery pipeline is intentionally bounded.
 
-RoamPulse retrieves real places relevant to the destination.
+Instead of making dozens of parallel API searches, RoamPulse limits discovery to a controlled number of queries.
 
-Candidate categories include:
+The normal discovery pipeline uses:
 
-- Attractions
-- Cultural sites
-- Historic landmarks
-- Museums
-- Restaurants
-- Cafes
-- Markets
-- Nature locations
-- Viewpoints
-- Shopping locations
+- Up to 3 Google Places discovery queries
+- Up to 5 bounded Gemini verification queries
+- Curated fallback data
+- Overpass fallback discovery
 
-### Stage 3 — AI Planning
+This keeps the approximate maximum discovery API-call budget around 8 calls per city.
 
-Gemini receives the candidate context and generates the itinerary.
+### API Quota Protection
 
-### Stage 4 — JSON Extraction
+The Google Places integration detects quota exhaustion and prevents unnecessary follow-up requests during the same generation lifecycle.
 
-Gemini responses are cleaned so that responses wrapped in Markdown code blocks can still be parsed correctly.
+When a `429` or `RESOURCE_EXHAUSTED` response is detected, subsequent Google Places calls are skipped instead of continuing to consume quota.
 
-### Stage 5 — Schema Validation
+### In-Memory Place Caching
 
-The response is validated against the application's itinerary schema.
+Successfully discovered places are cached in memory with a six-hour TTL.
 
-Minor formatting variations such as:
+This reduces repeated API requests when users regenerate itineraries for the same destination.
 
-- "9:30" instead of "09:30"
-- Numeric values returned as strings
-- Slight enum variations
+### Geographic Validation
 
-can be normalized where appropriate.
+Discovered places are validated against the requested destination using geographic coordinates and proximity checks.
 
-### Stage 6 — Real Place Matching
-
-Generated locations are matched against real-world candidates.
-
-### Stage 7 — Global Deduplication
-
-The entire itinerary is checked for repeated locations.
-
-### Stage 8 — Date Coverage
-
-Every date between the trip start and end date is checked.
-
-If a date is missing, the system attempts to repair that date using unused real-place candidates.
-
-### Stage 9 — Geographic Ordering
-
-Activities are ordered to reduce unnecessary travel.
-
-### Stage 10 — Database Storage
-
-The final itinerary is inserted into Supabase.
-
-### Stage 11 — UI Rendering
-
-The React application retrieves the stored itinerary and renders:
-
-- Daily itinerary cards
-- Activity details
-- Costs
-- Real-place indicators
-- Map locations
-- Budget breakdown
-
-## 9. Content Workflow
-
-RoamPulse follows a structured content workflow instead of directly displaying raw AI output.
-
-The content pipeline is:
-
-User Preferences
-↓
-Destination Context
-↓
-Real-World Place Research
-↓
-Candidate Place Dataset
-↓
-AI Content Generation
-↓
-Structured JSON
-↓
-Content Validation
-↓
-Place Verification
-↓
-Duplicate Detection
-↓
-Schedule Validation
-↓
-Budget Validation
-↓
-Final Itinerary Content
-↓
-Database
-↓
-Frontend
-
-This workflow ensures that generated content is not treated as trustworthy simply because it came from an AI model.
-
-AI creates the plan.
-
-The application validates and structures the plan.
-
-Real-world data grounds the plan.
-
-## 10. Practicality & Planning Rules
-
-RoamPulse follows several practical planning rules.
-
-### Travel Pace
-
-Relaxed:
-
-- Approximately 2–3 meaningful activities per day.
-
-Balanced:
-
-- Approximately 3–4 meaningful activities per day.
-
-Packed:
-
-- Approximately 4–5 meaningful activities per day.
-
-The application avoids unrealistic schedules containing 8–10 major activities in a single day.
-
-### Meal Windows
-
-Lunch is generally planned around:
-
-12:00–14:00
-
-Dinner is generally planned around:
-
-19:00–21:00
-
-Restaurants should come from verified place candidates where possible.
-
-### Activity Duration
-
-Typical durations are based on activity type.
-
-Museums:
-
-Approximately 1.5–2.5 hours.
-
-Landmarks and markets:
-
-Approximately 1–2 hours.
-
-Viewpoints:
-
-Approximately 30–60 minutes.
-
-Dining:
-
-Approximately 45–90 minutes.
-
-### Travel Buffers
-
-Travel time is accounted for between different locations.
-
-The system avoids scheduling attractions back-to-back with zero travel time.
-
-### Arrival Day
-
-The first day respects the user's arrival time.
-
-The typical flow is:
-
-Arrival
-↓
-Transfer
-↓
-Hotel check-in
-↓
-Refresh
-↓
-Evening activity
-↓
-Dinner
-
-### Departure Day
-
-The final day respects the user's departure time.
-
-Major sightseeing should finish sufficiently early to allow:
-
-- Hotel checkout
-- Packing
-- Transfer
-- Airport/station arrival
-
-## 11. Global Activity Uniqueness
-
-One of the important reliability features in RoamPulse is global activity deduplication.
-
-A place should not appear multiple times simply because the AI changed the wording.
-
-For example:
-
-"Visit Jakhoo Temple"
-
-and
-
-"Explore Jakhu Temple"
-
-should be recognized as the same location.
-
-Similarly:
-
-"Lunch at Cafe Simla Times"
-
-and
-
-"Dinner at Cafe Simla Times"
-
-should be recognized as the same restaurant.
-
-The canonical identity system considers:
-
-1. External place ID
-2. Geographic coordinates
-3. Canonical place name
-4. Embedded restaurant/venue name
-5. Normalized titles
-
-Action words such as:
-
-- Visit
-- Explore
-- Discover
-- See
-- Tour
-- Experience
-- Walk around
-
-are removed during normalization.
-
-Meal prefixes such as:
-
-- Lunch at
-- Dinner at
-- Breakfast at
-- Meal at
-- Dining at
-
-are also normalized.
-
-This prevents the AI from bypassing uniqueness rules by changing the wording.
-
-## 12. Budget Workflow
-
-RoamPulse provides a practical budget breakdown.
-
-The five primary categories are:
-
-### Accommodation
-
-Estimated or live hotel cost.
-
-### Activities
-
-Entry fees and activity-related expenses.
-
-### Food & Dining
-
-Estimated meal costs.
-
-### Transportation
-
-Local transport, transfers, and travel between locations.
-
-### Other
-
-Miscellaneous expenses.
-
-The application clearly distinguishes estimated accommodation pricing from live provider pricing.
-
-Examples:
-
-~₹14,000 estimated / stay
-
-or
-
-₹14,000 live / stay
-
-## 13. Map & Location Workflow
-
-Each verified place can contain:
+The system uses:
 
 - Latitude
 - Longitude
-- Address
-- Rating
-- Place identifier
+- Destination coordinates
+- Geographic distance
+- Destination-region validation
 
-These coordinates are used by the map.
+Places outside the reasonable destination area can be filtered out.
 
-RoamPulse also uses destination-aware map centering.
+### Duplicate Removal
 
-For example, if itinerary coordinates are temporarily unavailable, the map should center around the selected destination rather than an unrelated hardcoded city.
+The discovery pipeline performs deduplication so that the final itinerary does not repeatedly contain the same places or experiences.
 
-This prevents issues such as:
+### Multiple Fallback Layers
 
-User selects Shimla
+If one discovery provider fails, RoamPulse can continue using another source.
 
-but map opens in Jaipur.
+The fallback sequence includes:
 
-## 14. Regeneration Workflow
+1. Google Places
+2. Gemini research and verification
+3. Curated catalog
+4. OpenStreetMap / Overpass
+5. Geographic validation and deduplication
 
-When the user selects:
+### Timeout Protection
 
-Regenerate Itinerary
+External API calls have explicit timeouts to prevent serverless functions from hanging indefinitely.
 
-RoamPulse performs a clean regeneration.
+Configured timeout protection includes:
 
-The workflow is:
+- Gemini itinerary generation: 20 seconds
+- Gemini gateway: 20 seconds
+- Gemini discovery: 15 seconds
+- Google Places: 10 seconds
+- Overpass: 12 seconds
+- Open-Meteo geocoding: 8 seconds
+- Nominatim destination resolution: 8 seconds
+- Nominatim location geocoding: 6 seconds
+- Itinerary-item geocoding: 4 seconds
 
-Regenerate
-↓
-Remove previous generated itinerary items
-↓
-Reset previous-title restrictions
-↓
-Discover/use real place candidates
-↓
-Call Gemini
-↓
-Generate fresh itinerary
-↓
-Validate
-↓
-Deduplicate
-↓
-Repair missing dates
-↓
-Insert into Supabase
-↓
-Refresh UI
+### Serverless Performance Optimization
 
-The previous itinerary should not unnecessarily prevent Gemini from selecting valid real places again.
+The itinerary generation pipeline avoids unnecessary network calls.
 
-Each regenerated itinerary should still maintain global uniqueness internally.
+Previously, individual itinerary items could trigger additional geocoding requests. The optimized implementation instead reuses coordinates already resolved during the discovery stage.
 
-## 15. Fallback & Reliability
+This eliminates unnecessary N-per-item geocoding requests.
 
-Gemini is the primary itinerary planner.
+### Error Handling
 
-The fallback system is only intended for situations where Gemini cannot be used.
+The application handles external API failures without immediately terminating the entire itinerary-generation process.
 
-Possible fallback triggers include:
+Examples include:
 
-- Missing Gemini API key
-- Gemini API error
-- Network error
-- Invalid response
-- Failed structured response validation
+- API quota exhaustion
+- HTTP errors
+- API timeouts
+- Gemini failures
+- Geocoding failures
+- Missing place data
+- Empty discovery results
 
-Fallback generation should still attempt to:
+### Production Monitoring
 
-- Use real places
-- Cover every trip date
-- Avoid repeated activities
-- Produce practical schedules
-- Provide usable content
+The itinerary pipeline includes timing instrumentation to make production performance easier to diagnose.
 
-The UI and trip history should distinguish between:
+Important logs include:
 
-Gemini AI planner
+```text
+[RoamPulse][Places] discovery complete
+[RoamPulse][Gemini] HTTP 200
+[RoamPulse][Gemini] TIMEOUT
+[RoamPulse][Itinerary] COMPLETE
+```
 
-and
+These logs help identify slow or failing stages in the Vercel production environment.
 
-Starter template / Gemini unavailable
+## Technical Workflow
 
-This prevents the application from falsely claiming that an itinerary was generated by AI when it was actually generated by fallback logic.
+### 1. User Creates a Trip
 
-## 16. Technology Stack
+The user enters their trip information through the trip creation interface.
 
-### Frontend
+Example information includes:
 
-- React
-- TypeScript
-- Vite
-- React-based route architecture
-- Responsive UI
+- Destination
+- Start date
+- End date
+- Interests
+- Travel preferences
+- Desired experiences
 
-### Backend
+### 2. Destination Resolution
 
-- TypeScript
-- Server functions
-- Nitro / Cloudflare-compatible server build
-
-### AI
-
-- Google Gemini API
-- Gemini 2.0 Flash
-
-### Places
-
-- Google Places API
-
-### Database
-
-- Supabase
-- PostgreSQL
-
-### Maps
-
-- Leaflet
-- Real-world latitude/longitude coordinates
-
-### Validation
-
-- Zod
-
-### Development
-
-- ESLint
-- Prettier
-- TypeScript
-
-## 17. Project Architecture
-
-A simplified project structure:
-
-src/
-│
-├── components/
-│ ├── maps/
-│ │ └── TripMap.tsx
-│ │
-│ └── ...
-│
-├── lib/
-│ ├── itinerary.server.ts
-│ ├── domain.ts
-│ │
-│ ├── places/
-│ │ └── real-places.server.ts
-│ │
-│ ├── trips.functions.ts
-│ └── ...
-│
-├── routes/
-│ └── _authenticated/
-│ └── trips.$tripId.tsx
-│
-└── ...
+RoamPulse resolves the destination into geographic coordinates.
 
-## 18. Data Flow
+The system uses available geocoding services and applies timeout protection to prevent a slow geocoding provider from blocking the entire request.
 
-The core data flow is:
+### 3. City Discovery Pipeline
 
-Trip Input
-|
-v
-Trip Creation
-|
-v
-Google Places Discovery
-|
-v
-Real Place Candidate Dataset
-|
-v
-Gemini Prompt
-|
-v
-Gemini JSON Response
-|
-v
-JSON Extraction
-|
-v
-Zod Validation
-|
-v
-Real Place Matching
-|
-v
-Global Deduplication
-|
-v
-Date Coverage Validation
-|
-v
-Geographic Ordering
-|
-v
-Budget Calculation
-|
-v
-Supabase
-|
-v
-React UI
-|
-+----> Daily Itinerary
-|
-+----> Budget
-|
-+----> Map
+The application starts the bounded real-world place discovery process.
 
-## 19. Environment Variables
+The first stage performs a limited Google Places search.
 
-The application requires the appropriate API credentials to be configured.
+Instead of sending a large number of category queries, RoamPulse performs a small number of high-value searches covering:
 
-Example:
+- Attractions and landmarks
+- Restaurants and food
+- User-specific interests or hidden gems
 
-GEMINI_API_KEY=your_gemini_api_key
+### 4. Quota Detection
 
-Depending on the configured environment, Google Places and Supabase credentials may also be required.
+If Google Places responds with a quota-related error such as:
 
-Never commit API keys directly into the repository.
+```text
+429
+RESOURCE_EXHAUSTED
+```
 
-For local development, environment variables should be stored in the appropriate local environment file.
+RoamPulse marks Google Places as quota exhausted for the current request lifecycle.
 
-For Vercel production, configure the variables in:
+Further Google Places requests are skipped.
 
-Vercel Dashboard
-→ Project
-→ Settings
-→ Environment Variables
+### 5. Gemini Research
 
-## 20. Getting Started
+Gemini is used to discover additional relevant places and experiences that may not have been returned by the initial Places search.
 
-Clone the repository:
+Gemini discovery is also protected by a timeout.
 
-git clone <repository-url>
+### 6. Place Verification
 
-Move into the project:
+Gemini-discovered candidates are verified using a bounded number of Google Places requests.
 
-cd roam-pulse
+Verification is intentionally limited so that AI discovery cannot create an unbounded number of external API requests.
 
-Install dependencies:
+### 7. Curated Fallback
 
-npm install
+If external discovery sources do not provide enough usable results, RoamPulse falls back to its curated destination catalog.
 
-Create your environment configuration.
+This provides a reliable baseline even when external APIs are unavailable.
 
-Add the required API keys.
+### 8. OpenStreetMap / Overpass Fallback
 
-Then start the development server:
+The system can also query OpenStreetMap data through Overpass.
 
-npm run dev
+Overpass is used to find real geographic entities such as:
 
-## 21. Running the Project
+- Attractions
+- Tourism locations
+- Historic places
+- Amenities
+- Points of interest
 
-Development:
+This replaces the previous reliance on Nominatim search for POI discovery.
 
-npm run dev
+### 9. Geographic Validation
 
-Formatting:
+All discovered candidates are evaluated against the destination's geographic coordinates.
 
-npm run format
+Places that are too far from the destination can be rejected.
 
-Type checking:
+The system uses a proximity threshold to prevent unrelated places from appearing in an itinerary.
 
-npx tsc --noEmit
+### 10. Deduplication
 
-Linting:
+The candidate pool is normalized and deduplicated before being passed to the itinerary-generation stage.
 
-npm run lint
+### 11. AI Itinerary Generation
 
-Production build:
+The validated place pool and user requirements are passed to Gemini.
 
-npm run build
+Gemini generates the final structured itinerary based on:
 
-## 22. Production Deployment
-
-RoamPulse can be deployed using Vercel or another compatible hosting environment.
-
-Before deploying, make sure production environment variables are configured.
-
-Important:
-
-The local .env file is normally not committed to Git.
-
-Therefore, having a working Gemini key locally does not automatically mean the deployed application has access to Gemini.
-
-For Vercel:
-
-1. Open the Vercel project.
-2. Go to Settings.
-3. Open Environment Variables.
-4. Add GEMINI_API_KEY.
-5. Enable it for Production.
-6. Enable it for Preview if required.
-7. Redeploy the application.
-
-After deployment, verify that the production application is actually using Gemini rather than silently falling back.
-
-## 23. Example Itinerary
-
-Example: 4-Day Shimla Trip
-
-Day 1 — Arrival & Local Evening
-
-14:00 – 15:00
-Arrival in Shimla & Station/Airport Transfer
-
-15:00 – 16:00
-Hotel Check-in & Refresh
-
-16:30 – 18:00
-The Ridge & Shimla Mall Road
-
-19:30 – 20:30
-Dinner at a verified local restaurant
-
-Day 2 — Heritage & Culture
-
-09:00 – 10:30
-Jakhoo Temple & Hanuman Statue
-
-10:50 – 12:15
-Shimla State Museum
-
-12:30 – 13:30
-Lunch at a verified cafe
-
-14:00 – 16:00
-Christ Church Shimla
-
-19:30 – 20:30
-Dinner at a different verified restaurant
-
-Day 3 — History & Exploration
-
-09:30 – 11:30
-Viceregal Lodge / Rashtrapati Niwas
-
-12:30 – 13:30
-Lunch at another verified restaurant
-
-14:30 – 16:30
-Annandale Ground & Army Heritage Museum
-
-19:30 – 20:30
-Dinner at another unused restaurant
-
-Day 4 — Shopping & Departure
-
-09:30 – 10:30
-Lakkar Bazaar
-
-11:00 – 11:45
-Hotel Checkout & Packing
-
-12:30 onwards
-Transfer to departure point
-
-The exact locations and timings are dynamically generated based on the user's trip.
-
-## 24. Hackathon Demo Flow
-
-The recommended live demonstration flow is:
-
-### Step 1
-
-Open RoamPulse.
-
-### Step 2
-
-Create a new trip.
-
-Example:
-
-Destination:
-Shimla
-
-Duration:
-4 days
-
-Pace:
-Balanced
-
-Interests:
-Culture + Food + Nature
-
-### Step 3
-
-Generate the itinerary.
-
-Show that the application uses AI to create a personalized travel plan.
-
-### Step 4
-
-Demonstrate real places.
-
-Show:
-
-- Real-place indicators
-- Ratings
-- Addresses
-- Map locations
-
-### Step 5
-
-Demonstrate practical scheduling.
-
-Point out:
-
-- Arrival constraints
-- Meal windows
-- Travel buffers
-- Different activities on different days
-
-### Step 6
-
-Demonstrate budget.
-
-Show:
-
-- Accommodation
+- User preferences
+- Trip duration
+- Destination
+- Available places
+- Geographic relationships
 - Activities
-- Food & Dining
-- Transportation
-- Other
+- Dining
+- Experiences
 
-### Step 7
+### 12. Final Validation
 
-Demonstrate regeneration.
+The generated itinerary is processed again to ensure that places correspond to the discovered destination data and that valid geographic information is available.
 
-Click:
+The implementation reuses coordinates already present in the city candidate pools rather than making additional geocoding requests for every itinerary item.
 
-Regenerate Itinerary
+### 13. Final Response
 
-Show that a fresh itinerary is generated while maintaining:
+The validated itinerary is returned to the frontend and presented to the user as a structured travel plan.
 
-- Real places
-- Date coverage
-- Practical scheduling
-- No repeated locations
+## Performance & Reliability Architecture
 
-### Step 8
+RoamPulse was specifically optimized for serverless production environments.
 
-Show the map.
+The system uses several defensive mechanisms:
 
-Explain that activities use real coordinates and are geographically organized.
+- Bounded external API calls
+- Request timeouts
+- API quota detection
+- In-memory caching
+- Multiple fallback providers
+- Geographic validation
+- Deduplication
+- Reuse of previously resolved coordinates
+- Pipeline timing instrumentation
+- Graceful external-service failure handling
 
-## 25. Limitations
+This architecture prevents a single slow or unavailable API from unnecessarily blocking the complete itinerary-generation pipeline.
 
-RoamPulse is designed as a practical hackathon prototype rather than a complete commercial travel platform.
+## Future Integration
 
-Some limitations include:
+### Persistent Database
 
-### Live Hotel Rates
+Introduce a persistent database such as Supabase/PostgreSQL for:
 
-Live hotel prices depend on available provider integrations and API credentials.
+- User accounts
+- Saved trips
+- Saved itineraries
+- Favorite destinations
+- Travel history
+- Persistent place caching
 
-When live pricing is unavailable, the application uses clearly labeled estimated pricing.
+### Persistent Caching
 
-### Traffic
+Move the current in-memory cache to a persistent caching layer so that cached places can be reused across serverless function instances and deployments.
 
-Travel duration is based on geographic distance and routing data rather than guaranteed real-time traffic conditions.
+### User Authentication
 
-### Opening Hours
+Add authentication and personalized user profiles so users can save and manage their travel plans.
 
-Opening hours depend on the availability and accuracy of the external place provider.
+### Advanced Personalization
 
-### AI Limitations
+Improve itinerary personalization using:
 
-Although the system strongly constrains Gemini, AI output can still require validation.
+- Previous trips
+- Saved places
+- Favorite activities
+- Travel style
+- Budget preferences
+- Dietary preferences
+- Preferred trip pace
 
-This is why the application uses deterministic post-processing and validation rather than trusting raw AI output.
+### Live Travel Data
 
-## 26. Future Improvements
+Future integrations could provide:
 
-Potential future improvements include:
+- Weather forecasts
+- Flight information
+- Hotel availability
+- Restaurant availability
+- Local events
+- Traffic information
+- Attraction opening hours
 
-### Real-Time Traffic
+### Interactive Maps
 
-Integrate live traffic-aware routing.
+Add interactive maps showing:
 
-### Live Hotel Booking
+- Daily itinerary routes
+- Places to visit
+- Restaurants
+- Hotels
+- Attractions
+- Distance between activities
 
-Add hotel inventory and live booking providers.
+### Route Optimization
 
-### Live Restaurant Availability
-
-Allow users to reserve restaurants directly.
-
-### Weather-Aware Replanning
-
-Automatically modify outdoor activities based on weather.
-
-### Public Transport Integration
-
-Use real bus, metro, train, and transit schedules.
-
-### Collaborative Trips
-
-Allow multiple users to plan a trip together.
-
-### Smart Replanning
-
-If a location is closed or unavailable, automatically replace it with the best nearby alternative.
-
-### Cost Optimization
-
-Automatically optimize an itinerary based on the user's remaining budget.
+Introduce route optimization to arrange daily activities geographically and reduce unnecessary travel time.
 
 ### Multi-City Trips
 
-Support journeys such as:
+Expand the system to support complex multi-city journeys with:
 
-Delhi → Agra → Jaipur → Udaipur
+- Inter-city transportation
+- City-by-city itinerary generation
+- Automatic travel-time estimation
+- Optimized city sequencing
 
-## 27. Quality & Verification
+### Smarter AI Planning
 
-RoamPulse includes multiple validation layers.
+Future versions can use more advanced AI planning to dynamically balance:
 
-The project has been repeatedly checked using:
+- Activities
+- Travel time
+- Food
+- Rest
+- Budget
+- Opening hours
+- User preferences
 
-npm run format
+### Observability & Analytics
 
-npx tsc --noEmit
+Introduce dedicated monitoring and analytics for:
 
-npm run lint
+- API latency
+- API failure rates
+- Cache hit rates
+- Generation duration
+- Quota consumption
+- User behavior
+- Itinerary quality
 
-npm run build
+### Additional Data Providers
 
-The expected quality checks are:
+The architecture can be extended with additional travel-data providers to improve resilience and coverage without depending on a single external service.
 
-- Formatting passes
-- TypeScript passes
-- ESLint passes
-- Production build succeeds
+## Project Status
 
-The application also includes runtime logging for itinerary generation.
+RoamPulse currently includes a production-oriented itinerary generation pipeline with bounded place discovery, API quota protection, caching, timeout handling, geographic validation, fallback discovery, and AI-powered itinerary generation.
 
-Example:
-
-[RoamPulse] GENERATION START
-
-[RoamPulse] destination: Shimla
-
-[RoamPulse] expected day count: 4
-
-[RoamPulse] Gemini API key present: true
-
-[RoamPulse] Gemini model: google/gemini-2.0-flash
-
-[RoamPulse] Gemini HTTP status: 200
-
-[RoamPulse] Gemini generated item count: 14
-
-[RoamPulse] validation item count: 14
-
-[RoamPulse] final item count: 14
-
-[RoamPulse] Items inserted into database: 14
-
-[RoamPulse] fallback used: false
-
-[RoamPulse] GENERATION COMPLETE
-
-These logs make it easier to determine whether an itinerary was generated by Gemini or by the fallback system.
-
-## 28. Project Goal
-
-The core idea behind RoamPulse is simple:
-
-AI should not just generate a travel plan that sounds good.
-
-It should generate a travel plan that makes sense.
-
-RoamPulse combines:
-
-AI intelligence +
-Real-world place data +
-Structured validation +
-Geographic reasoning +
-Budget awareness +
-Schedule constraints +
-Global activity uniqueness
-
-to create practical travel itineraries that are closer to what a real traveler would actually use.
-
-The project demonstrates how generative AI can be combined with deterministic software rules and real-world APIs to build a more reliable AI-powered application.
-
-Built for hackathons, designed with real-world practicality in mind.
-
-## License
-
-This project is intended as a hackathon project and demonstration of AI-powered travel planning.
+The application has been type-checked and production-built successfully, and is deployed on Vercel for final production testing.
