@@ -15,7 +15,6 @@ import { getAccommodationPricing } from "./hotels/hotel-pricing.server";
 import {
   isWithinDestinationRegion,
   isValidCoordinates,
-  resolveDestinationCoordinates,
 } from "./maps/geocoding";
 
 const MODEL = "google/gemini-3.5-flash";
@@ -723,38 +722,26 @@ export async function generateItinerary(
 
   let generationState: GenerationState = "RESEARCHING";
 
-  console.log(`[RoamPulse] GENERATION START | generationId: ${genId}`);
-  console.log(`[RoamPulse] destination: ${input.destination}`);
-  console.log(`[RoamPulse] trip start date: ${input.startDate}`);
-  console.log(`[RoamPulse] trip end date: ${input.endDate}`);
-  console.log(`[RoamPulse] expected day count: ${days.length}`);
-  console.log(`[RoamPulse] Gemini API key present: ${isGeminiConfigured}`);
-  console.log(`[RoamPulse] Gemini model: ${MODEL}`);
-  console.log(`[RoamPulse] GENERATION STATE: ${generationState}`);
+  const pipelineStart = Date.now();
+  console.log(`[RoamPulse][Itinerary] GENERATION START | id: ${genId} | dest: ${input.destination} | days: ${days.length} | gemini: ${isGeminiConfigured} | model: ${MODEL}`);
 
   // Discover real-world place candidate pools for each destination city
+  const discoveryStart = Date.now();
   const cityPools: CityCandidatePool[] = await fetchMultiCityRealWorldPlaces(
     input.destination,
     input.extraDestinations,
     input.interests,
   );
+  const discoveryMs = Date.now() - discoveryStart;
 
   generationState = "PLACES_FOUND";
-  console.log(`[RoamPulse] GENERATION STATE: ${generationState}`);
 
   const allVerifiedPlaces: RealPlace[] = cityPools.flatMap((p) => p.candidates);
   console.log(
-    `[REAL PLACES] Discovered ${allVerifiedPlaces.length} total verified places across ${cityPools.length} cities`,
+    `[RoamPulse][Places] discovery complete | duration: ${discoveryMs}ms | totalPlaces: ${allVerifiedPlaces.length} | cities: ${cityPools.map((p) => `${p.city}(${p.candidates.length})`).join(", ")}`,
   );
-  // Per-city breakdown
-  for (const pool of cityPools) {
-    console.log(
-      `[RoamPulse] CITY POOL | city: ${pool.city} | candidates: ${pool.candidates.length}`,
-    );
-  }
 
   generationState = "PLACES_VERIFIED";
-  console.log(`[RoamPulse] GENERATION STATE: ${generationState}`);
 
 
   const accommodationPricing = await getAccommodationPricing(
@@ -864,15 +851,15 @@ export async function generateItinerary(
 
   const maxAttempts = 2;
   generationState = "PLANNING";
-  console.log(`[RoamPulse] GENERATION STATE: ${generationState}`);
-  console.log(`[RoamPulse] GEMINI PLANNING START`);
+  const geminiStart = Date.now();
+  console.log(`[RoamPulse][Gemini] planning start | elapsed: ${geminiStart - pipelineStart}ms`);
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
       let rawJsonText: string | null = null;
 
       if (isGeminiConfigured) {
-        console.log(`[RoamPulse] Gemini request started | attempt: ${attempt}`);
+        console.log(`[RoamPulse][Gemini] request started | attempt: ${attempt}`);
         const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${geminiApiKey}`;
         const systemInstructionText = [
           "You are RoamPulse's expert local travel planner. Your ONLY job is to SCHEDULE the verified places provided to you.",
@@ -883,6 +870,9 @@ export async function generateItinerary(
           "For structural logistics only (airport transfer, hotel check-in, hotel checkout, intercity train/flight), place_id should be null and category should be 'transit' or 'accommodation'.",
           "If there are not enough candidates to fill all day slots, leave slots empty rather than inventing fictional places.",
         ].join(" ");
+
+        const geminiController = new AbortController();
+        const geminiTimeout = setTimeout(() => geminiController.abort(), 20000);
 
         const res = await fetch(geminiUrl, {
           method: "POST",
@@ -896,10 +886,13 @@ export async function generateItinerary(
               responseMimeType: "application/json",
             },
           }),
+          signal: geminiController.signal,
         });
 
+        clearTimeout(geminiTimeout);
 
-        console.log(`[RoamPulse] Gemini HTTP status: ${res.status}`);
+
+        console.log(`[RoamPulse][Gemini] HTTP ${res.status} | duration: ${Date.now() - geminiStart}ms`);
 
         if (res.ok) {
           const geminiData = (await res.json()) as {
@@ -915,7 +908,10 @@ export async function generateItinerary(
       }
 
       if (!rawJsonText && isGatewayConfigured) {
-        console.log(`[RoamPulse] Gemini Gateway request started | attempt: ${attempt}`);
+        console.log(`[RoamPulse][Gemini] gateway request started | attempt: ${attempt}`);
+        const gwController = new AbortController();
+        const gwTimeout = setTimeout(() => gwController.abort(), 20000);
+
         const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
           method: "POST",
           headers: { authorization: `Bearer ${gatewayApiKey}`, "content-type": "application/json" },
@@ -976,7 +972,10 @@ export async function generateItinerary(
             ],
             tool_choice: { type: "function", function: { name: "emit_itinerary" } },
           }),
+          signal: gwController.signal,
         });
+
+        clearTimeout(gwTimeout);
 
         if (res.ok) {
           const json = (await res.json()) as {
@@ -1035,6 +1034,8 @@ export async function generateItinerary(
         const candidatePoolForDate = assignedCityObj
           ? assignedCityObj.pool.candidates
           : allVerifiedPlaces;
+        // Use pre-resolved city coordinates (cached) to avoid N geocoding calls
+        const itemCityName = assignedCityObj?.city || input.destination;
 
         let matchedPlace: RealPlace | undefined;
 
@@ -1056,18 +1057,19 @@ export async function generateItinerary(
           let finalLat = matchedPlace.latitude ?? item.latitude ?? null;
           let finalLon = matchedPlace.longitude ?? item.longitude ?? null;
 
-          const canonicalCity = await resolveDestinationCoordinates(
-            matchedPlace.destinationCity || input.destination,
-          );
+          // Use pre-resolved city pool coordinates instead of per-item geocoding
+          const poolForItem = cityPools.find((p) => p.city === (matchedPlace.destinationCity || itemCityName));
+          const cityLat = poolForItem?.latitude;
+          const cityLon = poolForItem?.longitude;
           if (
-            canonicalCity &&
-            isValidCoordinates(canonicalCity.latitude, canonicalCity.longitude) &&
+            cityLat && cityLon &&
+            isValidCoordinates(cityLat, cityLon) &&
             isValidCoordinates(finalLat, finalLon)
           ) {
             if (
               !isWithinDestinationRegion(
-                canonicalCity.latitude,
-                canonicalCity.longitude,
+                cityLat,
+                cityLon,
                 finalLat,
                 finalLon,
                 150,
@@ -1146,9 +1148,8 @@ export async function generateItinerary(
 
       generationState = isDegraded ? "DEGRADED" : "COMPLETE";
 
-      console.log(`[RoamPulse] FINAL ITEM COUNT: ${finalItems.length}`);
-      console.log(`[RoamPulse] GENERATION STATE: ${generationState}`);
-      console.log(`[RoamPulse] GENERATION COMPLETE | generationId: ${genId}`);
+      const totalMs = Date.now() - pipelineStart;
+      console.log(`[RoamPulse][Itinerary] COMPLETE | id: ${genId} | items: ${finalItems.length} | state: ${generationState} | duration: ${totalMs}ms | discovery: ${discoveryMs}ms | gemini: ${Date.now() - geminiStart}ms`);
 
       return {
         items: finalItems,
@@ -1159,7 +1160,8 @@ export async function generateItinerary(
       };
     } catch (err: unknown) {
       const errMsg = err instanceof Error ? err.message : String(err);
-      console.warn(`[RoamPulse] Gemini itinerary attempt ${attempt} failed: ${errMsg}`);
+      const isAbort = err instanceof Error && err.name === "AbortError";
+      console.warn(`[RoamPulse][Gemini] attempt ${attempt} failed | ${isAbort ? "TIMEOUT" : "ERROR"}: ${errMsg} | elapsed: ${Date.now() - pipelineStart}ms`);
       if (attempt === maxAttempts) {
         const fallbackItems = fallbackItinerary(input, {
           ...options,

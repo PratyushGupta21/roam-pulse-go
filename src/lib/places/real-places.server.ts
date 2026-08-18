@@ -1199,6 +1199,9 @@ async function discoverPlacesViaGeminiSearch(
     // Grounded responses come back as text with citations — forcing JSON MIME breaks it silently.
     const prompt = `You are a travel expert. List exactly 15 of the most famous, real tourist attractions, historic landmarks, museums, parks, viewpoints, and notable restaurants in ${city}. List ONLY the official place names, one per line, prefixed with a number and period (e.g. "1. Louvre Museum"). Do not add descriptions.`;
 
+    const geminiController = new AbortController();
+    const geminiTimeout = setTimeout(() => geminiController.abort(), 15000);
+
     const res = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -1207,7 +1210,10 @@ async function discoverPlacesViaGeminiSearch(
         tools: [{ googleSearch: {} }],
         // NOTE: no generationConfig.responseMimeType here — incompatible with grounding
       }),
+      signal: geminiController.signal,
     });
+
+    clearTimeout(geminiTimeout);
 
     if (!res.ok) {
       const errText = await res.text().catch(() => "");

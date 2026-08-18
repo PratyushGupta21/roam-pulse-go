@@ -73,7 +73,10 @@ export async function resolveDestinationCoordinates(
     const omUrl = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(
       inputNorm,
     )}&count=1&language=en&format=json`;
-    const omRes = await fetch(omUrl);
+    const omController = new AbortController();
+    const omTimeout = setTimeout(() => omController.abort(), 8000);
+    const omRes = await fetch(omUrl, { signal: omController.signal });
+    clearTimeout(omTimeout);
     if (omRes.ok) {
       const omJson = (await omRes.json()) as {
         results?: Array<{
@@ -113,13 +116,19 @@ export async function resolveDestinationCoordinates(
       inputNorm,
     )}&limit=1&addressdetails=1`;
 
+    const nomController = new AbortController();
+    const nomTimeout = setTimeout(() => nomController.abort(), 8000);
+
     const res = await fetch(url, {
       headers: {
         "User-Agent": "RoamPulseTravelApp/1.0 (roampulse@example.com)",
         Accept: "application/json",
         "Accept-Language": "en",
       },
+      signal: nomController.signal,
     });
+
+    clearTimeout(nomTimeout);
 
     if (res.status === 403) {
       console.warn(
@@ -210,13 +219,17 @@ export async function geocodeLocation(
       fullQuery,
     )}&limit=1`;
 
+    const gc1 = new AbortController();
+    const gc1t = setTimeout(() => gc1.abort(), 6000);
     const res = await fetch(url, {
       headers: {
         "User-Agent": "RoamPulseTravelApp/1.0 (roampulse@example.com)",
         Accept: "application/json",
         "Accept-Language": "en",
       },
+      signal: gc1.signal,
     });
+    clearTimeout(gc1t);
 
     if (res.status === 403) {
       console.warn(
@@ -249,13 +262,17 @@ export async function geocodeLocation(
         destinationContext,
       )}&limit=1`;
 
+      const gc2 = new AbortController();
+      const gc2t = setTimeout(() => gc2.abort(), 6000);
       const destRes = await fetch(destUrl, {
         headers: {
           "User-Agent": "RoamPulseTravelApp/1.0 (roampulse@example.com)",
           Accept: "application/json",
           "Accept-Language": "en",
         },
+        signal: gc2.signal,
       });
+      clearTimeout(gc2t);
 
       if (destRes.status === 403) {
         geocodeCache.set(cacheKey, null);
