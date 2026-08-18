@@ -160,6 +160,40 @@ export function TripMap({ items = [], selectedItemId, onSelectItem, destination 
   const [routeInfo, setRouteInfo] = useState<RouteResult | null>(null);
   const [triggerFit, setTriggerFit] = useState(0);
 
+  const [destCoords, setDestCoords] = useState<[number, number] | null>(null);
+
+  // Dynamic client-side geocoding of trip destination for initial map camera positioning
+  useEffect(() => {
+    if (!destination) return;
+    let isCancelled = false;
+
+    async function fetchDestCenter() {
+      try {
+        const norm = destination!.trim();
+        const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(norm)}&limit=1`;
+        const res = await fetch(url, { headers: { "User-Agent": "RoamPulse/1.0" } });
+        if (res.ok) {
+          const data = (await res.json()) as Array<{ lat: string; lon: string }>;
+          if (data && data.length > 0 && data[0]?.lat && data[0]?.lon) {
+            const lat = parseFloat(data[0].lat);
+            const lon = parseFloat(data[0].lon);
+            if (!isNaN(lat) && !isNaN(lon) && !isCancelled) {
+              setDestCoords([lat, lon]);
+              return;
+            }
+          }
+        }
+      } catch {
+        // ignore geocoding errors
+      }
+    }
+
+    void fetchDestCenter();
+    return () => {
+      isCancelled = true;
+    };
+  }, [destination]);
+
   // Filter active items (excluding historical "replaced" activities)
   const activeItems = useMemo(() => {
     return items.filter((item) => item.status !== "replaced");
@@ -181,6 +215,12 @@ export function TripMap({ items = [], selectedItemId, onSelectItem, destination 
       const hasCoords =
         typeof item.latitude === "number" &&
         typeof item.longitude === "number" &&
+        !isNaN(item.latitude) &&
+        !isNaN(item.longitude) &&
+        item.latitude >= -90 &&
+        item.latitude <= 90 &&
+        item.longitude >= -180 &&
+        item.longitude <= 180 &&
         (item.latitude !== 0 || item.longitude !== 0);
 
       if (!hasCoords) return false;
@@ -220,15 +260,24 @@ export function TripMap({ items = [], selectedItemId, onSelectItem, destination 
     };
   }, [mappedItems]);
 
-  // Default initial center (first mapped coordinate or destination lookup)
+  // Default initial center (first mapped coordinate or dynamic destination lookup)
   const initialCenter: [number, number] = useMemo(() => {
-    if (mappedItems.length > 0 && mappedItems[0]?.latitude && mappedItems[0]?.longitude) {
+    if (
+      mappedItems.length > 0 &&
+      typeof mappedItems[0]?.latitude === "number" &&
+      typeof mappedItems[0]?.longitude === "number" &&
+      mappedItems[0].latitude >= -90 &&
+      mappedItems[0].latitude <= 90 &&
+      mappedItems[0].longitude >= -180 &&
+      mappedItems[0].longitude <= 180
+    ) {
       return [mappedItems[0].latitude, mappedItems[0].longitude];
     }
-    const cityCoords = getCityCoordinates(destination);
-    if (cityCoords) return cityCoords;
-    return [31.1048, 77.1734]; // Default destination center
-  }, [mappedItems, destination]);
+    if (destCoords) return destCoords;
+    const staticCoords = getCityCoordinates(destination);
+    if (staticCoords) return staticCoords;
+    return [0, 0];
+  }, [mappedItems, destCoords, destination]);
 
   return (
     <div className="flex flex-col rounded-2xl border border-border bg-card shadow-panel overflow-hidden space-y-3">

@@ -9,10 +9,45 @@ export interface HourlyForecast {
   wind_speed_10m: number[];
 }
 
+export interface CurrentWeather {
+  tempC: number;
+  apparentTempC: number;
+  conditionText: string;
+  conditionIcon: string;
+  precipMm: number;
+  precipProbability: number;
+  windSpeedKmH: number;
+  humidityPct: number;
+}
+
+export interface DailyForecastDay {
+  date: string;
+  tempMaxC: number;
+  tempMinC: number;
+  precipProbabilityMax: number;
+  conditionText: string;
+  conditionIcon: string;
+}
+
 export interface OpenMeteoResponse {
   latitude: number;
   longitude: number;
   timezone: string;
+  current?: {
+    temperature_2m?: number;
+    apparent_temperature?: number;
+    precipitation?: number;
+    weather_code?: number;
+    wind_speed_10m?: number;
+    relative_humidity_2m?: number;
+  };
+  daily?: {
+    time?: string[];
+    temperature_2m_max?: number[];
+    temperature_2m_min?: number[];
+    precipitation_probability_max?: (number | null)[];
+    weather_code?: number[];
+  };
   hourly?: HourlyForecast;
 }
 
@@ -40,6 +75,8 @@ export interface ForecastSummary {
   latitude: number;
   longitude: number;
   timezone: string;
+  currentWeather?: CurrentWeather | undefined;
+  dailyForecast?: DailyForecastDay[] | undefined;
   evaluations: ActivityWeatherEvaluation[];
   overallStatus: "ok" | "risk_detected" | "unavailable";
   highRiskCount: number;
@@ -108,7 +145,7 @@ export function formatWmoWeatherCode(code: number): { label: string; icon: strin
 
 /**
  * Server-side Open-Meteo forecast client.
- * Free keyless API fetching hourly weather metrics.
+ * Free keyless API fetching current, daily, and hourly weather metrics.
  */
 export async function fetchOpenMeteoForecast({
   latitude,
@@ -118,10 +155,10 @@ export async function fetchOpenMeteoForecast({
 }: {
   latitude: number;
   longitude: number;
-  startDate: string;
-  endDate: string;
+  startDate?: string | undefined;
+  endDate?: string | undefined;
 }): Promise<OpenMeteoResponse | null> {
-  const cacheKey = `${latitude.toFixed(3)}_${longitude.toFixed(3)}_${startDate}_${endDate}`;
+  const cacheKey = `${latitude.toFixed(3)}_${longitude.toFixed(3)}_${startDate || "current"}_${endDate || "current"}`;
   const now = Date.now();
 
   const cached = weatherCache.get(cacheKey);
@@ -133,21 +170,42 @@ export async function fetchOpenMeteoForecast({
   console.log(`[Weather] fetching forecast from Open-Meteo for ${cacheKey}`);
 
   try {
-    const params = new URLSearchParams({
-      latitude: latitude.toString(),
-      longitude: longitude.toString(),
-      start_date: startDate,
-      end_date: endDate,
-      hourly: "temperature_2m,precipitation_probability,precipitation,weather_code,wind_speed_10m",
-      timezone: "auto",
-    });
+    const buildParams = (withDates: boolean) => {
+      const p = new URLSearchParams({
+        latitude: latitude.toString(),
+        longitude: longitude.toString(),
+        current:
+          "temperature_2m,apparent_temperature,precipitation,weather_code,wind_speed_10m,relative_humidity_2m",
+        daily: "temperature_2m_max,temperature_2m_min,precipitation_probability_max,weather_code",
+        hourly:
+          "temperature_2m,precipitation_probability,precipitation,weather_code,wind_speed_10m",
+        timezone: "auto",
+      });
+      if (withDates && startDate && endDate) {
+        p.set("start_date", startDate);
+        p.set("end_date", endDate);
+      }
+      return p;
+    };
 
-    const url = `https://api.open-meteo.com/v1/forecast?${params.toString()}`;
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 5000);
+    let url = `https://api.open-meteo.com/v1/forecast?${buildParams(true).toString()}`;
+    let controller = new AbortController();
+    let timeoutId = setTimeout(() => controller.abort(), 5000);
 
-    const res = await fetch(url, { signal: controller.signal });
+    let res = await fetch(url, { signal: controller.signal });
     clearTimeout(timeoutId);
+
+    // If date range caused HTTP 400 (out of 16-day forecast range), retry without strict dates
+    if (!res.ok && startDate && endDate) {
+      console.warn(
+        `[Weather] Primary date range query HTTP ${res.status}, retrying default forecast`,
+      );
+      url = `https://api.open-meteo.com/v1/forecast?${buildParams(false).toString()}`;
+      controller = new AbortController();
+      timeoutId = setTimeout(() => controller.abort(), 5000);
+      res = await fetch(url, { signal: controller.signal });
+      clearTimeout(timeoutId);
+    }
 
     if (!res.ok) {
       console.warn(`[Weather] API unavailable (HTTP ${res.status})`);

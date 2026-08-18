@@ -3,11 +3,18 @@ import { z } from "zod";
 
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import type { Json } from "@/integrations/supabase/types";
-import { geocodeLocation } from "@/lib/maps/geocoding";
+import {
+  isWithinDestinationRegion,
+  isValidCoordinates,
+  resolveDestinationCoordinates,
+} from "@/lib/maps/geocoding";
 import { buildRecovery, type EngineItem } from "@/lib/recovery.server";
 import {
   evaluateActivityWeather,
   fetchOpenMeteoForecast,
+  formatWmoWeatherCode,
+  type CurrentWeather,
+  type DailyForecastDay,
   type ForecastSummary,
 } from "./weather.server";
 
@@ -35,6 +42,9 @@ export const checkTripWeather = createServerFn({ method: "POST" })
 
     if (!trip) throw new Error("Trip not found or unauthorized.");
 
+    // Resolve destination coordinates dynamically (never use hardcoded fallback coordinates)
+    const canonicalDest = await resolveDestinationCoordinates(trip.destination);
+
     // Load active itinerary items (excluding replaced)
     const { data: items } = await supabase
       .from("itinerary_items")
@@ -46,50 +56,57 @@ export const checkTripWeather = createServerFn({ method: "POST" })
       .order("day_date")
       .order("start_time");
 
-    if (!items || items.length === 0) {
+    let lat: number | null = canonicalDest?.latitude ?? null;
+    let lon: number | null = canonicalDest?.longitude ?? null;
+
+    // If trip items have valid coordinates near destination, prefer them
+    if (items && items.length > 0) {
+      for (const item of items) {
+        if (
+          isValidCoordinates(item.latitude, item.longitude) &&
+          (!canonicalDest ||
+            isWithinDestinationRegion(
+              canonicalDest.latitude,
+              canonicalDest.longitude,
+              item.latitude,
+              item.longitude,
+              150,
+            ))
+        ) {
+          lat = item.latitude;
+          lon = item.longitude;
+          break;
+        }
+      }
+    }
+
+    if (!isValidCoordinates(lat, lon)) {
+      console.warn(
+        `[RoamPulse] WEATHER REQUEST WARNING: Unable to resolve valid coordinates for ${trip.destination}`,
+      );
       return {
         destination: trip.destination,
         latitude: 0,
         longitude: 0,
         timezone: "auto",
         evaluations: [],
-        overallStatus: "ok",
+        overallStatus: "unavailable",
         highRiskCount: 0,
-        summaryText: "No itinerary activities to evaluate.",
+        summaryText: `Weather unavailable for ${trip.destination}`,
         checkedAt: new Date().toISOString(),
       } satisfies ForecastSummary;
     }
 
-    // Resolve coordinates from first valid item or trip destination
-    let lat: number | null = null;
-    let lon: number | null = null;
+    const finalLat = lat!;
+    const finalLon = lon!;
 
-    for (const item of items) {
-      if (
-        typeof item.latitude === "number" &&
-        typeof item.longitude === "number" &&
-        (item.latitude !== 0 || item.longitude !== 0)
-      ) {
-        lat = item.latitude;
-        lon = item.longitude;
-        break;
-      }
-    }
+    console.log(`[RoamPulse] WEATHER REQUEST`);
+    console.log(`[RoamPulse] destination: ${trip.destination}`);
+    console.log(`[RoamPulse] weather coordinates: ${finalLat.toFixed(4)}, ${finalLon.toFixed(4)}`);
 
-    if (lat === null || lon === null) {
-      const coords = await geocodeLocation(trip.destination);
-      if (coords) {
-        lat = coords.latitude;
-        lon = coords.longitude;
-      }
-    }
-
-    // Fallback coordinates if geocoding fails (e.g. Jaipur)
-    const finalLat = lat ?? 26.9124;
-    const finalLon = lon ?? 75.7873;
-
-    // Calculate start_date and end_date range from itinerary items
-    const days = Array.from(new Set(items.map((i) => i.day_date))).sort();
+    // Calculate start_date and end_date range from itinerary items or trip
+    const activeItems = items || [];
+    const days = Array.from(new Set(activeItems.map((i) => i.day_date))).sort();
     const startDate = days[0] || trip.start_date;
     const endDate = days[days.length - 1] || trip.end_date || startDate;
 
@@ -101,6 +118,10 @@ export const checkTripWeather = createServerFn({ method: "POST" })
       endDate,
     });
 
+    console.log(
+      `[RoamPulse] weather response status: ${forecast ? "success (HTTP 200)" : "unavailable"}`,
+    );
+
     if (!forecast) {
       console.warn(`[Weather] Open-Meteo API unavailable for trip ${data.tripId}`);
       return {
@@ -111,13 +132,49 @@ export const checkTripWeather = createServerFn({ method: "POST" })
         evaluations: [],
         overallStatus: "unavailable",
         highRiskCount: 0,
-        summaryText: "Weather forecast data temporarily unavailable.",
+        summaryText: `Weather unavailable for ${trip.destination}`,
         checkedAt: new Date().toISOString(),
       } satisfies ForecastSummary;
     }
 
+    // Extract current weather summary metrics
+    let currentWeather: CurrentWeather | undefined;
+    if (forecast.current) {
+      const code = forecast.current.weather_code ?? 0;
+      const { label: conditionText, icon: conditionIcon } = formatWmoWeatherCode(code);
+      currentWeather = {
+        tempC: Math.round(forecast.current.temperature_2m ?? 20),
+        apparentTempC: Math.round(
+          forecast.current.apparent_temperature ?? forecast.current.temperature_2m ?? 20,
+        ),
+        conditionText,
+        conditionIcon,
+        precipMm: forecast.current.precipitation ?? 0,
+        precipProbability: forecast.hourly?.precipitation_probability?.[0] ?? 0,
+        windSpeedKmH: Math.round(forecast.current.wind_speed_10m ?? 0),
+        humidityPct: forecast.current.relative_humidity_2m ?? 50,
+      };
+    }
+
+    // Extract daily forecast overview
+    let dailyForecast: DailyForecastDay[] | undefined;
+    if (forecast.daily && forecast.daily.time) {
+      dailyForecast = forecast.daily.time.slice(0, 7).map((date, i) => {
+        const code = forecast.daily?.weather_code?.[i] ?? 0;
+        const { label: conditionText, icon: conditionIcon } = formatWmoWeatherCode(code);
+        return {
+          date,
+          tempMaxC: Math.round(forecast.daily?.temperature_2m_max?.[i] ?? 25),
+          tempMinC: Math.round(forecast.daily?.temperature_2m_min?.[i] ?? 15),
+          precipProbabilityMax: forecast.daily?.precipitation_probability_max?.[i] ?? 0,
+          conditionText,
+          conditionIcon,
+        };
+      });
+    }
+
     // Evaluate each itinerary activity against weather forecast
-    const evaluations = items.map((item) => evaluateActivityWeather(item, forecast));
+    const evaluations = activeItems.map((item) => evaluateActivityWeather(item, forecast));
     const highRisks = evaluations.filter((ev) => ev.riskLevel === "high");
 
     let createdDisruptionsCount = 0;
@@ -125,12 +182,11 @@ export const checkTripWeather = createServerFn({ method: "POST" })
 
     // Connect new high-risk weather activities to existing Disruption & Recovery Engine
     for (const riskItem of highRisks) {
-      // Respect locked and already affected activities
       if (riskItem.is_locked || riskItem.status === "at_risk") {
         continue;
       }
 
-      const affectedDbItem = items.find((i) => i.id === riskItem.itemId);
+      const affectedDbItem = activeItems.find((i) => i.id === riskItem.itemId);
       if (!affectedDbItem) continue;
 
       // 1. Mark item status = "at_risk"
@@ -195,7 +251,6 @@ export const checkTripWeather = createServerFn({ method: "POST" })
             status: "pending",
           });
 
-          // 4. Create Notification and History entry
           await supabase.from("notifications").insert({
             user_id: userId,
             trip_id: data.tripId,
@@ -230,6 +285,8 @@ export const checkTripWeather = createServerFn({ method: "POST" })
       latitude: finalLat,
       longitude: finalLon,
       timezone: forecast.timezone || "auto",
+      currentWeather,
+      dailyForecast,
       evaluations,
       overallStatus,
       highRiskCount: highRisks.length,

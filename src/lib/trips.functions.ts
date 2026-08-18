@@ -13,7 +13,11 @@ import {
   type TripInput,
 } from "./domain";
 import { generateItinerary, generateUniquenessKey, normalizeTitle } from "./itinerary.server";
-import { geocodeItineraryItems } from "@/lib/maps/geocoding";
+import {
+  geocodeItineraryItems,
+  isValidCoordinates,
+  resolveDestinationCoordinates,
+} from "@/lib/maps/geocoding";
 import { fetchPriceOffers, fetchWeather, notifyN8n, providerMode } from "./providers.server";
 
 export const createTrip = createServerFn({ method: "POST" })
@@ -410,8 +414,16 @@ export const loadTripProvidersData = createServerFn({ method: "GET" })
       .limit(1)
       .maybeSingle();
 
-    const lat = anchor?.latitude ?? 35.6762;
-    const lon = anchor?.longitude ?? 139.6503;
+    const canonicalDest = await resolveDestinationCoordinates(trip.destination as string);
+    const lat =
+      anchor?.latitude && isValidCoordinates(anchor.latitude, anchor.longitude)
+        ? anchor.latitude
+        : (canonicalDest?.latitude ?? 0);
+    const lon =
+      anchor?.longitude && isValidCoordinates(anchor.latitude, anchor.longitude)
+        ? anchor.longitude
+        : (canonicalDest?.longitude ?? 0);
+
     const weather = await fetchWeather(lat, lon, 7);
     const prices = await fetchPriceOffers(trip.destination as string, trip.currency as string);
 

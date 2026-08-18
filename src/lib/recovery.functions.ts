@@ -6,6 +6,7 @@ import type { Json } from "@/integrations/supabase/types";
 import { buildRecovery, type EngineItem } from "./recovery.server";
 import { addMinutes } from "./format";
 import { notifyN8n } from "./providers.server";
+import { resolveDestinationCoordinates } from "@/lib/maps/geocoding";
 
 export const triggerDisruption = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -23,7 +24,9 @@ export const triggerDisruption = createServerFn({ method: "POST" })
 
     const { data: trip } = await supabase
       .from("trips")
-      .select("id, name, currency, interests, recovery_mode, automation_settings, start_date")
+      .select(
+        "id, name, destination, currency, interests, recovery_mode, automation_settings, start_date",
+      )
       .eq("id", data.tripId)
       .maybeSingle();
     if (!trip) throw new Error("Trip not found.");
@@ -72,6 +75,9 @@ export const triggerDisruption = createServerFn({ method: "POST" })
     }
 
     const settings = (trip.automation_settings ?? {}) as { maxExtraSpend?: number };
+    const canonicalDest = await resolveDestinationCoordinates(trip.destination as string);
+    const anchorItem = dayItems.find((i) => i.latitude !== null && i.longitude !== null);
+
     const { affected, payload } = buildRecovery(dayItems, {
       type: data.type,
       minutesLost: data.minutes,
@@ -80,8 +86,8 @@ export const triggerDisruption = createServerFn({ method: "POST" })
       currency: trip.currency as string,
       maxExtraSpend: settings.maxExtraSpend ?? 3000,
       recoveryMode: (trip.recovery_mode as "manual" | "assisted" | "autonomous") ?? "assisted",
-      anchorLat: dayItems.find((i) => i.latitude !== null)?.latitude ?? 35.6762,
-      anchorLon: dayItems.find((i) => i.longitude !== null)?.longitude ?? 139.6503,
+      anchorLat: anchorItem?.latitude ?? canonicalDest?.latitude ?? 0,
+      anchorLon: anchorItem?.longitude ?? canonicalDest?.longitude ?? 0,
       rainProbability: 82,
     });
 

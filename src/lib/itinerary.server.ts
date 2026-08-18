@@ -2,6 +2,11 @@ import { itineraryResponseSchema, type GeneratedItem, type TripInput } from "./d
 import { addMinutes, formatDateStr, minutesOf, parseDateParts } from "./format";
 import { fetchRealWorldPlaces, type RealPlace } from "./places/real-places.server";
 import { getAccommodationPricing } from "./hotels/hotel-pricing.server";
+import {
+  isWithinDestinationRegion,
+  isValidCoordinates,
+  resolveDestinationCoordinates,
+} from "@/lib/maps/geocoding";
 
 const MODEL = "google/gemini-2.0-flash";
 
@@ -555,53 +560,37 @@ export function guaranteeAllDatesPresent(
         });
       });
     } else {
-      const uniqueTemplates = [
+      // Legitimate structural / neighborhood walking activities when no unused verified real places exist
+      const structuralTemplates = [
         {
-          title: `${input.destination} Heritage Promenade & Cultural Center`,
-          cat: "culture",
-          time: "10:00",
-        },
-        {
-          title: `Lunch at Town Center Bistro in ${input.destination}`,
-          cat: "food",
-          time: "12:30",
-        },
-        {
-          title: `${input.destination} Scenic Viewpoint & Botanical Park`,
+          title: `Local Neighborhood Exploration & City Stroll`,
+          description: `Self-guided walking tour around local neighborhoods, architectural streets, and city centers in ${input.destination}.`,
           cat: "nature",
-          time: "14:30",
-        },
-        {
-          title: `${input.destination} State Art Gallery & History Museum`,
-          cat: "culture",
           time: "10:00",
         },
         {
-          title: `Regional Culinary Tasting in ${input.destination}`,
+          title: `Evening Dining & Local Center Walk`,
+          description: `Casual evening walking tour visiting popular food lanes and central dining spots in ${input.destination}.`,
           cat: "food",
-          time: "13:00",
-        },
-        {
-          title: `${input.destination} Local Crafts Market & Souvenir Shops`,
-          cat: "shopping",
-          time: "15:00",
+          time: "18:00",
         },
       ];
 
-      const availableTemplates = uniqueTemplates.filter((t) => {
+      const availableTemplates = structuralTemplates.filter((t) => {
         const { canonicalName } = extractCanonicalIdentity({ title: t.title, category: t.cat });
         return !usedCanonicalNames.has(canonicalName);
       });
 
       const t1 = availableTemplates[0] || {
-        title: `${input.destination} Sightseeing Spot (${missingDay})`,
-        cat: "culture",
+        title: `Local Area Exploration (${missingDay})`,
+        description: `Explore local neighborhoods and surroundings in ${input.destination}.`,
+        cat: "nature",
         time: "10:00",
       };
 
       repaired.push({
         title: t1.title,
-        description: `Explore iconic sights and cultural landmarks in ${input.destination}.`,
+        description: t1.description,
         day_date: missingDay,
         start_time: t1.time,
         end_time: addMinutes(t1.time, 120),
@@ -609,15 +598,15 @@ export function guaranteeAllDatesPresent(
         location: input.destination,
         latitude: null,
         longitude: null,
-        estimated_cost: Math.round(input.currency === "USD" ? 5 : 250),
-        cost_type: "estimated",
+        estimated_cost: 0,
+        cost_type: "free",
         verification_status: "estimated",
-        travel_minutes: 20,
+        travel_minutes: 15,
         indoor_outdoor: "mixed",
         weather_suitability: "any",
         booking_url: null,
         is_locked: false,
-        uniqueness_key: `repaired_${missingDay}_1`,
+        uniqueness_key: `repaired_struct_${missingDay}`,
       });
     }
   });
@@ -773,52 +762,25 @@ export function fallbackItinerary(
   input: TripInput,
   options?: GenerateItineraryOptions,
 ): GeneratedItem[] {
-  console.warn("[RoamPulse] Using fallback itinerary because Gemini failed or is unconfigured");
   const days = dayList(input.startDate, input.endDate);
   const places = options?.realPlacesOverride || [];
 
+  console.warn(`[RoamPulse] FALLBACK ITINERARY GENERATOR USED`);
+  console.warn(`[RoamPulse] destination: ${input.destination}`);
+  console.warn(`[RoamPulse] verified realPlaces available: ${places.length}`);
+
   const rawItems: GeneratedItem[] = [];
-
-  const fallbackTemplates = [
-    {
-      name: `${input.destination} Historic Mall & Promenade`,
-      category: "culture",
-      cost: 200,
-    },
-    {
-      name: `Lunch near ${input.destination} City Center`,
-      category: "food",
-      cost: 500,
-    },
-    {
-      name: `${input.destination} Botanical Gardens & Viewpoint`,
-      category: "nature",
-      cost: 150,
-    },
-    {
-      name: `${input.destination} State Museum & Heritage Center`,
-      category: "culture",
-      cost: 250,
-    },
-    { name: `Regional Dining in ${input.destination}`, category: "food", cost: 600 },
-    {
-      name: `${input.destination} Local Handicrafts Market`,
-      category: "shopping",
-      cost: 300,
-    },
-  ];
-
   let placeIndex = 0;
 
   days.forEach((day, dayIndex) => {
     let currentTimeMins = 9 * 60;
     if (dayIndex === 0) {
-      currentTimeMins = minutesOf(input.arrivalTime || "14:00") + 120;
+      currentTimeMins = minutesOf(input.arrivalTime || "14:00") + 60;
     }
 
     // Assign non-overlapping candidate real places to each day
     const dayPlaces: RealPlace[] = [];
-    while (dayPlaces.length < 2 && placeIndex < places.length) {
+    while (dayPlaces.length < 3 && placeIndex < places.length) {
       dayPlaces.push(places[placeIndex++]!);
     }
 
@@ -850,7 +812,7 @@ export function fallbackItinerary(
           opening_hours: p.openingHours || null,
           rating: p.rating ?? 4.5,
           verification_status: "verified",
-          why_fits: `Popular ${p.category} in ${input.destination}`,
+          why_fits: `Verified ${p.category} in ${input.destination}`,
           travel_minutes: 20,
           indoor_outdoor: "mixed",
           weather_suitability: "any",
@@ -864,56 +826,134 @@ export function fallbackItinerary(
         });
       });
     } else {
-      const t1 = fallbackTemplates[(dayIndex * 2) % fallbackTemplates.length]!;
-      const t2 = fallbackTemplates[(dayIndex * 2 + 1) % fallbackTemplates.length]!;
+      // Structural activities when verified places are sparse (never invent fake place names)
+      if (dayIndex === 0) {
+        rawItems.push({
+          title: `Arrival in ${input.destination} & Station/Airport Transfer`,
+          description: `Arrive in ${input.destination} and transfer to your booked accommodation.`,
+          day_date: day,
+          start_time: input.arrivalTime || "14:00",
+          end_time: addMinutes(input.arrivalTime || "14:00", 60),
+          category: "transit",
+          location: input.destination,
+          latitude: null,
+          longitude: null,
+          estimated_cost: Math.round(input.currency === "USD" ? 10 : 500),
+          cost_type: "estimated",
+          verification_status: "estimated",
+          travel_minutes: 30,
+          indoor_outdoor: "mixed",
+          weather_suitability: "any",
+          booking_url: null,
+          is_locked: false,
+          uniqueness_key: `fallback_arrival_${day}`,
+        });
 
-      const startTime1 = dayIndex === 0 ? "16:00" : "09:30";
-      const endTime1 = addMinutes(startTime1, 120);
+        rawItems.push({
+          title: `Hotel Check-in & Rest`,
+          description: `Complete hotel check-in procedures, unpack luggage, and rest.`,
+          day_date: day,
+          start_time: addMinutes(input.arrivalTime || "14:00", 60),
+          end_time: addMinutes(input.arrivalTime || "14:00", 120),
+          category: "accommodation",
+          location: input.destination,
+          latitude: null,
+          longitude: null,
+          estimated_cost: 0,
+          cost_type: "unknown",
+          verification_status: "estimated",
+          travel_minutes: 15,
+          indoor_outdoor: "indoor",
+          weather_suitability: "any",
+          booking_url: null,
+          is_locked: false,
+          uniqueness_key: `fallback_checkin_${day}`,
+        });
+      } else if (dayIndex === days.length - 1 && days.length > 1) {
+        rawItems.push({
+          title: `Hotel Checkout & Packing`,
+          description: `Complete checkout, organize belongings, and store bags if needed.`,
+          day_date: day,
+          start_time: "11:00",
+          end_time: "12:00",
+          category: "transit",
+          location: input.destination,
+          latitude: null,
+          longitude: null,
+          estimated_cost: 0,
+          cost_type: "unknown",
+          verification_status: "estimated",
+          travel_minutes: 15,
+          indoor_outdoor: "indoor",
+          weather_suitability: "any",
+          booking_url: null,
+          is_locked: false,
+          uniqueness_key: `fallback_checkout_${day}`,
+        });
 
-      rawItems.push({
-        title: t1.name,
-        description: `Explore iconic sights and cultural landmarks in ${input.destination}.`,
-        day_date: day,
-        start_time: startTime1,
-        end_time: endTime1,
-        category: t1.category,
-        location: input.destination,
-        latitude: null,
-        longitude: null,
-        estimated_cost: Math.round(t1.cost * (input.currency === "USD" ? 0.012 : 1)),
-        cost_type: t1.cost === 0 ? "free" : "estimated",
-        verification_status: "estimated",
-        travel_minutes: 20,
-        indoor_outdoor: "mixed",
-        weather_suitability: "any",
-        booking_url: null,
-        is_locked: false,
-        uniqueness_key: `fallback_${dayIndex}_1`,
-      });
+        rawItems.push({
+          title: `Station / Airport Transfer & Departure`,
+          description: `Travel to station or airport for return journey.`,
+          day_date: day,
+          start_time: "13:00",
+          end_time: input.departureTime || "16:00",
+          category: "transit",
+          location: input.destination,
+          latitude: null,
+          longitude: null,
+          estimated_cost: Math.round(input.currency === "USD" ? 12 : 600),
+          cost_type: "estimated",
+          verification_status: "estimated",
+          travel_minutes: 45,
+          indoor_outdoor: "mixed",
+          weather_suitability: "any",
+          booking_url: null,
+          is_locked: false,
+          uniqueness_key: `fallback_departure_${day}`,
+        });
+      } else {
+        rawItems.push({
+          title: `Local Neighborhood Exploration & City Stroll`,
+          description: `Walk through historic streets, local markets, and public squares in ${input.destination}.`,
+          day_date: day,
+          start_time: "10:00",
+          end_time: "12:00",
+          category: "nature",
+          location: input.destination,
+          latitude: null,
+          longitude: null,
+          estimated_cost: 0,
+          cost_type: "free",
+          verification_status: "estimated",
+          travel_minutes: 15,
+          indoor_outdoor: "mixed",
+          weather_suitability: "any",
+          booking_url: null,
+          is_locked: false,
+          uniqueness_key: `fallback_explore_${day}`,
+        });
 
-      const startTime2 = "14:00";
-      const endTime2 = addMinutes(startTime2, 120);
-
-      rawItems.push({
-        title: t2.name,
-        description: `Enjoy local activities and scenic locations in ${input.destination}.`,
-        day_date: day,
-        start_time: startTime2,
-        end_time: endTime2,
-        category: t2.category,
-        location: input.destination,
-        latitude: null,
-        longitude: null,
-        estimated_cost: Math.round(t2.cost * (input.currency === "USD" ? 0.012 : 1)),
-        cost_type: t2.cost === 0 ? "free" : "estimated",
-        verification_status: "estimated",
-        travel_minutes: 20,
-        indoor_outdoor: "mixed",
-        weather_suitability: "any",
-        booking_url: null,
-        is_locked: false,
-        uniqueness_key: `fallback_${dayIndex}_2`,
-      });
+        rawItems.push({
+          title: `Local Dining & Evening Leisure`,
+          description: `Enjoy local cuisine at neighborhood restaurants and relax in ${input.destination}.`,
+          day_date: day,
+          start_time: "18:00",
+          end_time: "20:00",
+          category: "food",
+          location: input.destination,
+          latitude: null,
+          longitude: null,
+          estimated_cost: Math.round(input.currency === "USD" ? 15 : 600),
+          cost_type: "estimated",
+          verification_status: "estimated",
+          travel_minutes: 15,
+          indoor_outdoor: "indoor",
+          weather_suitability: "any",
+          booking_url: null,
+          is_locked: false,
+          uniqueness_key: `fallback_dining_${day}`,
+        });
+      }
     }
   });
 
@@ -1198,10 +1238,18 @@ export async function generateItinerary(
         `[RoamPulse] Gemini generated dates: ${Array.from(new Set(rawItems.map((i) => i.day_date))).join(", ")}`,
       );
 
-      // Real-place matching & metadata attachment
+      const canonicalDest = await resolveDestinationCoordinates(input.destination);
+
+      let verifiedCount = 0;
+      let rejectedUnverifiedCount = 0;
+      let validCoordsCount = 0;
+      let rejectedCoordsCount = 0;
+
+      // Real-place matching & metadata attachment & coordinate proximity check
       const matchedItems = rawItems.map((item) => {
+        let matchedPlace: RealPlace | undefined;
         if (realPlaces.length > 0) {
-          const matched = realPlaces.find((p) => {
+          matchedPlace = realPlaces.find((p) => {
             const normP = normalizeTitle(p.name);
             const normI = normalizeTitle(item.title);
             return (
@@ -1211,23 +1259,77 @@ export async function generateItinerary(
                 (normI.includes(normP) || normP.includes(normI)))
             );
           });
-
-          if (matched) {
-            return {
-              ...item,
-              title: matched.name,
-              latitude: matched.latitude ?? item.latitude ?? null,
-              longitude: matched.longitude ?? item.longitude ?? null,
-              location: matched.address || item.location,
-              rating: matched.rating ?? item.rating ?? null,
-              opening_hours: matched.openingHours || item.opening_hours || null,
-              verification_status: "verified" as const,
-              cost_type: matched.costType || item.cost_type || "estimated",
-            };
-          }
         }
-        return item;
+
+        let finalLat = matchedPlace?.latitude ?? item.latitude ?? null;
+        let finalLon = matchedPlace?.longitude ?? item.longitude ?? null;
+
+        // Proximity validation against canonical destination coordinates
+        if (
+          canonicalDest &&
+          isValidCoordinates(canonicalDest.latitude, canonicalDest.longitude) &&
+          isValidCoordinates(finalLat, finalLon)
+        ) {
+          if (
+            !isWithinDestinationRegion(
+              canonicalDest.latitude,
+              canonicalDest.longitude,
+              finalLat,
+              finalLon,
+              150,
+            )
+          ) {
+            rejectedCoordsCount++;
+            finalLat = null;
+            finalLon = null;
+          } else {
+            validCoordsCount++;
+          }
+        } else if (isValidCoordinates(finalLat, finalLon)) {
+          validCoordsCount++;
+        }
+
+        if (matchedPlace) {
+          verifiedCount++;
+          return {
+            ...item,
+            title: matchedPlace.name,
+            latitude: finalLat,
+            longitude: finalLon,
+            location: matchedPlace.address || item.location,
+            rating: matchedPlace.rating ?? item.rating ?? null,
+            opening_hours: matchedPlace.openingHours || item.opening_hours || null,
+            verification_status: "verified" as const,
+            cost_type: matchedPlace.costType || item.cost_type || "estimated",
+          };
+        }
+
+        const isStructural =
+          item.category === "transit" ||
+          item.category === "accommodation" ||
+          item.title.toLowerCase().includes("arrival") ||
+          item.title.toLowerCase().includes("check-in") ||
+          item.title.toLowerCase().includes("checkout") ||
+          item.title.toLowerCase().includes("departure");
+
+        if (!isStructural && realPlaces.length > 0) {
+          rejectedUnverifiedCount++;
+        }
+
+        return {
+          ...item,
+          latitude: finalLat,
+          longitude: finalLon,
+          verification_status: matchedPlace ? ("verified" as const) : ("estimated" as const),
+        };
       });
+
+      console.log(`[RoamPulse] REAL PLACE VALIDATION`);
+      console.log(`[RoamPulse] verified items: ${verifiedCount}`);
+      console.log(`[RoamPulse] rejected invented/unverified items: ${rejectedUnverifiedCount}`);
+      console.log(`[RoamPulse] COORDINATE VALIDATION`);
+      console.log(`[RoamPulse] valid coordinates: ${validCoordsCount}`);
+      console.log(`[RoamPulse] invalid/out-of-region coordinates rejected: ${rejectedCoordsCount}`);
 
       // GLOBAL TRIP-WIDE DEDUPLICATION (Zero Repeats Across Days)
       const { uniqueItems, duplicatesRemovedCount } = deduplicateItineraryItemsGlobal(matchedItems);

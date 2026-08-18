@@ -297,6 +297,12 @@ const CURATED_DESTINATION_PLACES: Record<string, RealPlace[]> = {
   ],
 };
 
+import {
+  isWithinDestinationRegion,
+  isValidCoordinates,
+  resolveDestinationCoordinates,
+} from "@/lib/maps/geocoding";
+
 /**
  * Searches single query against Google Places Text Search API.
  */
@@ -304,9 +310,14 @@ async function fetchGooglePlacesQuery(query: string, apiKey: string): Promise<Re
   try {
     const url = `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(query)}&key=${apiKey}`;
     const res = await fetch(url);
-    if (!res.ok) return [];
+    if (!res.ok) {
+      console.warn(`[REAL PLACES] Google Places API HTTP error: ${res.status}`);
+      return [];
+    }
 
     const json = (await res.json()) as {
+      status?: string;
+      error_message?: string;
       results?: Array<{
         name?: string;
         formatted_address?: string;
@@ -318,20 +329,32 @@ async function fetchGooglePlacesQuery(query: string, apiKey: string): Promise<Re
       }>;
     };
 
+    if (json.status && json.status !== "OK" && json.status !== "ZERO_RESULTS") {
+      console.warn(
+        `[REAL PLACES] Google Places API returned status ${json.status}: ${json.error_message || "No detail"}`,
+      );
+    }
+
     if (!json.results || json.results.length === 0) return [];
 
-    return json.results.slice(0, 10).map((p) => {
+    return json.results.slice(0, 12).map((p) => {
       const types = p.types || [];
       let category: RealPlace["category"] = "attraction";
       if (types.includes("restaurant") || types.includes("food") || types.includes("cafe"))
         category = "restaurant";
-      else if (types.includes("shopping_mall") || types.includes("store")) category = "shopping";
+      else if (
+        types.includes("shopping_mall") ||
+        types.includes("store") ||
+        types.includes("market")
+      )
+        category = "shopping";
       else if (types.includes("park") || types.includes("natural_feature")) category = "nature";
       else if (types.includes("museum") || types.includes("art_gallery")) category = "culture";
       else if (
         types.includes("place_of_worship") ||
         types.includes("church") ||
-        types.includes("hindu_temple")
+        types.includes("hindu_temple") ||
+        types.includes("mosque")
       )
         category = "history";
 
@@ -362,6 +385,7 @@ async function searchGooglePlaces(destination: string, apiKey: string): Promise<
     `top tourist attractions in ${destination}`,
     `best restaurants and cafes in ${destination}`,
     `historic landmarks and culture in ${destination}`,
+    `famous parks viewpoints and markets in ${destination}`,
   ];
 
   try {
@@ -391,40 +415,68 @@ async function searchGooglePlaces(destination: string, apiKey: string): Promise<
  * Searches OpenStreetMap Nominatim for real points of interest for a destination.
  */
 async function searchOSMPlaces(destination: string): Promise<RealPlace[]> {
+  const queries = [
+    `tourist attractions in ${destination}`,
+    `landmarks in ${destination}`,
+    `restaurants in ${destination}`,
+    `museums in ${destination}`,
+  ];
+
   try {
-    const query = `tourist attraction in ${destination}`;
-    const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=10`;
-    const res = await fetch(url, {
-      headers: {
-        "User-Agent": "RoamPulseTravelApp/1.0 (roampulse@example.com)",
-        Accept: "application/json",
-      },
-    });
-    if (!res.ok) return [];
+    const results = await Promise.all(
+      queries.map(async (query) => {
+        const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(
+          query,
+        )}&limit=10`;
+        const res = await fetch(url, {
+          headers: {
+            "User-Agent": "RoamPulseTravelApp/1.0 (roampulse@example.com)",
+            Accept: "application/json",
+          },
+        });
+        if (!res.ok) return [];
 
-    const data = (await res.json()) as Array<{
-      display_name?: string;
-      lat?: string;
-      lon?: string;
-      type?: string;
-    }>;
+        const data = (await res.json()) as Array<{
+          display_name?: string;
+          lat?: string;
+          lon?: string;
+          type?: string;
+        }>;
 
-    if (!data || data.length === 0) return [];
+        if (!data || data.length === 0) return [];
 
-    return data.map((item) => {
-      const nameParts = (item.display_name || destination).split(",");
-      const name = nameParts[0]?.trim() || destination;
-      return {
-        name,
-        category: "attraction" as const,
-        address: item.display_name,
-        latitude: item.lat ? parseFloat(item.lat) : undefined,
-        longitude: item.lon ? parseFloat(item.lon) : undefined,
-        costType: "estimated" as const,
-        isVerified: true,
-        source: "osm" as const,
-      };
-    });
+        return data.map((item) => {
+          const nameParts = (item.display_name || destination).split(",");
+          const name = nameParts[0]?.trim() || destination;
+          return {
+            name,
+            category: (query.includes("restaurant")
+              ? "restaurant"
+              : "attraction") as RealPlace["category"],
+            address: item.display_name,
+            latitude: item.lat ? parseFloat(item.lat) : undefined,
+            longitude: item.lon ? parseFloat(item.lon) : undefined,
+            costType: "estimated" as const,
+            isVerified: true,
+            source: "osm" as const,
+          };
+        });
+      }),
+    );
+
+    const combined = results.flat();
+    const seen = new Set<string>();
+    const deduplicated: RealPlace[] = [];
+
+    for (const place of combined) {
+      const norm = place.name.toLowerCase().trim();
+      if (!seen.has(norm) && norm.length > 2) {
+        seen.add(norm);
+        deduplicated.push(place);
+      }
+    }
+
+    return deduplicated;
   } catch (err) {
     console.warn("[REAL PLACES] OSM fetch warning:", (err as Error).message);
     return [];
@@ -438,27 +490,77 @@ export async function fetchRealWorldPlaces(
   destination: string,
   _interests: string[] = [],
 ): Promise<RealPlace[]> {
+  console.log(`[RoamPulse] PLACE SEARCH START`);
+  console.log(`[RoamPulse] place search destination: ${destination}`);
+
   const normDest = destination.toLowerCase().trim();
+  const canonical = await resolveDestinationCoordinates(destination);
+
+  let rawCandidates: RealPlace[] = [];
 
   // Level 1: Google Places API if key exists
   const googleApiKey = process.env["GOOGLE_PLACES_API_KEY"] || process.env["GOOGLE_MAPS_API_KEY"];
   if (googleApiKey && googleApiKey.trim().length > 0) {
     console.log(`[REAL PLACES] Fetching multi-query Google Places API for ${destination}`);
-    const places = await searchGooglePlaces(destination, googleApiKey);
-    if (places.length > 0) return places;
+    rawCandidates = await searchGooglePlaces(destination, googleApiKey);
   }
 
-  // Level 2: Curated knowledge base if available
-  const matchedKey = Object.keys(CURATED_DESTINATION_PLACES).find((k) => normDest.includes(k));
-  if (matchedKey && CURATED_DESTINATION_PLACES[matchedKey]) {
-    console.log(`[REAL PLACES] Using curated real-world place catalog for ${destination}`);
-    return CURATED_DESTINATION_PLACES[matchedKey]!;
+  // Level 2: Curated knowledge base fallback if Google Places returned nothing
+  if (rawCandidates.length === 0) {
+    const matchedKey = Object.keys(CURATED_DESTINATION_PLACES).find((k) => normDest.includes(k));
+    if (matchedKey && CURATED_DESTINATION_PLACES[matchedKey]) {
+      console.log(`[REAL PLACES] Using curated real-world place catalog for ${destination}`);
+      rawCandidates = [...CURATED_DESTINATION_PLACES[matchedKey]!];
+    }
   }
 
-  // Level 3: OpenStreetMap Nominatim POI search
-  console.log(`[REAL PLACES] Fetching OpenStreetMap POIs for ${destination}`);
-  const osmPlaces = await searchOSMPlaces(destination);
-  if (osmPlaces.length > 0) return osmPlaces;
+  // Level 3: OpenStreetMap Nominatim POI search fallback
+  if (rawCandidates.length === 0) {
+    console.log(`[REAL PLACES] Fetching OpenStreetMap POIs for ${destination}`);
+    rawCandidates = await searchOSMPlaces(destination);
+  }
 
-  return [];
+  // Filter candidates against canonical destination proximity
+  let verifiedCandidates: RealPlace[] = rawCandidates;
+  if (canonical && isValidCoordinates(canonical.latitude, canonical.longitude)) {
+    const valid: RealPlace[] = [];
+    let rejectedCount = 0;
+
+    for (const place of rawCandidates) {
+      if (
+        typeof place.latitude === "number" &&
+        typeof place.longitude === "number" &&
+        isValidCoordinates(place.latitude, place.longitude)
+      ) {
+        if (
+          isWithinDestinationRegion(
+            canonical.latitude,
+            canonical.longitude,
+            place.latitude,
+            place.longitude,
+            150,
+          )
+        ) {
+          valid.push(place);
+        } else {
+          rejectedCount++;
+        }
+      } else {
+        // Place candidate without lat/lon is kept but will be geocoded
+        valid.push(place);
+      }
+    }
+
+    if (rejectedCount > 0) {
+      console.log(
+        `[RoamPulse] DESTINATION PROXIMITY VALIDATION: rejected ${rejectedCount} out-of-region places for ${destination}`,
+      );
+    }
+    verifiedCandidates = valid;
+  }
+
+  console.log(
+    `[RoamPulse] verified place candidates: ${verifiedCandidates.length} for ${destination}`,
+  );
+  return verifiedCandidates;
 }

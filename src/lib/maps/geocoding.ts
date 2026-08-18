@@ -12,6 +12,128 @@ export interface RouteResult {
 // In-memory cache for Nominatim geocoded queries
 const geocodeCache = new Map<string, Coordinates | null>();
 
+export interface ResolvedDestination {
+  destinationInput: string;
+  city: string;
+  country?: string | undefined;
+  latitude: number;
+  longitude: number;
+}
+
+const destinationCache = new Map<string, ResolvedDestination | null>();
+
+/**
+ * Validates latitude and longitude ranges.
+ */
+export function isValidCoordinates(lat?: number | null, lon?: number | null): lat is number {
+  if (typeof lat !== "number" || typeof lon !== "number") return false;
+  if (isNaN(lat) || isNaN(lon)) return false;
+  if (lat === 0 && lon === 0) return false;
+  return lat >= -90 && lat <= 90 && lon >= -180 && lon <= 180;
+}
+
+/**
+ * Checks if a coordinate is within a reasonable radius (km) of destination center.
+ */
+export function isWithinDestinationRegion(
+  destLat: number,
+  destLon: number,
+  itemLat?: number | null,
+  itemLon?: number | null,
+  radiusKm = 150,
+): boolean {
+  if (typeof itemLat !== "number" || typeof itemLon !== "number") return false;
+  if (!isValidCoordinates(destLat, destLon) || !isValidCoordinates(itemLat, itemLon)) {
+    return false;
+  }
+  const dist = haversineDistanceKm(destLat, destLon, itemLat, itemLon);
+  return dist <= radiusKm;
+}
+
+/**
+ * Canonical Destination Resolution Service.
+ * Dynamically geocodes the user's destination string into city, country, and lat/lon.
+ */
+export async function resolveDestinationCoordinates(
+  destination: string,
+): Promise<ResolvedDestination | null> {
+  const inputNorm = destination.trim();
+  if (!inputNorm) return null;
+
+  const cacheKey = inputNorm.toLowerCase();
+  if (destinationCache.has(cacheKey)) {
+    return destinationCache.get(cacheKey) ?? null;
+  }
+
+  console.log(`[RoamPulse] DESTINATION RESOLUTION START`);
+  console.log(`[RoamPulse] destination input: ${inputNorm}`);
+
+  try {
+    const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(
+      inputNorm,
+    )}&limit=1&addressdetails=1`;
+
+    const res = await fetch(url, {
+      headers: {
+        "User-Agent": "RoamPulseTravelApp/1.0 (roampulse@example.com)",
+        Accept: "application/json",
+      },
+    });
+
+    if (res.ok) {
+      const data = (await res.json()) as Array<{
+        lat?: string;
+        lon?: string;
+        display_name?: string;
+        address?: {
+          city?: string;
+          town?: string;
+          village?: string;
+          state?: string;
+          country?: string;
+        };
+      }>;
+
+      if (data && data.length > 0 && data[0]?.lat && data[0]?.lon) {
+        const lat = parseFloat(data[0].lat);
+        const lon = parseFloat(data[0].lon);
+
+        if (isValidCoordinates(lat, lon)) {
+          const addr = data[0].address;
+          const city = addr?.city || addr?.town || addr?.village || addr?.state || inputNorm;
+          const country = addr?.country;
+
+          const resolved: ResolvedDestination = {
+            destinationInput: inputNorm,
+            city,
+            country,
+            latitude: lat,
+            longitude: lon,
+          };
+
+          console.log(`[RoamPulse] resolved city: ${city}`);
+          if (country) console.log(`[RoamPulse] resolved country: ${country}`);
+          console.log(`[RoamPulse] resolved coordinates: ${lat.toFixed(4)}, ${lon.toFixed(4)}`);
+
+          destinationCache.set(cacheKey, resolved);
+          return resolved;
+        }
+      }
+    }
+
+    console.warn(`[RoamPulse] DESTINATION RESOLUTION WARNING: Could not resolve '${inputNorm}'`);
+    destinationCache.set(cacheKey, null);
+    return null;
+  } catch (err) {
+    console.warn(
+      `[RoamPulse] DESTINATION RESOLUTION ERROR for '${inputNorm}':`,
+      (err as Error).message,
+    );
+    destinationCache.set(cacheKey, null);
+    return null;
+  }
+}
+
 /**
  * Free OpenStreetMap Nominatim Geocoding service.
  * Resolves location names to latitude and longitude with destination context.

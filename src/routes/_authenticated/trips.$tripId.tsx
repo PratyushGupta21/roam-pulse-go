@@ -33,6 +33,8 @@ import {
   CloudRain,
   Sun,
   Thermometer,
+  Droplets,
+  Wind,
   Pencil,
 } from "lucide-react";
 import { useMemo, useState } from "react";
@@ -335,12 +337,22 @@ function TripDetailsPage() {
     },
   });
 
+  // Weather Forecast Query (Open-Meteo)
+  const weatherQuery = useQuery({
+    queryKey: ["weather", tripId],
+    queryFn: async () => {
+      return await checkTripWeather({ data: { tripId } });
+    },
+    staleTime: 10 * 60 * 1000,
+  });
+
   // Check Weather Mutation (Open-Meteo)
   const checkWeatherMutation = useMutation({
     mutationFn: async () => {
       return await checkTripWeather({ data: { tripId } });
     },
     onSuccess: (data) => {
+      void queryClient.invalidateQueries({ queryKey: ["weather", tripId] });
       void queryClient.invalidateQueries({ queryKey: ["trip", tripId] });
       void queryClient.invalidateQueries({ queryKey: ["itinerary", tripId] });
       void queryClient.invalidateQueries({ queryKey: ["disruptions", tripId] });
@@ -1694,45 +1706,177 @@ function TripDetailsPage() {
                     </span>
                   </div>
 
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="text-muted-foreground">Monitoring Destination</span>
-                      <span className="font-semibold text-foreground">{trip.destination}</span>
+                  {weatherQuery.isPending && !weatherQuery.data ? (
+                    <div className="flex flex-col items-center justify-center p-6 text-center space-y-2">
+                      <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                      <p className="text-xs text-muted-foreground font-medium">
+                        Fetching weather for {trip.destination}...
+                      </p>
                     </div>
-
-                    <div className="rounded-xl border border-border bg-muted/40 p-3 flex items-center justify-between gap-3 text-xs">
-                      <div className="flex items-center gap-2">
-                        <Sun className="h-5 w-5 text-amber-500 shrink-0" />
-                        <div>
-                          <p className="font-bold text-foreground">Live Forecast Engine</p>
-                          <p className="text-[11px] text-muted-foreground">
-                            Keyless hourly weather risk analysis
-                          </p>
-                        </div>
+                  ) : weatherQuery.isError || weatherQuery.data?.overallStatus === "unavailable" ? (
+                    <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-4 space-y-3">
+                      <div className="flex items-center gap-2 text-destructive text-xs font-semibold">
+                        <AlertTriangle className="h-4 w-4 shrink-0" />
+                        <span>Weather unavailable for {trip.destination}</span>
                       </div>
+                      <p className="text-[11px] text-muted-foreground">
+                        {weatherQuery.data?.summaryText ||
+                          "Live forecast data could not be retrieved."}
+                      </p>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => checkWeatherMutation.mutate()}
+                        disabled={checkWeatherMutation.isPending}
+                        className="w-full text-xs font-semibold gap-1.5"
+                      >
+                        <RefreshCw
+                          className={`h-3.5 w-3.5 ${
+                            checkWeatherMutation.isPending ? "animate-spin" : ""
+                          }`}
+                        />
+                        <span>Check Weather</span>
+                      </Button>
                     </div>
+                  ) : (
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="text-muted-foreground">Destination Weather</span>
+                        <span className="font-bold text-foreground">{trip.destination}</span>
+                      </div>
 
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => checkWeatherMutation.mutate()}
-                      disabled={checkWeatherMutation.isPending}
-                      className="w-full gap-2 text-xs font-semibold"
-                    >
-                      {checkWeatherMutation.isPending ? (
-                        <>
-                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                          <span>Checking Weather…</span>
-                        </>
-                      ) : (
-                        <>
-                          <CloudRain className="h-3.5 w-3.5 text-primary" />
-                          <span>Check Weather</span>
-                        </>
-                      )}
-                    </Button>
-                  </div>
+                      {/* Current Weather Box */}
+                      {weatherQuery.data?.currentWeather ? (
+                        <div className="rounded-xl border border-border bg-muted/40 p-4 space-y-3">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                              <span className="text-3xl">
+                                {weatherQuery.data.currentWeather.conditionIcon}
+                              </span>
+                              <div>
+                                <div className="text-2xl font-bold font-mono text-foreground">
+                                  {weatherQuery.data.currentWeather.tempC}°C
+                                </div>
+                                <div className="text-[11px] text-muted-foreground font-medium">
+                                  {weatherQuery.data.currentWeather.conditionText}
+                                </div>
+                              </div>
+                            </div>
+                            <div className="text-right text-[11px] text-muted-foreground">
+                              <div className="font-semibold text-foreground">
+                                Feels like {weatherQuery.data.currentWeather.apparentTempC}°C
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Weather Detail Grid */}
+                          <div className="grid grid-cols-3 gap-2 border-t border-border/60 pt-3 text-[11px]">
+                            <div className="flex items-center gap-1.5 text-muted-foreground">
+                              <Droplets className="h-3.5 w-3.5 text-blue-500 shrink-0" />
+                              <div>
+                                <span className="block text-[10px] text-muted-foreground">
+                                  Rain
+                                </span>
+                                <span className="font-bold text-foreground">
+                                  {weatherQuery.data.currentWeather.precipProbability}%
+                                </span>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-1.5 text-muted-foreground">
+                              <Wind className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
+                              <div>
+                                <span className="block text-[10px] text-muted-foreground">
+                                  Wind
+                                </span>
+                                <span className="font-bold text-foreground">
+                                  {weatherQuery.data.currentWeather.windSpeedKmH} km/h
+                                </span>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-1.5 text-muted-foreground">
+                              <Thermometer className="h-3.5 w-3.5 text-amber-500 shrink-0" />
+                              <div>
+                                <span className="block text-[10px] text-muted-foreground">
+                                  Humidity
+                                </span>
+                                <span className="font-bold text-foreground">
+                                  {weatherQuery.data.currentWeather.humidityPct}%
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      ) : null}
+
+                      {/* Daily Forecast Overview Pills */}
+                      {weatherQuery.data?.dailyForecast &&
+                      weatherQuery.data.dailyForecast.length > 0 ? (
+                        <div className="space-y-1.5">
+                          <p className="text-[11px] font-semibold text-muted-foreground">
+                            Multi-Day Forecast Overview
+                          </p>
+                          <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
+                            {weatherQuery.data.dailyForecast.slice(0, 5).map((d) => (
+                              <div
+                                key={d.date}
+                                className="flex flex-col items-center justify-between rounded-lg border border-border/70 bg-background p-2 min-w-[65px] text-center shrink-0"
+                              >
+                                <span className="text-[10px] font-medium text-muted-foreground">
+                                  {formatDate(d.date, { month: "numeric", day: "numeric" })}
+                                </span>
+                                <span className="text-base my-0.5">{d.conditionIcon}</span>
+                                <span className="text-[11px] font-bold text-foreground font-mono">
+                                  {d.tempMaxC}° / {d.tempMinC}°
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ) : null}
+
+                      {/* Risk Summary Badge */}
+                      <div
+                        className={`rounded-xl border p-3 text-xs flex items-center justify-between ${
+                          weatherQuery.data?.highRiskCount && weatherQuery.data.highRiskCount > 0
+                            ? "border-amber-500/30 bg-amber-500/10 text-amber-900 dark:text-amber-200"
+                            : "border-success/30 bg-success/10 text-success dark:text-emerald-300"
+                        }`}
+                      >
+                        <span className="font-medium">
+                          {weatherQuery.data?.summaryText || "Forecast nominal"}
+                        </span>
+                        {weatherQuery.data?.highRiskCount && weatherQuery.data.highRiskCount > 0 ? (
+                          <AlertTriangle className="h-4 w-4 shrink-0 text-amber-500" />
+                        ) : (
+                          <CheckCircle2 className="h-4 w-4 shrink-0 text-success" />
+                        )}
+                      </div>
+
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => checkWeatherMutation.mutate()}
+                        disabled={checkWeatherMutation.isPending}
+                        className="w-full gap-2 text-xs font-semibold"
+                      >
+                        {checkWeatherMutation.isPending ? (
+                          <>
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            <span>Fetching Weather…</span>
+                          </>
+                        ) : (
+                          <>
+                            <RefreshCw className="h-3.5 w-3.5 text-primary" />
+                            <span>Check Weather</span>
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                  )}
                 </div>
 
                 {/* TRIP EVENT HISTORY LOG */}
