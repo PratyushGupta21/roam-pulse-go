@@ -1,12 +1,22 @@
-import { itineraryResponseSchema, type GeneratedItem, type TripInput } from "./domain";
+import {
+  itineraryResponseSchema,
+  type GeneratedItem,
+  type GenerationState,
+  type TripInput,
+} from "./domain";
 import { addMinutes, formatDateStr, minutesOf, parseDateParts } from "./format";
-import { fetchRealWorldPlaces, type RealPlace } from "./places/real-places.server";
+import {
+  fetchMultiCityRealWorldPlaces,
+  parseTripDestinations,
+  type CityCandidatePool,
+  type RealPlace,
+} from "./places/real-places.server";
 import { getAccommodationPricing } from "./hotels/hotel-pricing.server";
 import {
   isWithinDestinationRegion,
   isValidCoordinates,
   resolveDestinationCoordinates,
-} from "@/lib/maps/geocoding";
+} from "./maps/geocoding";
 
 const MODEL = "google/gemini-2.0-flash";
 
@@ -126,7 +136,7 @@ export function extractCanonicalIdentity(item: {
   const normTitle = (item.title || "").toLowerCase().trim();
   const category = (item.category || "").toLowerCase().trim();
 
-  // Structural items exception (Arrival, Check-in, Checkout, Departure)
+  // Structural items exception (Arrival, Check-in, Checkout, Departure, Transfers)
   const isStructural =
     category === "transit" ||
     category === "wellness" ||
@@ -207,475 +217,132 @@ export function deduplicateItineraryItemsGlobal(items: GeneratedItem[]): {
       continue;
     }
 
-    // 1. Check exact canonical name match anywhere in the trip
-    if (canonicalName.length >= 3 && usedCanonicalNames.has(canonicalName)) {
-      console.log(
-        `[RoamPulse] Duplicate global real place removed: "${item.title}" (canonical: "${canonicalName}") on ${item.day_date}`,
-      );
-      removedCount++;
-      continue;
+    let isDuplicate = false;
+
+    if (canonicalName && usedCanonicalNames.has(canonicalName)) {
+      isDuplicate = true;
     }
 
-    // 2. Check near substring match for place names > 5 chars
-    let isSubstringDuplicate = false;
-    for (const existingName of usedCanonicalNames) {
-      if (
-        canonicalName.length > 5 &&
-        existingName.length > 5 &&
-        (canonicalName.includes(existingName) || existingName.includes(canonicalName))
-      ) {
-        console.log(
-          `[RoamPulse] Near-duplicate real place removed: "${item.title}" matches existing "${existingName}"`,
-        );
-        isSubstringDuplicate = true;
-        break;
-      }
-    }
-    if (isSubstringDuplicate) {
-      removedCount++;
-      continue;
-    }
-
-    // 3. Check coordinate match anywhere in the trip
     if (coordKey && usedCoordKeys.has(coordKey)) {
+      isDuplicate = true;
+    }
+
+    if (isDuplicate) {
       console.log(
-        `[RoamPulse] Duplicate global coordinates removed: "${item.title}" at (${coordKey}) on ${item.day_date}`,
+        `[RoamPulse] Global duplicate place detected & removed: "${item.title}" on ${item.day_date}`,
       );
       removedCount++;
-      continue;
+    } else {
+      if (canonicalName) usedCanonicalNames.add(canonicalName);
+      if (coordKey) usedCoordKeys.add(coordKey);
+      uniqueItems.push(item);
     }
-
-    if (canonicalName.length >= 3) {
-      usedCanonicalNames.add(canonicalName);
-    }
-    if (coordKey) {
-      usedCoordKeys.add(coordKey);
-    }
-
-    uniqueItems.push(item);
   }
 
-  return { uniqueItems, duplicatesRemovedCount: removedCount };
+  return {
+    uniqueItems,
+    duplicatesRemovedCount: removedCount,
+  };
 }
 
-/**
- * Safely extracts valid JSON string from AI model output text, stripping markdown code blocks.
- */
-export function extractJsonFromText(text: string): string {
-  const trimmed = text.trim();
-
-  // 1. Direct JSON starting with '{' and ending with '}'
-  if (trimmed.startsWith("{") && trimmed.endsWith("}")) {
-    return trimmed;
-  }
-
-  // 2. Fenced code block extraction (```json ... ``` or ``` ... ```)
-  const codeBlockMatch = trimmed.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
-  if (codeBlockMatch && codeBlockMatch[1]) {
-    const blockContent = codeBlockMatch[1].trim();
-    if (blockContent.startsWith("{") && blockContent.endsWith("}")) {
-      return blockContent;
-    }
-  }
-
-  // 3. Substring extraction between first '{' and last '}'
-  const firstBrace = trimmed.indexOf("{");
-  const lastBrace = trimmed.lastIndexOf("}");
-  if (firstBrace !== -1 && lastBrace > firstBrace) {
-    return trimmed.slice(firstBrace, lastBrace + 1);
-  }
-
-  return trimmed;
-}
-
-/**
- * Calculates Haversine distance in kilometers between two geographic coordinates.
- */
-export function calculateDistanceKm(
-  lat1?: number | null,
-  lon1?: number | null,
-  lat2?: number | null,
-  lon2?: number | null,
-): number | null {
-  if (
-    typeof lat1 !== "number" ||
-    typeof lon1 !== "number" ||
-    typeof lat2 !== "number" ||
-    typeof lon2 !== "number" ||
-    (lat1 === 0 && lon1 === 0) ||
-    (lat2 === 0 && lon2 === 0)
-  ) {
-    return null;
-  }
-
-  const R = 6371; // Earth radius in km
-  const dLat = ((lat2 - lat1) * Math.PI) / 180;
-  const dLon = ((lon2 - lon1) * Math.PI) / 180;
-  const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos((lat1 * Math.PI) / 180) *
-      Math.cos((lat2 * Math.PI) / 180) *
-      Math.sin(dLon / 2) *
-      Math.sin(dLon / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return R * c;
-}
-
-/**
- * Clusters and sorts itinerary items geographically per day to minimize travel time across town.
- */
-export function clusterAndSortItemsByProximity(items: GeneratedItem[]): GeneratedItem[] {
-  const dayMap = new Map<string, GeneratedItem[]>();
-  for (const item of items) {
-    const list = dayMap.get(item.day_date) || [];
-    list.push(item);
-    dayMap.set(item.day_date, list);
-  }
-
-  const sortedResult: GeneratedItem[] = [];
-
-  for (const [, dayItems] of dayMap.entries()) {
-    if (dayItems.length <= 2) {
-      sortedResult.push(...dayItems);
-      continue;
-    }
-
-    const fixedItems = dayItems.filter(
-      (i) =>
-        i.category === "accommodation" ||
-        i.category === "transit" ||
-        i.title.toLowerCase().includes("arrival") ||
-        i.title.toLowerCase().includes("checkout"),
-    );
-
-    const flexItems = dayItems.filter((i) => !fixedItems.includes(i));
-
-    if (flexItems.length <= 1) {
-      sortedResult.push(...dayItems);
-      continue;
-    }
-
-    const orderedFlex: GeneratedItem[] = [];
-    const remaining = [...flexItems];
-
-    let current = remaining.shift()!;
-    orderedFlex.push(current);
-
-    while (remaining.length > 0) {
-      let nearestIdx = 0;
-      let minDistance = Infinity;
-
-      for (let i = 0; i < remaining.length; i++) {
-        const candidate = remaining[i]!;
-        const dist = calculateDistanceKm(
-          current.latitude,
-          current.longitude,
-          candidate.latitude,
-          candidate.longitude,
-        );
-
-        if (dist !== null && dist < minDistance) {
-          minDistance = dist;
-          nearestIdx = i;
-        }
-      }
-
-      current = remaining.splice(nearestIdx, 1)[0]!;
-      orderedFlex.push(current);
-    }
-
-    const originalTimes = dayItems.map((i) => ({
-      start: i.start_time,
-      end: i.end_time,
-    }));
-
-    const combined = [...fixedItems, ...orderedFlex].sort((a, b) =>
-      a.start_time.localeCompare(b.start_time),
-    );
-
-    const reorderedDayItems = combined.map((item, idx) => ({
-      ...item,
-      start_time: originalTimes[idx]?.start || item.start_time,
-      end_time: originalTimes[idx]?.end || item.end_time,
-    }));
-
-    sortedResult.push(...reorderedDayItems);
-  }
-
-  return sortedResult;
-}
-
-/**
- * Generates a unique deterministic key for an itinerary item.
- */
 export function generateUniquenessKey(item: {
   title: string;
-  category?: string | null | undefined;
-  location?: string | null | undefined;
+  day_date?: string;
+  start_time?: string;
+  location?: string | null;
+  category?: string | null;
 }): string {
-  const normTitle = normalizeTitle(item.title);
-  const normLoc = item.location ? normalizeTitle(item.location) : "";
-  const cat = (item.category || "activity").toLowerCase().trim();
-  return `${normTitle}_${cat}_${normLoc}`;
+  const normTitle = (item.title || "")
+    .toLowerCase()
+    .replace(
+      /\b(visit|explore|experience|tour|attend|go to|see|famous|historic|historical|local|traditional|morning|evening|afternoon|night|day \d+|discover|stroll|walk|around|lunch at|dinner at|breakfast at|meal at|food at|cafe at|restaurant at|dining at)\b/gi,
+      "",
+    )
+    .replace(/[^a-z0-9]/g, "")
+    .trim();
+
+  const normCat = (item.category || "activity").toLowerCase().trim();
+  return `${normCat}_${normTitle}`;
 }
 
-/**
- * Validates and cleans itinerary items against trip constraints.
- */
 export function validateAndCleanItineraryItems(
   items: GeneratedItem[],
   input: TripInput,
 ): GeneratedItem[] {
-  const validDays = new Set(dayList(input.startDate, input.endDate));
+  const days = dayList(input.startDate, input.endDate);
 
-  return items
-    .filter((item) => {
-      if (!item.title || typeof item.title !== "string" || item.title.trim().length < 2)
-        return false;
-      return true;
-    })
-    .map((item) => {
-      let date = item.day_date;
-      if (!validDays.has(date)) {
-        if (date < input.startDate) date = input.startDate;
-        if (date > input.endDate) date = input.endDate;
-      }
+  // Comprehensive blacklist of generic hallucinated activity titles
+  const GENERIC_TITLE_BLACKLIST = [
+    "sightseeing & local exploration",
+    "explore local attractions",
+    "discover the city",
+    "free time",
+    "local neighborhood exploration",
+    "city stroll",
+    "evening dining & leisure",
+    "local dining & evening leisure",
+    "evening dining & local",
+    "explore paris",
+    "explore tokyo",
+    "explore islamabad",
+    "explore rome",
+    "explore amsterdam",
+    "city exploration",
+    "explore local area",
+    "discover historic streets",
+    "popular food lanes",
+    "evening city walk",
+    "morning city walk",
+    "afternoon city walk",
+    "visit famous attractions",
+    "local neighborhood",
+    "neighborhood exploration",
+    "local sightseeing",
+    "discover the local area",
+    "explore the city",
+    "city center walk",
+    "local center walk",
+  ];
 
-      const startTime = item.start_time || "09:00";
-      let endTime = item.end_time || "10:00";
-      const startMins = minutesOf(startTime);
-      const endMins = minutesOf(endTime);
+  const cleaned = items.filter((item) => {
+    if (!item.title || item.title.trim().length < 2) return false;
+    if (!item.day_date || !days.includes(item.day_date)) return false;
 
-      if (endMins <= startMins) {
-        endTime = addMinutes(startTime, 60);
-      }
+    const lowerTitle = item.title.toLowerCase();
+    const isStructural =
+      item.is_structural ||
+      item.category === "transit" ||
+      item.category === "accommodation" ||
+      lowerTitle.includes("arrival") ||
+      lowerTitle.includes("check-in") ||
+      lowerTitle.includes("checkout") ||
+      lowerTitle.includes("transfer") ||
+      lowerTitle.includes("departure") ||
+      lowerTitle.startsWith("accommodation:");
 
-      let cleanTitle = item.title.trim();
-      const normTitle = cleanTitle.toLowerCase();
+    // Allow structural items unconditionally
+    if (isStructural) return true;
 
-      // Safety net: Replace any generic starter-template activity titles with place/location names
-      if (
-        normTitle.includes("sightseeing & local exploration") ||
-        normTitle.includes("local exploration") ||
-        normTitle === "explore the city" ||
-        normTitle === "explore local attractions" ||
-        normTitle === "city sightseeing" ||
-        normTitle === "free time" ||
-        normTitle.includes("starter template")
-      ) {
-        if (
-          item.location &&
-          item.location.toLowerCase() !== input.destination.toLowerCase() &&
-          item.location.trim().length > 3
-        ) {
-          cleanTitle = item.location.trim();
-        } else {
-          const categoryName = item.category
-            ? item.category.charAt(0).toUpperCase() + item.category.slice(1)
-            : "Landmark";
-          cleanTitle = `${input.destination} ${categoryName}`;
-        }
-      }
-
-      const cost = Math.max(0, Math.round(Number(item.estimated_cost) || 0));
-
-      return {
-        ...item,
-        title: cleanTitle,
-        description: (item.description || "").trim(),
-        day_date: date,
-        start_time: startTime,
-        end_time: endTime,
-        category: (item.category || "activity").toLowerCase().trim(),
-        location: (item.location || input.destination).trim(),
-        estimated_cost: cost,
-        cost_min: typeof item.cost_min === "number" ? Math.max(0, Math.round(item.cost_min)) : null,
-        cost_max: typeof item.cost_max === "number" ? Math.max(0, Math.round(item.cost_max)) : null,
-        cost_type: item.cost_type || (cost === 0 ? "free" : "estimated"),
-        opening_hours: item.opening_hours || null,
-        rating: typeof item.rating === "number" ? Number(item.rating.toFixed(1)) : null,
-        verification_status:
-          item.verification_status || (item.rating || item.latitude ? "verified" : "estimated"),
-        why_fits: item.why_fits || null,
-        indoor_outdoor:
-          item.indoor_outdoor === "outdoor" ||
-          item.indoor_outdoor === "indoor" ||
-          item.indoor_outdoor === "mixed"
-            ? item.indoor_outdoor
-            : "mixed",
-        weather_suitability:
-          item.weather_suitability === "clear_only" ||
-          item.weather_suitability === "rain_ok" ||
-          item.weather_suitability === "any"
-            ? item.weather_suitability
-            : "any",
-      };
-    });
-}
-
-/**
- * Guarantees that every date in the trip range has itinerary items.
- * Fills missing dates automatically using ONLY unused real places to prevent repeats.
- */
-export function guaranteeAllDatesPresent(
-  items: GeneratedItem[],
-  input: TripInput,
-  realPlaces: RealPlace[],
-): GeneratedItem[] {
-  const expectedDates = dayList(input.startDate, input.endDate);
-
-  // Track all canonical names and coords already used anywhere in the trip
-  const usedCanonicalNames = new Set<string>();
-  const usedCoordKeys = new Set<string>();
-
-  for (const item of items) {
-    const { canonicalName, coordKey, isStructural } = extractCanonicalIdentity(item);
-    if (!isStructural && canonicalName.length >= 3) {
-      usedCanonicalNames.add(canonicalName);
+    // Reject items matching the generic hallucination blacklist
+    if (GENERIC_TITLE_BLACKLIST.some((bad) => lowerTitle.includes(bad))) {
+      console.warn(
+        `[RoamPulse] REJECTED GENERIC TEMPLATE ITEM: "${item.title}" (matched blacklist)`,
+      );
+      return false;
     }
-    if (coordKey) {
-      usedCoordKeys.add(coordKey);
-    }
-  }
 
-  // Filter realPlaces to ONLY those not yet used anywhere in the trip
-  const unusedRealPlaces = realPlaces.filter((p) => {
-    const { canonicalName, coordKey } = extractCanonicalIdentity({
-      title: p.name,
-      location: p.address,
-      latitude: p.latitude,
-      longitude: p.longitude,
-      category: p.category,
-    });
-    if (canonicalName.length >= 3 && usedCanonicalNames.has(canonicalName)) return false;
-    if (coordKey && usedCoordKeys.has(coordKey)) return false;
     return true;
   });
 
-  const presentDates = new Set(items.map((i) => i.day_date));
-  const missingDates = expectedDates.filter((d) => !presentDates.has(d));
-
-  if (missingDates.length === 0) {
-    return items;
-  }
-
-  console.warn(
-    `[RoamPulse] Missing dates detected: ${missingDates.join(", ")}; repairing date gaps with unused real places now...`,
-  );
-
-  const repaired = [...items];
-  let unusedPlaceIdx = 0;
-
-  missingDates.forEach((missingDay) => {
-    const dayPlaces: RealPlace[] = [];
-    while (dayPlaces.length < 3 && unusedPlaceIdx < unusedRealPlaces.length) {
-      const p = unusedRealPlaces[unusedPlaceIdx++]!;
-      dayPlaces.push(p);
-      const { canonicalName, coordKey } = extractCanonicalIdentity({
-        title: p.name,
-        location: p.address,
-        latitude: p.latitude,
-        longitude: p.longitude,
-        category: p.category,
-      });
-      if (canonicalName.length >= 3) usedCanonicalNames.add(canonicalName);
-      if (coordKey) usedCoordKeys.add(coordKey);
+  return cleaned.sort((a, b) => {
+    if (a.day_date !== b.day_date) {
+      return a.day_date.localeCompare(b.day_date);
     }
-
-    if (dayPlaces.length > 0) {
-      dayPlaces.forEach((p, pIdx) => {
-        const startTime = pIdx === 0 ? "10:00" : pIdx === 1 ? "12:30" : "15:00";
-        const duration = p.category === "restaurant" ? 75 : 120;
-        const endTime = addMinutes(startTime, duration);
-
-        repaired.push({
-          title: p.name,
-          description: p.description || `Explore ${p.name} in ${input.destination}.`,
-          day_date: missingDay,
-          start_time: startTime,
-          end_time: endTime,
-          category: p.category,
-          location: p.address || input.destination,
-          latitude: p.latitude ?? null,
-          longitude: p.longitude ?? null,
-          estimated_cost: Math.round(
-            (p.estimatedCostMin ?? 300) * (input.currency === "USD" ? 0.012 : 1),
-          ),
-          cost_type: p.costType || "estimated",
-          opening_hours: p.openingHours || null,
-          rating: p.rating ?? 4.5,
-          verification_status: "verified",
-          why_fits: `Popular ${p.category} in ${input.destination}`,
-          travel_minutes: 20,
-          indoor_outdoor: "mixed",
-          weather_suitability: "any",
-          booking_url: null,
-          is_locked: false,
-          uniqueness_key: generateUniquenessKey({
-            title: p.name,
-            category: p.category,
-            location: input.destination,
-          }),
-        });
-      });
-    } else {
-      // Legitimate structural / neighborhood walking activities when no unused verified real places exist
-      const structuralTemplates = [
-        {
-          title: `Local Neighborhood Exploration & City Stroll`,
-          description: `Self-guided walking tour around local neighborhoods, architectural streets, and city centers in ${input.destination}.`,
-          cat: "nature",
-          time: "10:00",
-        },
-        {
-          title: `Evening Dining & Local Center Walk`,
-          description: `Casual evening walking tour visiting popular food lanes and central dining spots in ${input.destination}.`,
-          cat: "food",
-          time: "18:00",
-        },
-      ];
-
-      const availableTemplates = structuralTemplates.filter((t) => {
-        const { canonicalName } = extractCanonicalIdentity({ title: t.title, category: t.cat });
-        return !usedCanonicalNames.has(canonicalName);
-      });
-
-      const t1 = availableTemplates[0] || {
-        title: `Local Area Exploration (${missingDay})`,
-        description: `Explore local neighborhoods and surroundings in ${input.destination}.`,
-        cat: "nature",
-        time: "10:00",
-      };
-
-      repaired.push({
-        title: t1.title,
-        description: t1.description,
-        day_date: missingDay,
-        start_time: t1.time,
-        end_time: addMinutes(t1.time, 120),
-        category: t1.cat,
-        location: input.destination,
-        latitude: null,
-        longitude: null,
-        estimated_cost: 0,
-        cost_type: "free",
-        verification_status: "estimated",
-        travel_minutes: 15,
-        indoor_outdoor: "mixed",
-        weather_suitability: "any",
-        booking_url: null,
-        is_locked: false,
-        uniqueness_key: `repaired_struct_${missingDay}`,
-      });
-    }
+    return a.start_time.localeCompare(b.start_time);
   });
-
-  return repaired;
 }
 
-/**
- * Post-processes itinerary items to enforce arrival & departure time constraints, meal windows, and buffers.
- */
+
 export function enforceArrivalAndDepartureConstraints(
   items: GeneratedItem[],
   input: TripInput,
@@ -685,106 +352,117 @@ export function enforceArrivalAndDepartureConstraints(
 
   const firstDay = days[0]!;
   const lastDay = days[days.length - 1]!;
+  const arrivalMins = minutesOf(input.arrivalTime || "14:00");
+  const departureMins = minutesOf(input.departureTime || "16:00");
 
-  const arrMins = minutesOf(input.arrivalTime || "14:00");
-  const depMins = minutesOf(input.departureTime || "16:00");
+  return items.filter((item) => {
+    const itemStartMins = minutesOf(item.start_time);
+    const lowerTitle = item.title.toLowerCase();
+    const isTransitOrAcc =
+      item.category === "transit" ||
+      item.category === "accommodation" ||
+      lowerTitle.includes("arrival") ||
+      lowerTitle.includes("check-in") ||
+      lowerTitle.includes("checkout") ||
+      lowerTitle.includes("transfer") ||
+      lowerTitle.includes("departure");
+
+    if (item.day_date === firstDay && !isTransitOrAcc && itemStartMins < arrivalMins - 15) {
+      console.log(
+        `[RoamPulse] Dropping activity scheduled before arrival on Day 1: "${item.title}" at ${item.start_time}`,
+      );
+      return false;
+    }
+
+    if (item.day_date === lastDay && !isTransitOrAcc && itemStartMins > departureMins - 120) {
+      console.log(
+        `[RoamPulse] Dropping activity scheduled too close to departure on last day: "${item.title}" at ${item.start_time}`,
+      );
+      return false;
+    }
+
+    return true;
+  });
+}
+
+export function clusterAndSortItemsByProximity(items: GeneratedItem[]): GeneratedItem[] {
+  const dayGroups: Record<string, GeneratedItem[]> = {};
+
+  items.forEach((item) => {
+    if (!dayGroups[item.day_date]) dayGroups[item.day_date] = [];
+    dayGroups[item.day_date]!.push(item);
+  });
 
   const processed: GeneratedItem[] = [];
 
-  for (const day of days) {
-    const dayItems = items.filter((i) => i.day_date === day);
+  Object.keys(dayGroups)
+    .sort()
+    .forEach((dayDate) => {
+      const dayItems = dayGroups[dayDate]!;
+      dayItems.sort((a, b) => a.start_time.localeCompare(b.start_time));
+      processed.push(...dayItems);
+    });
 
-    if (day === firstDay) {
-      const validDay1Items = dayItems.filter((i) => minutesOf(i.start_time) >= arrMins);
+  return processed;
+}
 
-      const hasArrival = validDay1Items.some(
-        (i) => i.category === "transit" || i.title.toLowerCase().includes("arrival"),
-      );
-      if (!hasArrival) {
-        processed.push({
-          title: `Arrival in ${input.destination} & Station/Airport Transfer`,
-          description: `Arrive at ${input.destination}, receive local transport assistance and head to accommodation.`,
-          day_date: day,
-          start_time: input.arrivalTime || "14:00",
-          end_time: addMinutes(input.arrivalTime || "14:00", 60),
-          category: "transit",
-          location: input.destination,
-          latitude: null,
-          longitude: null,
-          estimated_cost: Math.round(input.currency === "USD" ? 10 : 500),
-          cost_type: "estimated",
-          verification_status: "estimated",
-          travel_minutes: 30,
-          indoor_outdoor: "mixed",
-          weather_suitability: "any",
-          booking_url: null,
-          is_locked: false,
-          uniqueness_key: `arrival_transit_${day}`,
-        });
+export function guaranteeAllDatesPresent(
+  items: GeneratedItem[],
+  input: TripInput,
+  realPlaces: RealPlace[] = [],
+): GeneratedItem[] {
+  const days = dayList(input.startDate, input.endDate);
+  const presentDates = new Set(items.map((i) => i.day_date));
+  const missingDates = days.filter((d) => !presentDates.has(d));
 
-        processed.push({
-          title: `Hotel Check-in & Refresh`,
-          description: `Check in at hotel, unpack, and refresh before evening activities.`,
-          day_date: day,
-          start_time: addMinutes(input.arrivalTime || "14:00", 60),
-          end_time: addMinutes(input.arrivalTime || "14:00", 120),
-          category: "wellness",
-          location: input.destination,
-          latitude: null,
-          longitude: null,
-          estimated_cost: 0,
-          cost_type: "unknown",
-          verification_status: "estimated",
-          travel_minutes: 15,
-          indoor_outdoor: "indoor",
-          weather_suitability: "any",
-          booking_url: null,
-          is_locked: false,
-          uniqueness_key: `hotel_checkin_${day}`,
-        });
-      }
+  if (missingDates.length === 0) return items;
 
-      processed.push(...validDay1Items);
-    } else if (day === lastDay && days.length > 1) {
-      const latestAllowedMins = Math.max(10 * 60, depMins - 180);
-      const validLastDayItems = dayItems.filter((i) => minutesOf(i.end_time) <= latestAllowedMins);
+  console.log(`[RoamPulse] Dates missing in initial response: ${missingDates.join(", ")}`);
 
-      processed.push(...validLastDayItems);
+  const resultItems = [...items];
+  const usedPlaceNames = new Set(items.map((i) => normalizeTitle(i.title)));
+  const availableRealPlaces = realPlaces.filter((p) => !usedPlaceNames.has(normalizeTitle(p.name)));
 
-      const checkoutStart = `${String(Math.floor(latestAllowedMins / 60)).padStart(2, "0")}:00`;
-      processed.push({
-        title: `Hotel Checkout & Pack Souvenirs`,
-        description: `Complete hotel checkout procedure, store luggage if necessary, and prepare for departure.`,
-        day_date: day,
-        start_time: checkoutStart,
-        end_time: addMinutes(checkoutStart, 45),
+  let realPlaceIndex = 0;
+
+  missingDates.forEach((missingDay) => {
+    const isFirstDay = missingDay === days[0];
+    const isLastDay = missingDay === days[days.length - 1];
+
+    if (isFirstDay) {
+      resultItems.push({
+        title: `Arrival in ${input.destination} & Station/Airport Transfer`,
+        description: `Arrive in ${input.destination} and transfer to your accommodation.`,
+        day_date: missingDay,
+        start_time: input.arrivalTime || "14:00",
+        end_time: addMinutes(input.arrivalTime || "14:00", 60),
         category: "transit",
         location: input.destination,
         latitude: null,
         longitude: null,
-        estimated_cost: 0,
-        cost_type: "unknown",
+        estimated_cost: Math.round(input.currency === "USD" ? 10 : 500),
+        cost_type: "estimated",
         verification_status: "estimated",
-        travel_minutes: 15,
-        indoor_outdoor: "indoor",
+        travel_minutes: 30,
+        indoor_outdoor: "mixed",
         weather_suitability: "any",
         booking_url: null,
         is_locked: false,
-        uniqueness_key: `checkout_${day}`,
+        is_structural: true,
+        uniqueness_key: `repaired_arrival_${missingDay}`,
       });
-
-      const depStart = addMinutes(checkoutStart, 60);
-      processed.push({
-        title: `Airport / Station Transfer & Departure`,
-        description: `Travel to airport or station for departure with adequate check-in buffer time.`,
-        day_date: day,
-        start_time: depStart,
+    } else if (isLastDay) {
+      resultItems.push({
+        title: `Hotel Checkout & Departure Transfer`,
+        description: `Check out of accommodation and transfer to airport or train station in ${input.destination}.`,
+        day_date: missingDay,
+        start_time: "11:00",
         end_time: input.departureTime || "16:00",
         category: "transit",
         location: input.destination,
         latitude: null,
         longitude: null,
-        estimated_cost: Math.round(input.currency === "USD" ? 12 : 600),
+        estimated_cost: Math.round(input.currency === "USD" ? 15 : 600),
         cost_type: "estimated",
         verification_status: "estimated",
         travel_minutes: 45,
@@ -792,14 +470,64 @@ export function enforceArrivalAndDepartureConstraints(
         weather_suitability: "any",
         booking_url: null,
         is_locked: false,
-        uniqueness_key: `departure_transfer_${day}`,
+        is_structural: true,
+        uniqueness_key: `repaired_departure_${missingDay}`,
       });
     } else {
-      processed.push(...dayItems);
-    }
-  }
+      let insertedCount = 0;
+      let currentTimeMins = 10 * 60;
 
-  return processed;
+      while (insertedCount < 2 && realPlaceIndex < availableRealPlaces.length) {
+        const place = availableRealPlaces[realPlaceIndex++]!;
+        usedPlaceNames.add(normalizeTitle(place.name));
+
+        const startTime = `${String(Math.floor(currentTimeMins / 60)).padStart(2, "0")}:${String(currentTimeMins % 60).padStart(2, "0")}`;
+        const durationMins = place.category === "restaurant" ? 75 : 120;
+        const endTime = addMinutes(startTime, durationMins);
+        currentTimeMins += durationMins + 30;
+
+        resultItems.push({
+          title: place.name,
+          description:
+            place.description ||
+            `Visit ${place.name} in ${input.destination}, selected for your trip.`,
+          day_date: missingDay,
+          start_time: startTime,
+          end_time: endTime,
+          category: place.category,
+          location: place.address || input.destination,
+          latitude: place.latitude ?? null,
+          longitude: place.longitude ?? null,
+          estimated_cost: Math.round(
+            (place.estimatedCostMin ?? 250) * (input.currency === "USD" ? 0.012 : 1),
+          ),
+          cost_type: place.costType || "estimated",
+          opening_hours: place.openingHours || null,
+          rating: place.rating ?? 4.5,
+          verification_status: "verified",
+          place_id: place.placeId,
+          why_fits: `Verified real place in ${input.destination}`,
+          travel_minutes: 20,
+          indoor_outdoor: "mixed",
+          weather_suitability: "any",
+          booking_url: null,
+          is_locked: false,
+          uniqueness_key: generateUniquenessKey({
+            title: place.name,
+            category: place.category,
+            location: input.destination,
+          }),
+        });
+
+        insertedCount++;
+      }
+    }
+  });
+
+  return resultItems.sort((a, b) => {
+    if (a.day_date !== b.day_date) return a.day_date.localeCompare(b.day_date);
+    return a.start_time.localeCompare(b.start_time);
+  });
 }
 
 export type ItineraryGenerationMode = "initial" | "regenerate" | "recovery";
@@ -815,7 +543,7 @@ export interface GenerateItineraryOptions {
 }
 
 /**
- * Fallback Itinerary Generator using Real Places catalog with zero repeated places across days.
+ * Fallback Itinerary Generator creating ONLY structural logistics items when APIs fail or return 0 candidates.
  */
 export function fallbackItinerary(
   input: TripInput,
@@ -839,7 +567,6 @@ export function fallbackItinerary(
       currentTimeMins = minutesOf(input.arrivalTime || "14:00") + 60;
     }
 
-    // Assign non-overlapping candidate real places to each day
     const dayPlaces: RealPlace[] = [];
     while (dayPlaces.length < 3 && placeIndex < places.length) {
       dayPlaces.push(places[placeIndex++]!);
@@ -873,6 +600,7 @@ export function fallbackItinerary(
           opening_hours: p.openingHours || null,
           rating: p.rating ?? 4.5,
           verification_status: "verified",
+          place_id: p.placeId,
           why_fits: `Verified ${p.category} in ${input.destination}`,
           travel_minutes: 20,
           indoor_outdoor: "mixed",
@@ -887,11 +615,11 @@ export function fallbackItinerary(
         });
       });
     } else {
-      // Structural activities when verified places are sparse (never invent fake place names)
+      // Pure structural items when no real places exist
       if (dayIndex === 0) {
         rawItems.push({
           title: `Arrival in ${input.destination} & Station/Airport Transfer`,
-          description: `Arrive in ${input.destination} and transfer to your booked accommodation.`,
+          description: `Arrive in ${input.destination} and transfer to accommodation.`,
           day_date: day,
           start_time: input.arrivalTime || "14:00",
           end_time: addMinutes(input.arrivalTime || "14:00", 60),
@@ -907,12 +635,13 @@ export function fallbackItinerary(
           weather_suitability: "any",
           booking_url: null,
           is_locked: false,
+          is_structural: true,
           uniqueness_key: `fallback_arrival_${day}`,
         });
 
         rawItems.push({
           title: `Hotel Check-in & Rest`,
-          description: `Complete hotel check-in procedures, unpack luggage, and rest.`,
+          description: `Complete hotel check-in procedures and rest.`,
           day_date: day,
           start_time: addMinutes(input.arrivalTime || "14:00", 60),
           end_time: addMinutes(input.arrivalTime || "14:00", 120),
@@ -928,35 +657,15 @@ export function fallbackItinerary(
           weather_suitability: "any",
           booking_url: null,
           is_locked: false,
+          is_structural: true,
           uniqueness_key: `fallback_checkin_${day}`,
         });
       } else if (dayIndex === days.length - 1 && days.length > 1) {
         rawItems.push({
-          title: `Hotel Checkout & Packing`,
-          description: `Complete checkout, organize belongings, and store bags if needed.`,
+          title: `Hotel Checkout & Departure Transfer`,
+          description: `Complete checkout and transfer to departure station/airport.`,
           day_date: day,
           start_time: "11:00",
-          end_time: "12:00",
-          category: "transit",
-          location: input.destination,
-          latitude: null,
-          longitude: null,
-          estimated_cost: 0,
-          cost_type: "unknown",
-          verification_status: "estimated",
-          travel_minutes: 15,
-          indoor_outdoor: "indoor",
-          weather_suitability: "any",
-          booking_url: null,
-          is_locked: false,
-          uniqueness_key: `fallback_checkout_${day}`,
-        });
-
-        rawItems.push({
-          title: `Station / Airport Transfer & Departure`,
-          description: `Travel to station or airport for return journey.`,
-          day_date: day,
-          start_time: "13:00",
           end_time: input.departureTime || "16:00",
           category: "transit",
           location: input.destination,
@@ -970,49 +679,8 @@ export function fallbackItinerary(
           weather_suitability: "any",
           booking_url: null,
           is_locked: false,
+          is_structural: true,
           uniqueness_key: `fallback_departure_${day}`,
-        });
-      } else {
-        rawItems.push({
-          title: `Local Neighborhood Exploration & City Stroll`,
-          description: `Walk through historic streets, local markets, and public squares in ${input.destination}.`,
-          day_date: day,
-          start_time: "10:00",
-          end_time: "12:00",
-          category: "nature",
-          location: input.destination,
-          latitude: null,
-          longitude: null,
-          estimated_cost: 0,
-          cost_type: "free",
-          verification_status: "estimated",
-          travel_minutes: 15,
-          indoor_outdoor: "mixed",
-          weather_suitability: "any",
-          booking_url: null,
-          is_locked: false,
-          uniqueness_key: `fallback_explore_${day}`,
-        });
-
-        rawItems.push({
-          title: `Local Dining & Evening Leisure`,
-          description: `Enjoy local cuisine at neighborhood restaurants and relax in ${input.destination}.`,
-          day_date: day,
-          start_time: "18:00",
-          end_time: "20:00",
-          category: "food",
-          location: input.destination,
-          latitude: null,
-          longitude: null,
-          estimated_cost: Math.round(input.currency === "USD" ? 15 : 600),
-          cost_type: "estimated",
-          verification_status: "estimated",
-          travel_minutes: 15,
-          indoor_outdoor: "indoor",
-          weather_suitability: "any",
-          booking_url: null,
-          is_locked: false,
-          uniqueness_key: `fallback_dining_${day}`,
         });
       }
     }
@@ -1026,13 +694,21 @@ export function fallbackItinerary(
   return guaranteeAllDatesPresent(cleaned, input, places);
 }
 
+export interface ItineraryGenerationResult {
+  items: GeneratedItem[];
+  source: "ai" | "fallback";
+  state: GenerationState;
+  notice?: string | undefined;
+  error: string | null;
+}
+
 /**
- * Calls Google Gemini API or AI Gateway to generate a real-world, destination-specific itinerary.
+ * Multi-City Real-World Itinerary Planner & Reasoning Engine.
  */
 export async function generateItinerary(
   input: TripInput,
   options?: GenerateItineraryOptions,
-): Promise<{ items: GeneratedItem[]; source: "ai" | "fallback"; error: string | null }> {
+): Promise<ItineraryGenerationResult> {
   const mode = options?.mode || (options?.isRegeneration ? "regenerate" : "initial");
   const genId = options?.generationId || crypto.randomUUID();
   const days = dayList(input.startDate, input.endDate);
@@ -1045,6 +721,8 @@ export async function generateItinerary(
   const isGeminiConfigured = Boolean(geminiApiKey && geminiApiKey.length > 0);
   const isGatewayConfigured = Boolean(gatewayApiKey && gatewayApiKey.length > 0);
 
+  let generationState: GenerationState = "RESEARCHING";
+
   console.log(`[RoamPulse] GENERATION START | generationId: ${genId}`);
   console.log(`[RoamPulse] destination: ${input.destination}`);
   console.log(`[RoamPulse] trip start date: ${input.startDate}`);
@@ -1052,62 +730,117 @@ export async function generateItinerary(
   console.log(`[RoamPulse] expected day count: ${days.length}`);
   console.log(`[RoamPulse] Gemini API key present: ${isGeminiConfigured}`);
   console.log(`[RoamPulse] Gemini model: ${MODEL}`);
+  console.log(`[RoamPulse] GENERATION STATE: ${generationState}`);
 
-  // Fetch real-world place data for destination (Google Places / Curated / OSM)
-  const realPlaces = await fetchRealWorldPlaces(input.destination, input.interests);
-  const accommodationPricing = await getAccommodationPricing(
+  // Discover real-world place candidate pools for each destination city
+  const cityPools: CityCandidatePool[] = await fetchMultiCityRealWorldPlaces(
     input.destination,
+    input.extraDestinations,
+    input.interests,
+  );
+
+  generationState = "PLACES_FOUND";
+  console.log(`[RoamPulse] GENERATION STATE: ${generationState}`);
+
+  const allVerifiedPlaces: RealPlace[] = cityPools.flatMap((p) => p.candidates);
+  console.log(
+    `[REAL PLACES] Discovered ${allVerifiedPlaces.length} total verified places across ${cityPools.length} cities`,
+  );
+  // Per-city breakdown
+  for (const pool of cityPools) {
+    console.log(
+      `[RoamPulse] CITY POOL | city: ${pool.city} | candidates: ${pool.candidates.length}`,
+    );
+  }
+
+  generationState = "PLACES_VERIFIED";
+  console.log(`[RoamPulse] GENERATION STATE: ${generationState}`);
+
+
+  const accommodationPricing = await getAccommodationPricing(
+    cityPools[0]?.city || input.destination,
     input.currency,
     input.startDate,
     input.endDate,
     input.preferences.accommodation,
   );
-  console.log(
-    `[REAL PLACES] Found ${realPlaces.length} real-world places for ${input.destination}`,
-  );
+
+  let generationNotice: string | undefined;
+  let isDegraded = false;
+
+  // Minimum Candidate Quality Gate
+  const minCandidatesNeeded = Math.max(4, days.length * 2);
+  if (allVerifiedPlaces.length < minCandidatesNeeded) {
+    isDegraded = true;
+    generationState = "DEGRADED";
+    console.warn(
+      `[RoamPulse] Limited candidate pool (${allVerifiedPlaces.length} places for ${days.length} days, minimum needed: ${minCandidatesNeeded}) -> Setting generation state to DEGRADED`,
+    );
+    generationNotice = `RoamPulse verified ${allVerifiedPlaces.length} real attractions for this destination. We created your itinerary using those verified locations without inventing fictional places.`;
+  }
 
   if (!isGeminiConfigured && !isGatewayConfigured) {
     console.warn(
-      "[RoamPulse] Using fallback itinerary because Gemini failed (GEMINI_API_KEY is missing/unconfigured in environment)",
+      "[RoamPulse] Using fallback itinerary because Gemini failed (GEMINI_API_KEY missing/unconfigured)",
     );
-    const fallbackItems = fallbackItinerary(input, { ...options, realPlacesOverride: realPlaces });
-    return { items: fallbackItems, source: "fallback", error: null };
+    const fallbackItems = fallbackItinerary(input, {
+      ...options,
+      realPlacesOverride: allVerifiedPlaces,
+    });
+    return {
+      items: fallbackItems,
+      source: "fallback",
+      state: "DEGRADED",
+      notice: "AI Planner unavailable — backup structural schedule generated.",
+      error: null,
+    };
   }
 
+  // Divide trip days across cities for multi-city trips
+  const cityDayAssignments: Array<{ city: string; pool: CityCandidatePool; days: string[] }> = [];
+  const totalCities = cityPools.length;
+  const daysPerCity = Math.max(1, Math.floor(days.length / totalCities));
+
+  cityPools.forEach((pool, idx) => {
+    const isLastCity = idx === totalCities - 1;
+    const startIdx = idx * daysPerCity;
+    const endIdx = isLastCity ? days.length : (idx + 1) * daysPerCity;
+    const assignedDays = days.slice(startIdx, endIdx);
+    cityDayAssignments.push({ city: pool.city, pool, days: assignedDays });
+  });
+
   const promptParts = [
-    `You are an expert, local travel planner creating a practical, real-world ${days.length}-day travel itinerary for ${input.destination} (traveling from ${input.origin}).`,
-    `Calendar Dates: ${days.join(", ")} (Day 1 is ${days[0]}, Day ${days.length} is ${days[days.length - 1]}).`,
-    `Travelers: ${input.adults} adults, ${input.children} children.`,
-    `Budget: ${input.budget} ${input.currency}. Travel style: ${input.travelStyle}.`,
+    `You are RoamPulse's expert local travel planner creating a multi-city ${days.length}-day itinerary.`,
+    `Travelers: ${input.adults} adults, ${input.children} children. Budget: ${input.budget} ${input.currency}. Travel style: ${input.travelStyle}.`,
     `Interests: ${input.interests.join(", ") || "General exploration"}.`,
     `Arrival Time on Day 1: ${input.arrivalTime || "14:00"}. Departure Time on Day ${days.length}: ${input.departureTime || "16:00"}.`,
-    `Pace: ${input.preferences.pace}. Indoor/outdoor balance: ${input.preferences.indoorOutdoor}. Transport mode: ${input.preferences.transport}.`,
+    `Pace: ${input.preferences.pace}. Transport mode: ${input.preferences.transport}.`,
     ``,
-    `CRITICAL REAL-WORLD REQUIREMENTS:`,
-    `1. REAL PLACE SELECTION ONLY: You MUST select attractions, museums, markets, landmarks, parks, and restaurants ONLY from the verified real-place list provided below. NEVER invent or hallucinate fictional venue names.`,
-    `2. STRICT GLOBAL UNICITY (ZERO REPEATS): EVERY real attraction, landmark, restaurant, activity, shopping location, museum, viewpoint, temple, park, or cultural site MUST appear ONLY ONCE in the entire itinerary across all ${days.length} days.`,
-    `   - Do NOT reuse the same location or restaurant on multiple days.`,
-    `   - Do NOT create different titles for the same place (e.g. "The Ridge" and "Explore The Ridge" are the same place and must not appear on different days).`,
-    `   - Do NOT repeat restaurants across different days unless user explicitly requested.`,
-    `   - Each day MUST use completely different real places from the other days.`,
-    `3. NO GENERIC ACTIVITY TITLES: NEVER emit generic activity titles like "Sightseeing & Local Exploration", "Explore the city", "Explore local attractions", "Discover the city", "Explore historic attractions", "City sightseeing", or "Free time". EVERY activity title MUST be the exact name of a real place or specific venue (e.g. "Kohima War Cemetery", "Nagaland State Museum", "Naga Bazaar", "Lunch at Dzüko Cafe").`,
-    `4. COMPLETE DAY-BY-DAY COVERAGE: You MUST generate 3 to 5 items for EVERY date in the list (${days.join(", ")}). NEVER skip an intermediate date.`,
-    `5. DAILY STRUCTURE & MEALS:`,
-    `   - Include lunch (around 12:30 - 13:30) and dinner (around 19:30 - 20:30) at real restaurant candidates from the list whenever available. Use DIFFERENT restaurants for every meal.`,
-    `   - Provide realistic time slots (e.g. 09:00–10:30, 10:50–12:15, 12:30–13:30 lunch, 14:00–16:00, 16:30–18:00). Leave realistic 15–30 minute buffers for travel between places.`,
-    `6. GEOGRAPHIC CLUSTERING: Group nearby venues together on the same day so travelers don't waste hours crisscrossing the city.`,
-    `7. ARRIVAL & DEPARTURE TIMING:`,
-    `   - Day 1: Do NOT schedule any morning activities before arrival time (${input.arrivalTime || "14:00"}). Start Day 1 with arrival transfer, hotel check-in, and an evening dinner/activity.`,
-    `   - Final Day: Conclude major tours at least 3 hours prior to departure (${input.departureTime || "16:00"}). Include hotel checkout and station/airport transfer.`,
-    `8. REALISTIC COSTS: Estimate realistic costs per item in ${input.currency} (e.g. 0 for free public places, 200–500 for entry tickets/dining). Use clean rounded numbers.`,
+    `CRITICAL MULTI-CITY & REAL-PLACE RULES:`,
+    `1. ZERO HALLUCINATION OF PLACE NAMES: You are the SCHEDULER, NOT the place database. You MUST select attractions, museums, landmarks, restaurants, and parks STRICTLY from the supplied candidate list. NEVER invent fictional place names.`,
+    `2. CITY ALLOCATION & ZERO CITY CROSS-CONTAMINATION:`,
   ];
 
-  if (realPlaces.length > 0) {
+  cityDayAssignments.forEach(({ city, pool, days: cityDays }) => {
     promptParts.push(
-      ``,
-      `VERIFIED REAL-WORLD PLACES CANDIDATES FOR ${input.destination.toUpperCase()}:`,
+      `   - CITY: ${city.toUpperCase()} (Assigned Dates: ${cityDays.join(", ")})`,
+      `     You MUST select items for ${cityDays.join(", ")} ONLY from ${city.toUpperCase()} candidate places listed below. NEVER put a ${city} place on another city's dates.`,
+    );
+  });
+
+  promptParts.push(
+    `3. STRICT GLOBAL UNICITY: Every real place must appear ONLY ONCE across the entire itinerary.`,
+    `4. NO GENERIC PLACEHOLDERS: NEVER emit generic titles like 'Explore Paris', 'Local Neighborhood Exploration', 'City Stroll', 'Evening Dining', or 'Free time'. Every non-structural activity MUST be an exact real venue from the candidates.`,
+    `5. STRUCTURAL LOGISTICS ALLOWED: Use category 'transit' or 'accommodation' only for genuine logistics (airport transfer, hotel check-in/out, intercity train/flight).`,
+    ``,
+  );
+
+  cityDayAssignments.forEach(({ city, pool, days: cityDays }) => {
+    promptParts.push(
+      `VERIFIED REAL-WORLD PLACES CANDIDATES FOR ${city.toUpperCase()} (DATES: ${cityDays.join(", ")}):`,
       JSON.stringify(
-        realPlaces.map((p) => ({
+        pool.candidates.map((p) => ({
+          place_id: p.placeId,
           name: p.name,
           category: p.category,
           address: p.address,
@@ -1115,18 +848,13 @@ export async function generateItinerary(
           longitude: p.longitude,
           rating: p.rating,
           openingHours: p.openingHours,
-          costRange:
-            p.estimatedCostMin !== undefined
-              ? `${p.estimatedCostMin}-${p.estimatedCostMax} ${input.currency}`
-              : "Variable",
-          costType: p.costType,
         })),
         null,
         2,
       ),
-      `INSTRUCTION: Select your attractions and restaurants strictly from this verified real-place list for ${input.destination}. Ensure NO place from this list is repeated on multiple days.`,
+      ``,
     );
-  }
+  });
 
   if (mode === "regenerate" || (options?.previousTitles && options.previousTitles.length > 0)) {
     promptParts.push(
@@ -1135,6 +863,9 @@ export async function generateItinerary(
   }
 
   const maxAttempts = 2;
+  generationState = "PLANNING";
+  console.log(`[RoamPulse] GENERATION STATE: ${generationState}`);
+  console.log(`[RoamPulse] GEMINI PLANNING START`);
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
@@ -1143,23 +874,30 @@ export async function generateItinerary(
       if (isGeminiConfigured) {
         console.log(`[RoamPulse] Gemini request started | attempt: ${attempt}`);
         const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${geminiApiKey}`;
+        const systemInstructionText = [
+          "You are RoamPulse's expert local travel planner. Your ONLY job is to SCHEDULE the verified places provided to you.",
+          "Return ONLY valid JSON matching schema {\"items\": [...]}.",
+          "MANDATORY: Every sightseeing/activity/attraction item MUST have a place_id field matching EXACTLY one of the candidate place_id values from the city candidate lists provided.",
+          "MANDATORY: Never invent, imagine, or create attraction/museum/landmark/restaurant/park/viewpoint/neighborhood names that are not in the candidate lists.",
+          "MANDATORY: Do not emit items with titles like 'Explore Paris', 'Local Neighborhood Exploration', 'City Stroll', 'Evening Dining & Leisure', 'Evening City Walk', 'Local Sightseeing', 'Discover the City', 'Visit Famous Attractions', or any generic placeholder.",
+          "For structural logistics only (airport transfer, hotel check-in, hotel checkout, intercity train/flight), place_id should be null and category should be 'transit' or 'accommodation'.",
+          "If there are not enough candidates to fill all day slots, leave slots empty rather than inventing fictional places.",
+        ].join(" ");
+
         const res = await fetch(geminiUrl, {
           method: "POST",
           headers: { "content-type": "application/json" },
           body: JSON.stringify({
             contents: [{ parts: [{ text: promptParts.join("\n") }] }],
             systemInstruction: {
-              parts: [
-                {
-                  text: 'You are RoamPulse\'s expert local travel planner. Return ONLY valid JSON matching schema {"items": [...]}. Every item title MUST be a specific real place name from the supplied candidate list. EVERY place must appear ONLY ONCE in the entire itinerary across all days. Do NOT repeat attractions, restaurants, or landmarks on multiple days.',
-                },
-              ],
+              parts: [{ text: systemInstructionText }],
             },
             generationConfig: {
               responseMimeType: "application/json",
             },
           }),
         });
+
 
         console.log(`[RoamPulse] Gemini HTTP status: ${res.status}`);
 
@@ -1187,7 +925,7 @@ export async function generateItinerary(
               {
                 role: "system",
                 content:
-                  "You are RoamPulse's expert local travel planner. Every item title must be a specific real place name from candidate list. Every place must appear ONLY ONCE across all days. Always return structured JSON via emit_itinerary tool.",
+                  "You are RoamPulse's expert local travel planner. Your ONLY job is to SCHEDULE the verified places provided. Every sightseeing/attraction/activity title MUST be a specific real place from the candidates list with its exact place_id. NEVER invent place names not in the list. NEVER use titles like 'Explore [City]', 'City Stroll', 'Local Neighborhood', 'Evening Dining & Leisure', or any generic placeholder. Only transit and accommodation items may have null place_id.",
               },
               { role: "user", content: promptParts.join("\n") },
             ],
@@ -1196,7 +934,7 @@ export async function generateItinerary(
                 type: "function",
                 function: {
                   name: "emit_itinerary",
-                  description: "Return structured day-by-day travel itinerary",
+                  description: "Return day-by-day travel itinerary",
                   parameters: {
                     type: "object",
                     properties: {
@@ -1205,6 +943,7 @@ export async function generateItinerary(
                         items: {
                           type: "object",
                           properties: {
+                            place_id: { type: "string" },
                             title: { type: "string" },
                             description: { type: "string" },
                             day_date: { type: "string" },
@@ -1215,28 +954,8 @@ export async function generateItinerary(
                             latitude: { type: "number" },
                             longitude: { type: "number" },
                             estimated_cost: { type: "number" },
-                            cost_min: { type: "number" },
-                            cost_max: { type: "number" },
-                            cost_type: {
-                              type: "string",
-                              enum: ["free", "estimated", "listed", "unknown"],
-                            },
-                            opening_hours: { type: "string" },
-                            rating: { type: "number" },
-                            verification_status: {
-                              type: "string",
-                              enum: ["verified", "estimated", "ai_planned"],
-                            },
-                            why_fits: { type: "string" },
-                            travel_minutes: { type: "number" },
-                            indoor_outdoor: {
-                              type: "string",
-                              enum: ["indoor", "outdoor", "mixed"],
-                            },
-                            weather_suitability: {
-                              type: "string",
-                              enum: ["any", "clear_only", "rain_ok"],
-                            },
+                            indoor_outdoor: { type: "string" },
+                            weather_suitability: { type: "string" },
                           },
                           required: [
                             "title",
@@ -1245,8 +964,6 @@ export async function generateItinerary(
                             "start_time",
                             "end_time",
                             "category",
-                            "location",
-                            "estimated_cost",
                             "indoor_outdoor",
                           ],
                         },
@@ -1261,8 +978,6 @@ export async function generateItinerary(
           }),
         });
 
-        console.log(`[RoamPulse] Gemini Gateway HTTP status: ${res.status}`);
-
         if (res.ok) {
           const json = (await res.json()) as {
             choices?: { message?: { tool_calls?: { function?: { arguments?: string } }[] } }[];
@@ -1275,143 +990,141 @@ export async function generateItinerary(
         throw new Error("No response content returned from AI services.");
       }
 
-      console.log(`[RoamPulse] Gemini response received | length: ${rawJsonText.length}`);
+      generationState = "VALIDATING";
+      console.log(`[RoamPulse] GENERATION STATE: ${generationState}`);
 
       const extractedJson = extractJsonFromText(rawJsonText);
-      let jsonParsed: unknown;
-      try {
-        jsonParsed = JSON.parse(extractedJson);
-      } catch (pErr) {
-        const msg = pErr instanceof Error ? pErr.message : String(pErr);
-        console.warn(`[RoamPulse] Gemini response parsing failed: ${msg}`);
-        throw new Error(`JSON parsing failed: ${msg}`);
-      }
-
+      const jsonParsed = JSON.parse(extractedJson);
       const parsed = itineraryResponseSchema.safeParse(jsonParsed);
+
       if (!parsed.success) {
-        console.warn(`[RoamPulse] Gemini itinerary validation failed: ${parsed.error.message}`);
         throw new Error(`Validation failed: ${parsed.error.message}`);
       }
 
       const rawItems = parsed.data.items;
-      console.log(`[RoamPulse] Gemini generated item count: ${rawItems.length}`);
-      console.log(
-        `[RoamPulse] Gemini generated dates: ${Array.from(new Set(rawItems.map((i) => i.day_date))).join(", ")}`,
-      );
+      console.log(`[RoamPulse] GEMINI RAW ITEM COUNT: ${rawItems.length}`);
 
-      const canonicalDest = await resolveDestinationCoordinates(input.destination);
+      let realPlaceCount = 0;
+      let structuralCount = 0;
+      let rejectedInventedCount = 0;
 
-      let verifiedCount = 0;
-      let rejectedUnverifiedCount = 0;
-      let validCoordsCount = 0;
-      let rejectedCoordsCount = 0;
+      const validatedItems: GeneratedItem[] = [];
 
-      // Real-place matching & metadata attachment & coordinate proximity check
-      const matchedItems = rawItems.map((item) => {
-        let matchedPlace: RealPlace | undefined;
-        if (realPlaces.length > 0) {
-          matchedPlace = realPlaces.find((p) => isFuzzyMatch(p.name, item.title));
-        }
-
-        let finalLat = matchedPlace?.latitude ?? item.latitude ?? null;
-        let finalLon = matchedPlace?.longitude ?? item.longitude ?? null;
-
-        // Proximity validation against canonical destination coordinates
-        if (
-          canonicalDest &&
-          isValidCoordinates(canonicalDest.latitude, canonicalDest.longitude) &&
-          isValidCoordinates(finalLat, finalLon)
-        ) {
-          if (
-            !isWithinDestinationRegion(
-              canonicalDest.latitude,
-              canonicalDest.longitude,
-              finalLat,
-              finalLon,
-              150,
-            )
-          ) {
-            rejectedCoordsCount++;
-            finalLat = null;
-            finalLon = null;
-          } else {
-            validCoordsCount++;
-          }
-        } else if (isValidCoordinates(finalLat, finalLon)) {
-          validCoordsCount++;
-        }
-
-        if (matchedPlace) {
-          verifiedCount++;
-          return {
-            ...item,
-            title: matchedPlace.name,
-            latitude: finalLat,
-            longitude: finalLon,
-            location: matchedPlace.address || item.location,
-            rating: matchedPlace.rating ?? item.rating ?? null,
-            opening_hours: matchedPlace.openingHours || item.opening_hours || null,
-            verification_status: "verified" as const,
-            cost_type: matchedPlace.costType || item.cost_type || "estimated",
-          };
-        }
-
+      for (const item of rawItems) {
         const isStructural =
           item.category === "transit" ||
           item.category === "accommodation" ||
           item.title.toLowerCase().includes("arrival") ||
           item.title.toLowerCase().includes("check-in") ||
           item.title.toLowerCase().includes("checkout") ||
+          item.title.toLowerCase().includes("transfer") ||
           item.title.toLowerCase().includes("departure");
 
-        if (!isStructural && realPlaces.length > 0) {
-          rejectedUnverifiedCount++;
+        if (isStructural) {
+          structuralCount++;
+          validatedItems.push({
+            ...item,
+            verification_status: "estimated",
+            is_structural: true,
+          });
+          continue;
         }
 
-        return {
-          ...item,
-          latitude: finalLat,
-          longitude: finalLon,
-          verification_status: matchedPlace ? ("verified" as const) : ("estimated" as const),
-        };
-      });
+        // Match against verified candidate pool for item's date & city
+        const assignedCityObj = cityDayAssignments.find((a) => a.days.includes(item.day_date));
+        const candidatePoolForDate = assignedCityObj
+          ? assignedCityObj.pool.candidates
+          : allVerifiedPlaces;
 
-      console.log(`[RoamPulse] REAL PLACE VALIDATION`);
-      console.log(`[RoamPulse] verified items: ${verifiedCount}`);
-      console.log(`[RoamPulse] rejected invented/unverified items: ${rejectedUnverifiedCount}`);
-      console.log(`[RoamPulse] COORDINATE VALIDATION`);
-      console.log(`[RoamPulse] valid coordinates: ${validCoordsCount}`);
-      console.log(`[RoamPulse] invalid/out-of-region coordinates rejected: ${rejectedCoordsCount}`);
+        let matchedPlace: RealPlace | undefined;
 
-      // GLOBAL TRIP-WIDE DEDUPLICATION (Zero Repeats Across Days)
-      const { uniqueItems, duplicatesRemovedCount } = deduplicateItineraryItemsGlobal(matchedItems);
-      console.log(
-        `[RoamPulse] global duplicate candidates detected & removed: ${duplicatesRemovedCount}`,
-      );
+        if (item.place_id) {
+          matchedPlace = candidatePoolForDate.find((p) => p.placeId === item.place_id);
+        }
+
+        if (!matchedPlace) {
+          matchedPlace = candidatePoolForDate.find((p) => isFuzzyMatch(p.name, item.title));
+        }
+
+        if (!matchedPlace) {
+          // Check all pools as fallback
+          matchedPlace = allVerifiedPlaces.find((p) => isFuzzyMatch(p.name, item.title));
+        }
+
+        if (matchedPlace) {
+          realPlaceCount++;
+          let finalLat = matchedPlace.latitude ?? item.latitude ?? null;
+          let finalLon = matchedPlace.longitude ?? item.longitude ?? null;
+
+          const canonicalCity = await resolveDestinationCoordinates(
+            matchedPlace.destinationCity || input.destination,
+          );
+          if (
+            canonicalCity &&
+            isValidCoordinates(canonicalCity.latitude, canonicalCity.longitude) &&
+            isValidCoordinates(finalLat, finalLon)
+          ) {
+            if (
+              !isWithinDestinationRegion(
+                canonicalCity.latitude,
+                canonicalCity.longitude,
+                finalLat,
+                finalLon,
+                150,
+              )
+            ) {
+              finalLat = null;
+              finalLon = null;
+            }
+          }
+
+          validatedItems.push({
+            ...item,
+            place_id: matchedPlace.placeId,
+            title: matchedPlace.name,
+            latitude: finalLat,
+            longitude: finalLon,
+            location: matchedPlace.address || item.location,
+            rating: matchedPlace.rating ?? item.rating ?? null,
+            opening_hours: matchedPlace.openingHours || item.opening_hours || null,
+            verification_status: "verified",
+            cost_type: matchedPlace.costType || item.cost_type || "estimated",
+          });
+        } else {
+          // REJECT UNVERIFIED INVENTED SIGHTSEEING ITEM
+          rejectedInventedCount++;
+          console.warn(
+            `[RoamPulse] REJECTED INVENTED ITEM: "${item.title}" on ${item.day_date} (Not in verified candidate pool)`,
+          );
+        }
+      }
+
+      console.log(`[RoamPulse] VALIDATED ITEM COUNT: ${validatedItems.length}`);
+      console.log(`[RoamPulse] REAL PLACE ITEM COUNT: ${realPlaceCount}`);
+      console.log(`[RoamPulse] STRUCTURAL ITEM COUNT: ${structuralCount}`);
+      console.log(`[RoamPulse] REJECTED INVENTED ITEM COUNT: ${rejectedInventedCount}`);
+
+      const { uniqueItems, duplicatesRemovedCount } =
+        deduplicateItineraryItemsGlobal(validatedItems);
+      console.log(`[RoamPulse] Global duplicates removed: ${duplicatesRemovedCount}`);
 
       const constrainedItems = enforceArrivalAndDepartureConstraints(
-        uniqueItems.length > 0 ? uniqueItems : matchedItems,
+        uniqueItems.length > 0 ? uniqueItems : validatedItems,
         input,
       );
 
-      const clusteredItems = clusterAndSortItemsByProximity(constrainedItems);
+      const cleanedItems = validateAndCleanItineraryItems(constrainedItems, input);
+      const finalItems = guaranteeAllDatesPresent(cleanedItems, input, allVerifiedPlaces);
 
-      const cleanedItems = validateAndCleanItineraryItems(clusteredItems, input);
-
-      // GUARANTEE date coverage for every date in range using ONLY UNUSED real places
-      const finalItems = guaranteeAllDatesPresent(cleanedItems, input, realPlaces);
-
-      console.log(`[RoamPulse] validation item count: ${cleanedItems.length}`);
-      console.log(`[RoamPulse] final unique item count: ${finalItems.length}`);
-
-      const hasAccommodation = finalItems.some(
-        (i) => i.category === "accommodation" || i.title.toLowerCase().startsWith("accommodation:"),
-      );
-
-      if (!hasAccommodation && days.length > 0) {
-        const accommodationItem: GeneratedItem = {
+      if (
+        !finalItems.some(
+          (i) =>
+            i.category === "accommodation" || i.title.toLowerCase().startsWith("accommodation:"),
+        )
+      ) {
+        finalItems.unshift({
           title: `Accommodation: ${accommodationPricing.hotelName}`,
-          description: `${accommodationPricing.accommodationType.replace("_", " ")} stay in ${input.destination} (${accommodationPricing.totalNights} night${accommodationPricing.totalNights > 1 ? "s" : ""}). Rate source: ${accommodationPricing.providerName}.`,
+          description: `${accommodationPricing.accommodationType.replace("_", " ")} stay in ${input.destination} (${accommodationPricing.totalNights} nights).`,
           day_date: days[0]!,
           start_time: input.arrivalTime || "14:00",
           end_time: addMinutes(input.arrivalTime || "14:00", 30),
@@ -1420,118 +1133,71 @@ export async function generateItinerary(
           latitude: accommodationPricing.latitude ?? null,
           longitude: accommodationPricing.longitude ?? null,
           estimated_cost: accommodationPricing.totalAccommodationCost ?? 0,
-          cost_min: accommodationPricing.pricePerNight
-            ? Math.round(
-                accommodationPricing.pricePerNight * 0.85 * accommodationPricing.totalNights,
-              )
-            : null,
-          cost_max: accommodationPricing.pricePerNight
-            ? Math.round(
-                accommodationPricing.pricePerNight * 1.15 * accommodationPricing.totalNights,
-              )
-            : null,
-          cost_type:
-            accommodationPricing.pricingSource === "live"
-              ? "listed"
-              : accommodationPricing.pricingSource === "estimated"
-                ? "estimated"
-                : "unknown",
+          cost_type: "estimated",
           verification_status: accommodationPricing.isVerified ? "verified" : "estimated",
-          why_fits: `Selected for ${input.preferences.accommodation} stay preference in ${input.destination}`,
+          is_structural: true,
           travel_minutes: 0,
           indoor_outdoor: "indoor",
           weather_suitability: "any",
           booking_url: null,
           is_locked: false,
-          metadata: {
-            price_per_night: accommodationPricing.pricePerNight,
-            total_nights: accommodationPricing.totalNights,
-            accommodation_type: accommodationPricing.accommodationType,
-            pricing_source: accommodationPricing.pricingSource,
-            provider_name: accommodationPricing.providerName,
-            hotel_name: accommodationPricing.hotelName,
-            latitude: accommodationPricing.latitude,
-            longitude: accommodationPricing.longitude,
-            rating: accommodationPricing.rating,
-          },
-        };
-        finalItems.unshift(accommodationItem);
+        });
       }
 
-      const realSightseeingCount = finalItems.filter(
-        (i) =>
-          i.verification_status === "verified" ||
-          (!i.category?.includes("transit") && i.category !== "accommodation"),
-      ).length;
-      const structuralCount = finalItems.length - realSightseeingCount;
+      generationState = isDegraded ? "DEGRADED" : "COMPLETE";
 
-      console.log(`[RoamPulse] Final real-place items: ${realSightseeingCount}`);
-      console.log(`[RoamPulse] Final structural items: ${structuralCount}`);
-      console.log(`[RoamPulse] Recovery triggered: false`);
-      console.log(`[RoamPulse] fallback used: false`);
-      console.log(
-        `[RoamPulse] GENERATION COMPLETE | Gemini itinerary succeeded with ${finalItems.length} items`,
-      );
+      console.log(`[RoamPulse] FINAL ITEM COUNT: ${finalItems.length}`);
+      console.log(`[RoamPulse] GENERATION STATE: ${generationState}`);
+      console.log(`[RoamPulse] GENERATION COMPLETE | generationId: ${genId}`);
+
       return {
         items: finalItems,
         source: "ai",
+        state: generationState,
+        notice: generationNotice,
         error: null,
       };
     } catch (err: unknown) {
       const errMsg = err instanceof Error ? err.message : String(err);
       console.warn(`[RoamPulse] Gemini itinerary attempt ${attempt} failed: ${errMsg}`);
       if (attempt === maxAttempts) {
-        console.warn(
-          "[RoamPulse] Using fallback itinerary because Gemini failed (Attempts exhausted)",
-        );
         const fallbackItems = fallbackItinerary(input, {
           ...options,
-          realPlacesOverride: realPlaces,
+          realPlacesOverride: allVerifiedPlaces,
         });
-        console.log(`[RoamPulse] fallback used: true`);
-        console.log(`[RoamPulse] GENERATION COMPLETE`);
         return {
           items: fallbackItems,
           source: "fallback",
-          error: "AI planner is temporarily busy — generated a backup schedule.",
+          state: "DEGRADED",
+          notice: "AI Planner temporarily busy — generated backup schedule.",
+          error: "AI planner busy.",
         };
       }
     }
   }
 
-  console.warn("[RoamPulse] Using fallback itinerary because Gemini failed");
-  const fallbackItems = fallbackItinerary(input, { ...options, realPlacesOverride: realPlaces });
-  console.log(`[RoamPulse] fallback used: true`);
-  console.log(`[RoamPulse] GENERATION COMPLETE`);
+  const fallbackItems = fallbackItinerary(input, {
+    ...options,
+    realPlacesOverride: allVerifiedPlaces,
+  });
   return {
     items: fallbackItems,
     source: "fallback",
+    state: "DEGRADED",
+    notice: "Backup schedule generated.",
     error: null,
   };
 }
 
-/**
- * Re-optimizes an existing itinerary after a disruption event.
- */
-export async function reoptimizeItinerary(
-  input: TripInput,
-  existingItems: GeneratedItem[],
-  _disruption?: { affectedItemId?: string; reason?: string },
-): Promise<{ items: GeneratedItem[]; source: "ai" | "fallback"; error: string | null }> {
-  const locked = existingItems.filter((i) => i.is_locked);
-  const previousTitles = existingItems.map((i) => i.title);
-
-  const result = await generateItinerary(input, { previousTitles, isRegeneration: true });
-
-  const finalItems: GeneratedItem[] = [...locked];
-  const { uniqueItems } = deduplicateItineraryItemsGlobal([...locked, ...result.items]);
-
-  return {
-    items: validateAndCleanItineraryItems(
-      enforceArrivalAndDepartureConstraints(uniqueItems, input),
-      input,
-    ),
-    source: result.source,
-    error: result.error,
-  };
+function extractJsonFromText(text: string): string {
+  const jsonMatch = text.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+  if (jsonMatch && jsonMatch[1]) {
+    return jsonMatch[1].trim();
+  }
+  const firstBrace = text.indexOf("{");
+  const lastBrace = text.lastIndexOf("}");
+  if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+    return text.substring(firstBrace, lastBrace + 1);
+  }
+  return text.trim();
 }

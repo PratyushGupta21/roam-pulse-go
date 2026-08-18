@@ -7,9 +7,9 @@
  * 3. Never returns ₹0 or "Free" for hotel accommodation.
  */
 
-import { fetchRealWorldPlaces, type RealPlace } from "@/lib/places/real-places.server";
-import { parseDateParts } from "@/lib/format";
-import { fetchPriceOffers } from "@/lib/providers.server";
+import { fetchRealWorldPlaces, type RealPlace } from "../places/real-places.server";
+import { parseDateParts } from "../format";
+import { fetchPriceOffers } from "../providers.server";
 
 export interface AccommodationPricing {
   hotelName: string;

@@ -107,7 +107,7 @@ export async function resolveDestinationCoordinates(
     console.warn(`[RoamPulse] Open-Meteo geocoding warning: ${(err as Error).message}`);
   }
 
-  // Level 2: Nominatim fallback
+  // Level 2: Nominatim fallback (Vercel IPs may be rate-limited — handle 403 gracefully)
   try {
     const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(
       inputNorm,
@@ -117,8 +117,17 @@ export async function resolveDestinationCoordinates(
       headers: {
         "User-Agent": "RoamPulseTravelApp/1.0 (roampulse@example.com)",
         Accept: "application/json",
+        "Accept-Language": "en",
       },
     });
+
+    if (res.status === 403) {
+      console.warn(
+        `[RoamPulse] NOMINATIM GEOCODE WARN HTTP 403 — Vercel IP may be rate-limited by Nominatim. Skipping fallback gracefully.`,
+      );
+      destinationCache.set(cacheKey, null);
+      return null;
+    }
 
     if (res.ok) {
       const data = (await res.json()) as Array<{
@@ -205,8 +214,17 @@ export async function geocodeLocation(
       headers: {
         "User-Agent": "RoamPulseTravelApp/1.0 (roampulse@example.com)",
         Accept: "application/json",
+        "Accept-Language": "en",
       },
     });
+
+    if (res.status === 403) {
+      console.warn(
+        `[NOMINATIM GEOCODE WARN] HTTP 403 — Vercel IP may be rate-limited. Skipping gracefully.`,
+      );
+      geocodeCache.set(cacheKey, null);
+      return null;
+    }
 
     if (!res.ok) {
       console.warn(`[NOMINATIM GEOCODE WARN] HTTP ${res.status}`);
@@ -235,8 +253,14 @@ export async function geocodeLocation(
         headers: {
           "User-Agent": "RoamPulseTravelApp/1.0 (roampulse@example.com)",
           Accept: "application/json",
+          "Accept-Language": "en",
         },
       });
+
+      if (destRes.status === 403) {
+        geocodeCache.set(cacheKey, null);
+        return null;
+      }
 
       if (destRes.ok) {
         const destData = (await destRes.json()) as Array<{ lat?: string; lon?: string }>;

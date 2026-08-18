@@ -1416,8 +1416,21 @@ function TripDetailsPage() {
                                         {item.category}
                                       </span>
 
-                                      {/* REAL PLACE BADGE */}
-                                      {verificationStatus === "verified" || rating ? (
+                                      {/* REAL PLACE / LOGISTICS BADGE */}
+                                      {item.category === "transit" ||
+                                      item.category === "accommodation" ||
+                                      (meta["is_structural"] as boolean | undefined) === true ||
+                                      item.title.toLowerCase().includes("arrival") ||
+                                      item.title.toLowerCase().includes("check-in") ||
+                                      item.title.toLowerCase().includes("checkout") ||
+                                      item.title.toLowerCase().includes("transfer") ||
+                                      item.title.toLowerCase().includes("departure") ? (
+                                        <span className="rounded-md border border-purple-500/40 bg-purple-500/15 text-purple-800 dark:text-purple-300 font-bold text-[10px] px-2 py-0.5 uppercase tracking-wide">
+                                          LOGISTICS
+                                        </span>
+                                      ) : verificationStatus === "verified" ||
+                                        rating ||
+                                        meta["place_id"] ? (
                                         <span className="rounded-md border border-emerald-500/40 bg-emerald-500/15 text-emerald-800 dark:text-emerald-300 font-bold text-[10px] px-2 py-0.5 uppercase tracking-wide">
                                           ✓ REAL PLACE
                                         </span>

@@ -81,6 +81,8 @@ export const createTrip = createServerFn({ method: "POST" })
         rating: item.rating,
         verification_status: item.verification_status,
         why_fits: item.why_fits,
+        place_id: item.place_id ?? null,
+        is_structural: item.is_structural ?? false,
       },
     }));
 
@@ -359,6 +361,10 @@ export const generateTripItinerary = createServerFn({ method: "POST" })
             rating: item.rating,
             verification_status: item.verification_status,
             why_fits: item.why_fits,
+            place_id: item.place_id,
+            is_structural: item.is_structural,
+            generation_state: generated.state,
+            generation_notice: generated.notice,
           },
         });
       }

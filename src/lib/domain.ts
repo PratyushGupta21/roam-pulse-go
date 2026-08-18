@@ -119,6 +119,16 @@ export interface ItineraryItemMetadata {
   [key: string]: unknown;
 }
 
+export type GenerationState =
+  | "RESEARCHING"
+  | "PLACES_FOUND"
+  | "PLACES_VERIFIED"
+  | "PLANNING"
+  | "VALIDATING"
+  | "COMPLETE"
+  | "DEGRADED"
+  | "FAILED";
+
 export const itineraryItemSchema = z.object({
   title: z.string().min(2).max(160),
   description: z.string().max(1000).default(""),
@@ -201,6 +211,8 @@ export const itineraryItemSchema = z.object({
   weather_suitability: z.enum(["any", "clear_only", "rain_ok"]).default("any"),
   booking_url: z.string().url().nullable().default(null),
   is_locked: z.boolean().default(false),
+  is_structural: z.boolean().optional(),
+  place_id: z.string().nullable().optional(),
   uniqueness_key: z.string().optional(),
   metadata: z.record(z.string(), z.unknown()).optional(),
 });
