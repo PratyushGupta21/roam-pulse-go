@@ -2,6 +2,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { AlertCircle, ArrowLeft, ArrowRight, Loader2, Plus, Sparkles } from "lucide-react";
 import { useState } from "react";
+import { z } from "zod";
 
 import { Logo } from "@/components/brand/Logo";
 import { Button } from "@/components/ui/button";
@@ -31,7 +32,13 @@ import {
 } from "@/lib/domain";
 import { createTrip } from "@/lib/trips.functions";
 
+const tripSearchSchema = z.object({
+  destination: z.string().optional(),
+  highlight: z.string().optional(),
+});
+
 export const Route = createFileRoute("/_authenticated/trips/new")({
+  validateSearch: (search) => tripSearchSchema.parse(search),
   head: () => ({
     meta: [
       { title: "Plan a New Trip — RoamPulse" },
@@ -68,6 +75,10 @@ function NewTripPage() {
   const { user, signOut } = useAuth();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const search = Route.useSearch();
+
+  const initialDest = search.destination || "";
+  const initialHighlight = search.highlight || "";
 
   const todayStr = new Date().toISOString().slice(0, 10);
   const nextWeek = new Date();
@@ -78,9 +89,9 @@ function NewTripPage() {
   const [error, setError] = useState<string | null>(null);
 
   // Step 1
-  const [name, setName] = useState("");
+  const [name, setName] = useState(initialDest ? `${initialDest} Getaway` : "");
   const [origin, setOrigin] = useState("Delhi");
-  const [destination, setDestination] = useState("");
+  const [destination, setDestination] = useState(initialDest);
   const [country, setCountry] = useState("");
   const [extraDestinations, setExtraDestinations] = useState<string[]>([]);
   const [startDate, setStartDate] = useState(todayStr);
@@ -100,7 +111,9 @@ function NewTripPage() {
   const [food, setFood] = useState<Food>("mixed");
 
   // Step 4
-  const [interests, setInterests] = useState<string[]>(["Local food", "History"]);
+  const [interests, setInterests] = useState<string[]>(
+    initialHighlight ? ["Local food", "History", "Landmarks"] : ["Local food", "History"],
+  );
 
   // Step 5
   const [pace, setPace] = useState<Pace>("moderate");
@@ -108,7 +121,9 @@ function NewTripPage() {
   const [maxTravelMinutes, setMaxTravelMinutes] = useState(45);
   const [dietary, setDietary] = useState<string[]>([]);
   const [accessibility, setAccessibility] = useState<string[]>([]);
-  const [specialRequests, setSpecialRequests] = useState("");
+  const [specialRequests, setSpecialRequests] = useState(
+    initialHighlight ? `Must visit ${initialHighlight}` : "",
+  );
 
   const travelStyle = (BUDGET_LEVELS.find((b) => b.id === budgetLevel)?.style ??
     "balanced") as TravelStyle;

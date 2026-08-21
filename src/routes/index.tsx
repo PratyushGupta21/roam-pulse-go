@@ -1,4 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { z } from "zod";
 import {
   Bell,
   Clock,
@@ -25,11 +26,17 @@ import { RecoveryDemo } from "@/components/marketing/RecoveryDemo";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
 
+const explorerSearchSchema = z.object({
+  destination: z.string().optional(),
+  highlight: z.string().optional(),
+});
+
 const TITLE = "RoamPulse — Your Trip Changes. RoamPulse Adapts.";
 const DESCRIPTION =
   "AI-powered travel planning that continuously adapts your itinerary when flights, weather, prices, and plans change.";
 
 export const Route = createFileRoute("/")({
+  validateSearch: (search) => explorerSearchSchema.parse(search),
   head: () => ({
     meta: [
       { title: TITLE },
@@ -146,6 +153,7 @@ const MODES = [
 
 function Home() {
   const { user } = useAuth();
+  const { destination, highlight } = Route.useSearch();
   const planTripTarget = user ? "/trips/new" : "/signup";
 
   return (
@@ -166,6 +174,19 @@ function Home() {
 
         <div className="mx-auto grid w-full max-w-6xl gap-10 px-4 pb-16 pt-28 lg:grid-cols-2 lg:items-center lg:pb-24 lg:pt-32">
           <div>
+            {destination ? (
+              <div className="mb-5 rounded-2xl border border-cyan-400/40 bg-slate-950/80 p-4 text-cyan-200 backdrop-blur-md shadow-xl animate-in fade-in slide-in-from-top-3">
+                <div className="flex items-center gap-2 font-semibold text-white text-base">
+                  <Sparkles className="h-5 w-5 text-cyan-400 animate-pulse" />
+                  <span>Explorer Spot Identified!</span>
+                </div>
+                <p className="mt-1 text-sm text-cyan-100/90">
+                  Planning itinerary for <strong className="text-white underline">{destination}</strong>
+                  {highlight ? <> centering around <strong className="text-amber-300">{highlight}</strong></> : ""}
+                </p>
+              </div>
+            ) : null}
+
             <span className="inline-flex items-center gap-2 rounded-full border border-white/25 bg-white/10 px-3 py-1 text-xs font-medium text-white backdrop-blur">
               <span
                 className="live-dot inline-block h-2 w-2 rounded-full bg-success"
@@ -179,7 +200,22 @@ function Home() {
             <p className="mt-5 max-w-xl text-lg text-white/85">{DESCRIPTION}</p>
             <div className="mt-8 flex flex-wrap gap-3">
               <Button asChild size="lg" variant="recover">
-                <Link to={planTripTarget}>Plan My Trip</Link>
+                {user ? (
+                  <Link
+                    to="/trips/new"
+                    search={
+                      destination
+                        ? { destination, ...(highlight ? { highlight } : {}) }
+                        : {}
+                    }
+                  >
+                    {destination ? `Plan Trip Around ${destination}` : "Plan My Trip"}
+                  </Link>
+                ) : (
+                  <Link to="/signup">
+                    {destination ? `Plan Trip Around ${destination}` : "Plan My Trip"}
+                  </Link>
+                )}
               </Button>
               <Button
                 asChild

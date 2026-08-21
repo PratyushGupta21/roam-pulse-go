@@ -7,12 +7,13 @@ import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
 import { cn } from "@/lib/utils";
 
-const NAV = [
+const NAV: Array<{ to: string; label: string }> = [
+  { to: "/explorer", label: "Explorer" },
   { to: "/how-it-works", label: "How it works" },
   { to: "/pricing", label: "Pricing" },
   { to: "/faq", label: "FAQ" },
   { to: "/about", label: "About" },
-] as const;
+];
 
 export function SiteHeader({ transparent = false }: { transparent?: boolean }) {
   const [open, setOpen] = useState(false);

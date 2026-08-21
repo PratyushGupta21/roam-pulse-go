@@ -1,0 +1,195 @@
+import { createServerFn } from "@tanstack/react-start";
+import { z } from "zod";
+import { geocodeLocation, resolveDestinationCoordinates } from "@/lib/maps/geocoding";
+
+export interface ExplorerIdentificationResult {
+  placeName: string;
+  city: string;
+  country: string;
+  confidence: "HIGH" | "MEDIUM" | "LOW";
+  visualReasoning: string[];
+  suggestedBestTimeToVisit: string;
+  coordinates?: {
+    lat: number;
+    lng: number;
+  } | null;
+}
+
+const identifyInputSchema = z.object({
+  image: z.string().min(1, "Image data is required"), // base64 string or data URL
+  mimeType: z.string().optional().default("image/jpeg"),
+});
+
+export const identifyPlace = createServerFn({ method: "POST" })
+  .validator((data: unknown) => identifyInputSchema.parse(data))
+  .handler(async ({ data }): Promise<ExplorerIdentificationResult> => {
+    const geminiApiKey = process.env["GEMINI_API_KEY"] || process.env["VITE_GEMINI_API_KEY"];
+
+    if (!geminiApiKey) {
+      throw new Error("GEMINI_API_KEY environment variable is missing on server.");
+    }
+
+    // Clean base64 data & extract mimeType if data URL provided
+    let rawBase64 = data.image;
+    let detectedMimeType = data.mimeType || "image/jpeg";
+
+    if (rawBase64.startsWith("data:")) {
+      const parts = rawBase64.split(",");
+      const match = rawBase64.match(/^data:(image\/[a-zA-Z+]+);base64,/);
+      if (match && match[1]) {
+        detectedMimeType = match[1];
+      }
+      rawBase64 = parts[1] || rawBase64;
+    }
+
+    // Prepare Gemini 3.5 Flash Vision request
+    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${geminiApiKey}`;
+
+    const promptText = `Analyze this travel screenshot or photo (from Instagram, TikTok, Reels, or travel camera). 
+Identify:
+1. The exact specific place/attraction/landmark/restaurant/viewpoint/museum/site name.
+2. The city where it is located.
+3. The country where it is located.
+4. Your confidence level ("HIGH" if iconic/unmistakable, "MEDIUM" if likely match based on architectural/geographical features, "LOW" if uncertain or ambiguous).
+5. A list of 3 to 5 key visual reasoning features/markers identified in the screenshot (e.g., "Gothic arched windows", "Red terracotta roof tiles", "Eiffel Tower lattice structure", "Turquoise coastal waters").
+6. The suggested best time of day or season to visit.
+
+Return ONLY valid JSON according to the schema.`;
+
+    const requestBody = {
+      contents: [
+        {
+          parts: [
+            { text: promptText },
+            {
+              inlineData: {
+                mimeType: detectedMimeType,
+                data: rawBase64,
+              },
+            },
+          ],
+        },
+      ],
+      generationConfig: {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: "OBJECT",
+          properties: {
+            placeName: {
+              type: "STRING",
+              description: "Specific attraction or site name",
+            },
+            city: {
+              type: "STRING",
+              description: "City where the place is located",
+            },
+            country: {
+              type: "STRING",
+              description: "Country where the place is located",
+            },
+            confidence: {
+              type: "STRING",
+              enum: ["HIGH", "MEDIUM", "LOW"],
+              description: "Confidence level of identification",
+            },
+            visualReasoning: {
+              type: "ARRAY",
+              items: { type: "STRING" },
+              description: "Key visual markers identified in the image",
+            },
+            suggestedBestTimeToVisit: {
+              type: "STRING",
+              description: "Suggested best time to visit",
+            },
+          },
+          required: [
+            "placeName",
+            "city",
+            "country",
+            "confidence",
+            "visualReasoning",
+            "suggestedBestTimeToVisit",
+          ],
+        },
+      },
+    };
+
+    // Strict 15-second AbortController timeout budget
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 15000);
+
+    try {
+      console.log("[Explorer] Sending Vision request to Gemini 3.5 Flash...");
+      const res = await fetch(geminiUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(requestBody),
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeoutId);
+
+      if (!res.ok) {
+        const errText = await res.text();
+        console.error(`[Explorer] Gemini HTTP Error ${res.status}:`, errText);
+        throw new Error(`Gemini API returned status ${res.status}: ${errText.slice(0, 200)}`);
+      }
+
+      const responseData = await res.json();
+      const textOutput =
+        responseData?.candidates?.[0]?.content?.parts?.[0]?.text;
+
+      if (!textOutput) {
+        throw new Error("No output generated by Gemini Vision model.");
+      }
+
+      const parsed: ExplorerIdentificationResult = JSON.parse(textOutput);
+
+      // Sanitize fields
+      const result: ExplorerIdentificationResult = {
+        placeName: parsed.placeName || "Unknown Spot",
+        city: parsed.city || "Unknown City",
+        country: parsed.country || "",
+        confidence: ["HIGH", "MEDIUM", "LOW"].includes(parsed.confidence)
+          ? parsed.confidence
+          : "MEDIUM",
+        visualReasoning: Array.isArray(parsed.visualReasoning)
+          ? parsed.visualReasoning
+          : ["Identified via visual pattern matching"],
+        suggestedBestTimeToVisit:
+          parsed.suggestedBestTimeToVisit || "Early morning or golden hour",
+        coordinates: null,
+      };
+
+      // Grounding: Safely resolve coordinates without modifying geocoding.ts
+      try {
+        const queryStr = `${result.placeName}, ${result.city}`;
+        const locCoords = await geocodeLocation(result.placeName, result.city);
+
+        if (locCoords && locCoords.latitude && locCoords.longitude) {
+          result.coordinates = {
+            lat: locCoords.latitude,
+            lng: locCoords.longitude,
+          };
+        } else {
+          const destResolved = await resolveDestinationCoordinates(result.city);
+          if (destResolved && destResolved.latitude && destResolved.longitude) {
+            result.coordinates = {
+              lat: destResolved.latitude,
+              lng: destResolved.longitude,
+            };
+          }
+        }
+      } catch (geocodeErr) {
+        console.warn("[Explorer] Grounding geocode warning:", geocodeErr);
+      }
+
+      return result;
+    } catch (err: unknown) {
+      clearTimeout(timeoutId);
+      if (err instanceof Error && err.name === "AbortError") {
+        throw new Error("Image identification timed out (15s limit exceeded). Please try a smaller image.");
+      }
+      throw err;
+    }
+  });

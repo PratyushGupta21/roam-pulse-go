@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as AboutRouteImport } from './routes/about'
+import { Route as ExplorerRouteImport } from './routes/explorer'
 import { Route as FaqRouteImport } from './routes/faq'
 import { Route as HowItWorksRouteImport } from './routes/how-it-works'
 import { Route as LoginRouteImport } from './routes/login'
@@ -36,6 +37,11 @@ const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
 const AboutRoute = AboutRouteImport.update({
   id: '/about',
   path: '/about',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ExplorerRoute = ExplorerRouteImport.update({
+  id: '/explorer',
+  path: '/explorer',
   getParentRoute: () => rootRouteImport,
 } as any)
 const FaqRoute = FaqRouteImport.update({
@@ -98,6 +104,7 @@ const AuthenticatedTripsNewRoute = AuthenticatedTripsNewRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
+  '/explorer': typeof ExplorerRoute
   '/faq': typeof FaqRoute
   '/how-it-works': typeof HowItWorksRoute
   '/login': typeof LoginRoute
@@ -113,6 +120,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
+  '/explorer': typeof ExplorerRoute
   '/faq': typeof FaqRoute
   '/how-it-works': typeof HowItWorksRoute
   '/login': typeof LoginRoute
@@ -130,6 +138,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
   '/about': typeof AboutRoute
+  '/explorer': typeof ExplorerRoute
   '/faq': typeof FaqRoute
   '/how-it-works': typeof HowItWorksRoute
   '/login': typeof LoginRoute
@@ -147,6 +156,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/about'
+    | '/explorer'
     | '/faq'
     | '/how-it-works'
     | '/login'
@@ -162,6 +172,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/about'
+    | '/explorer'
     | '/faq'
     | '/how-it-works'
     | '/login'
@@ -178,6 +189,7 @@ export interface FileRouteTypes {
     | '/'
     | '/_authenticated'
     | '/about'
+    | '/explorer'
     | '/faq'
     | '/how-it-works'
     | '/login'
@@ -195,6 +207,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   AboutRoute: typeof AboutRoute
+  ExplorerRoute: typeof ExplorerRoute
   FaqRoute: typeof FaqRoute
   HowItWorksRoute: typeof HowItWorksRoute
   LoginRoute: typeof LoginRoute
@@ -226,6 +239,13 @@ declare module '@tanstack/react-router' {
       path: '/about'
       fullPath: '/about'
       preLoaderRoute: typeof AboutRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/explorer': {
+      id: '/explorer'
+      path: '/explorer'
+      fullPath: '/explorer'
+      preLoaderRoute: typeof ExplorerRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/faq': {
@@ -327,6 +347,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   AboutRoute: AboutRoute,
+  ExplorerRoute: ExplorerRoute,
   FaqRoute: FaqRoute,
   HowItWorksRoute: HowItWorksRoute,
   LoginRoute: LoginRoute,
