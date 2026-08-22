@@ -165,6 +165,19 @@ function Home() {
         style={{ minHeight: "680px" }}
         className="relative isolate -mt-16 flex items-center overflow-hidden border-b border-white/10 bg-roam-navy lg:min-h-[90vh]"
       >
+        {/* Full-bleed background video */}
+        <video
+          autoPlay
+          loop
+          muted
+          playsInline
+          className="absolute inset-0 w-full h-full object-cover opacity-60 mix-blend-screen pointer-events-none z-0"
+        >
+          <source src="https://designerstephen.github.io/public-assets/videos/serene-art-hero.mp4" type="video/mp4" />
+        </video>
+        {/* Dark gradient overlay */}
+        <div className="absolute inset-0 bg-linear-to-b from-roam-navy/50 via-roam-navy/30 to-roam-navy z-0 pointer-events-none" />
+
         {/* Dynamic ambient radial light leaks */}
         <div
           style={{ height: "500px", width: "500px" }}
@@ -175,84 +188,79 @@ function Home() {
           className="pointer-events-none absolute bottom-10 right-10 -z-10 rounded-full bg-roam-cyan/10 blur-3xl"
         />
 
-        <img
-          src={pageBackgrounds.home.imageSrc}
-          alt={pageBackgrounds.home.alt}
-          width={1920}
-          height={1088}
-          fetchPriority="high"
-          decoding="async"
-          className="absolute inset-0 -z-20 h-full w-full object-cover object-[62%_38%] opacity-35 mix-blend-luminosity md:object-center"
-        />
-        <div className="hero-scrim absolute inset-0 -z-10 hidden md:block" aria-hidden="true" />
-        <div className="hero-scrim-mobile absolute inset-0 -z-10 md:hidden" aria-hidden="true" />
-
-        <div className="mx-auto grid w-full max-w-6xl gap-10 px-4 pb-16 pt-28 lg:grid-cols-2 lg:items-center lg:pb-24 lg:pt-36">
-          <div>
-            {destination ? (
-              <div className="mb-5 rounded-2xl border border-roam-cyan/50 bg-roam-navy/90 p-4 text-cyan-200 backdrop-blur-xl shadow-[0_0_25px_rgba(30,193,203,0.3)] animate-in fade-in slide-in-from-top-3">
-                <div className="flex items-center gap-2 font-semibold text-white text-base">
-                  <Sparkles className="h-5 w-5 text-roam-cyan animate-pulse" />
-                  <span>Explorer Spot Identified!</span>
+        <div className="relative z-10 mx-auto max-w-7xl px-6 py-12 lg:px-8 pt-28 lg:pt-36">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+            {/* Column 1: Left Content */}
+            <div className="flex flex-col items-start text-left">
+              {destination ? (
+                <div className="mb-5 rounded-2xl border border-roam-cyan/50 bg-roam-navy/90 p-4 text-cyan-200 backdrop-blur-xl shadow-[0_0_25px_rgba(30,193,203,0.3)] animate-in fade-in slide-in-from-top-3">
+                  <div className="flex items-center gap-2 font-semibold text-white text-base">
+                    <Sparkles className="h-5 w-5 text-roam-cyan animate-pulse" />
+                    <span>Explorer Spot Identified!</span>
+                  </div>
+                  <p className="mt-1 text-sm text-cyan-100/90">
+                    Planning itinerary for <strong className="text-white underline">{destination}</strong>
+                    {highlight ? <> centering around <strong className="text-amber-300">{highlight}</strong></> : ""}
+                  </p>
                 </div>
-                <p className="mt-1 text-sm text-cyan-100/90">
-                  Planning itinerary for <strong className="text-white underline">{destination}</strong>
-                  {highlight ? <> centering around <strong className="text-amber-300">{highlight}</strong></> : ""}
-                </p>
-              </div>
-            ) : null}
+              ) : null}
 
-            <span className="inline-flex items-center gap-2 rounded-full border border-roam-cyan/40 bg-roam-cyan/10 px-4 py-1.5 text-xs font-semibold text-roam-cyan backdrop-blur-md shadow-[0_0_15px_rgba(30,193,203,0.2)]">
-              <span
-                className="live-dot inline-block h-2 w-2 rounded-full bg-roam-cyan"
-                aria-hidden="true"
-              />
-              Real-time telemetry monitoring
-            </span>
-            <h1 className="mt-6 font-display text-4xl font-extrabold leading-tight text-white drop-shadow-md sm:text-5xl lg:text-6xl">
-              Your Trip Changes.{" "}
-              <span className="bg-clip-text bg-linear-to-r from-cyan-300 via-roam-cyan to-teal-400 text-transparent drop-shadow-[0_0_25px_rgba(30,193,203,0.5)]">
-                RoamPulse Adapts.
+              <span className="inline-flex items-center gap-2 rounded-full border border-roam-cyan/40 bg-roam-cyan/10 px-4 py-1.5 text-xs font-semibold text-roam-cyan backdrop-blur-md shadow-[0_0_15px_rgba(30,193,203,0.2)]">
+                <span
+                  className="live-dot inline-block h-2 w-2 rounded-full bg-roam-cyan"
+                  aria-hidden="true"
+                />
+                Real-time telemetry monitoring
               </span>
-            </h1>
-            <p className="mt-6 max-w-xl text-lg leading-relaxed text-slate-300">{DESCRIPTION}</p>
-            <div className="mt-9 flex flex-wrap gap-4">
-              <Button
-                asChild
-                size="lg"
-                className="rounded-full bg-roam-cyan px-8 font-bold text-roam-navy shadow-[0_0_25px_rgba(30,193,203,0.5)] transition-all duration-300 hover:bg-roam-cyan/90 hover:shadow-[0_0_35px_rgba(30,193,203,0.8)]"
-              >
-                {user ? (
-                  <Link
-                    to="/trips/new"
-                    search={
-                      destination
-                        ? { destination, ...(highlight ? { highlight } : {}) }
-                        : {}
-                    }
-                  >
-                    {destination ? `Plan Trip Around ${destination}` : "Plan My Trip"}
-                  </Link>
-                ) : (
-                  <Link to="/signup">
-                    {destination ? `Plan Trip Around ${destination}` : "Plan My Trip"}
-                  </Link>
-                )}
-              </Button>
-              <Button
-                asChild
-                size="lg"
-                variant="outline"
-                className="rounded-full border-white/20 bg-white/5 text-white backdrop-blur-md hover:border-roam-cyan/50 hover:bg-white/10 hover:text-white transition-all duration-300"
-              >
-                <Link to="/how-it-works">See How It Works</Link>
-              </Button>
+              <h1 className="mt-6 font-display text-4xl font-extrabold leading-tight text-white drop-shadow-md sm:text-5xl lg:text-6xl">
+                Your Trip Changes.{" "}
+                <span className="bg-clip-text bg-linear-to-r from-cyan-300 via-roam-cyan to-teal-400 text-transparent drop-shadow-[0_0_25px_rgba(30,193,203,0.5)]">
+                  RoamPulse Adapts.
+                </span>
+              </h1>
+              <p className="mt-6 max-w-xl text-lg leading-relaxed text-slate-300">{DESCRIPTION}</p>
+              <div className="mt-9 flex flex-wrap gap-4">
+                <Button
+                  asChild
+                  size="lg"
+                  className="rounded-full bg-roam-cyan px-8 font-bold text-roam-navy shadow-[0_0_25px_rgba(30,193,203,0.5)] transition-all duration-300 hover:bg-roam-cyan/90 hover:shadow-[0_0_35px_rgba(30,193,203,0.8)]"
+                >
+                  {user ? (
+                    <Link
+                      to="/trips/new"
+                      search={
+                        destination
+                          ? { destination, ...(highlight ? { highlight } : {}) }
+                          : {}
+                      }
+                    >
+                      {destination ? `Plan Trip Around ${destination}` : "Plan My Trip"}
+                    </Link>
+                  ) : (
+                    <Link to="/signup">
+                      {destination ? `Plan Trip Around ${destination}` : "Plan My Trip"}
+                    </Link>
+                  )}
+                </Button>
+                <Button
+                  asChild
+                  size="lg"
+                  variant="outline"
+                  className="rounded-full border-white/20 bg-white/5 text-white backdrop-blur-md hover:border-roam-cyan/50 hover:bg-white/10 hover:text-white transition-all duration-300"
+                >
+                  <Link to="/how-it-works">See How It Works</Link>
+                </Button>
+              </div>
+              <p className="mt-5 text-sm text-slate-400">
+                Free plan available · zero booking fees · full spending control.
+              </p>
             </div>
-            <p className="mt-5 text-sm text-slate-400">
-              Free plan available · zero booking fees · full spending control.
-            </p>
+
+            {/* Column 2: Terminal Widget */}
+            <div className="w-full flex justify-center lg:justify-end">
+              <HeroTimeline />
+            </div>
           </div>
-          <HeroTimeline />
         </div>
       </section>
 
