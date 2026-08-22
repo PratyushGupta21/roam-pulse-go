@@ -1,9 +1,8 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { motion } from "framer-motion";
 import {
-  ArrowRight,
   Compass,
   Gauge,
-  MapPin,
   PlaneTakeoff,
   RotateCw,
   Route as RouteIcon,
@@ -41,19 +40,19 @@ const PROCESS_STAGES = [
     stage: "PLAN",
     icon: Wand2,
     desc: "AI builds a structured, verified day schedule.",
-    color: "border-primary/40 text-primary",
+    color: "border-roam-cyan/40 bg-roam-cyan/10 text-roam-cyan",
   },
   {
     stage: "MONITOR",
     icon: PlaneTakeoff,
     desc: "24/7 background check on flight, weather & prices.",
-    color: "border-accent/40 text-accent",
+    color: "border-cyan-400/40 bg-cyan-400/10 text-cyan-300",
   },
   {
     stage: "REPAIR",
     icon: RotateCw,
     desc: "Instant alternative path when reality slips.",
-    color: "border-success/40 text-success",
+    color: "border-emerald-400/40 bg-emerald-400/10 text-emerald-300",
   },
 ] as const;
 
@@ -113,45 +112,54 @@ function HowItWorks() {
         titleAccent="Adapts With You"
         lede="RoamPulse continuously monitors your trip and rebuilds your plans when reality changes."
       >
-        <Button asChild size="lg" variant="recover">
+        <Button
+          asChild
+          size="lg"
+          className="rounded-full bg-roam-cyan px-8 text-roam-navy font-bold shadow-[0_0_25px_rgba(30,193,203,0.5)] hover:bg-roam-cyan/90 transition-all duration-300"
+        >
           <Link to={planTripTarget}>Plan My Trip</Link>
         </Button>
         <Button
           asChild
           size="lg"
           variant="outline"
-          className="border-white/40 bg-white/10 text-white backdrop-blur hover:bg-white/20 hover:text-white"
+          className="rounded-full border-white/20 bg-white/5 text-white backdrop-blur-md hover:border-roam-cyan/50 hover:bg-white/10 hover:text-white transition-all duration-300"
         >
           <a href="#recovery-logic">Explore Recovery Loop</a>
         </Button>
       </PageHero>
 
       {/* Process Overview */}
-      <section className="mx-auto max-w-6xl px-4 py-16">
+      <section className="mx-auto max-w-6xl px-4 py-20">
         <div className="grid gap-6 md:grid-cols-3">
           {PROCESS_STAGES.map((s) => (
-            <div key={s.stage} className={`rounded-xl border bg-card p-6 shadow-xs ${s.color}`}>
+            <motion.div
+              key={s.stage}
+              whileHover={{ y: -6, scale: 1.015 }}
+              transition={{ duration: 0.3 }}
+              className={`glass-card-3d rounded-2xl border bg-roam-navy/80 p-7 shadow-2xl backdrop-blur-xl ${s.color}`}
+            >
               <div className="flex items-center gap-3">
                 <s.icon className="h-6 w-6" />
-                <span className="font-mono text-xs font-bold tracking-wider">{s.stage}</span>
+                <span className="font-mono text-xs font-extrabold tracking-widest">{s.stage}</span>
               </div>
-              <p className="mt-3 text-sm text-muted-foreground leading-relaxed">{s.desc}</p>
-            </div>
+              <p className="mt-3.5 text-sm text-slate-300 leading-relaxed">{s.desc}</p>
+            </motion.div>
           ))}
         </div>
       </section>
 
       {/* Detail Steps */}
-      <section className="border-t border-border bg-card">
-        <div className="mx-auto max-w-6xl px-4 py-16 space-y-12">
+      <section className="border-t border-white/10 bg-roam-navy/60 backdrop-blur-md">
+        <div className="mx-auto max-w-6xl px-4 py-20 space-y-12">
           <div className="max-w-2xl space-y-3">
-            <span className="font-mono text-xs font-bold text-accent uppercase tracking-wider">
+            <span className="font-mono text-xs font-bold text-roam-cyan uppercase tracking-wider px-3 py-1 rounded-full bg-roam-cyan/10 border border-roam-cyan/30">
               Architecture Deep Dive
             </span>
-            <h2 className="font-display text-3xl font-bold tracking-tight">
+            <h2 className="font-display text-3xl font-bold tracking-tight text-white sm:text-4xl">
               How RoamPulse Monitors &amp; Repairs
             </h2>
-            <p className="text-muted-foreground text-sm leading-relaxed">
+            <p className="text-slate-400 text-sm leading-relaxed">
               Unlike static PDF itineraries or passive calendar apps, RoamPulse treats your trip as
               a living state machine.
             </p>
@@ -159,40 +167,42 @@ function HowItWorks() {
 
           <div className="grid gap-6 md:grid-cols-2">
             {STEPS.map((step) => (
-              <div
+              <motion.div
                 key={step.n}
-                className="rounded-xl border border-border bg-background p-6 space-y-3 shadow-2xs"
+                whileHover={{ y: -6, scale: 1.015, rotateX: 2, rotateY: -2 }}
+                transition={{ duration: 0.3 }}
+                className="glass-card-3d rounded-2xl border border-white/10 bg-roam-navy/80 p-7 space-y-3.5 shadow-2xl backdrop-blur-xl"
               >
                 <div className="flex items-center justify-between">
-                  <span className="font-mono text-xs font-bold text-primary bg-primary/10 px-2.5 py-0.5 rounded">
+                  <span className="font-mono text-xs font-bold text-roam-cyan bg-roam-cyan/15 px-3 py-1 rounded-full border border-roam-cyan/30">
                     STEP {step.n}
                   </span>
-                  <step.icon className="h-5 w-5 text-muted-foreground" />
+                  <step.icon className="h-5 w-5 text-roam-cyan" />
                 </div>
-                <h3 className="font-display text-lg font-bold">{step.title}</h3>
-                <p className="text-xs font-semibold text-accent">{step.subtitle}</p>
-                <p className="text-xs text-muted-foreground leading-relaxed">{step.body}</p>
-              </div>
+                <h3 className="font-display text-xl font-bold text-white">{step.title}</h3>
+                <p className="text-xs font-semibold text-roam-cyan">{step.subtitle}</p>
+                <p className="text-xs text-slate-300 leading-relaxed">{step.body}</p>
+              </motion.div>
             ))}
           </div>
         </div>
       </section>
 
       {/* Recovery Logic List */}
-      <section id="recovery-logic" className="mx-auto max-w-6xl px-4 py-16 space-y-8">
+      <section id="recovery-logic" className="mx-auto max-w-6xl px-4 py-20 space-y-8">
         <div className="max-w-2xl space-y-2">
-          <h2 className="font-display text-2xl font-bold">The 7-Step Recovery Algorithm</h2>
-          <p className="text-sm text-muted-foreground">
+          <h2 className="font-display text-2xl font-bold text-white sm:text-4xl">The 7-Step Recovery Algorithm</h2>
+          <p className="text-sm text-slate-400">
             Every disruption passes through a deterministic evaluation engine before any alternative
             is recommended.
           </p>
         </div>
 
-        <div className="rounded-2xl border border-border bg-card p-6 sm:p-8 shadow-sm">
+        <div className="glass-card-3d rounded-3xl border border-white/10 bg-roam-navy/80 p-8 shadow-2xl backdrop-blur-xl">
           <ol className="space-y-4">
             {LOGIC_BULLETS.map((bullet, idx) => (
-              <li key={bullet} className="flex items-center gap-3 text-sm text-foreground">
-                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-accent/15 text-accent font-mono text-xs font-bold">
+              <li key={bullet} className="flex items-center gap-3.5 text-sm text-slate-200">
+                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-roam-cyan/40 bg-roam-cyan/15 text-roam-cyan font-mono text-xs font-bold shadow-[0_0_8px_rgba(30,193,203,0.3)]">
                   {idx + 1}
                 </span>
                 <span>{bullet}</span>
@@ -200,10 +210,10 @@ function HowItWorks() {
             ))}
           </ol>
 
-          <div className="mt-8 rounded-xl border border-primary/30 bg-primary/5 p-4 text-xs text-muted-foreground flex items-center gap-3">
-            <Gauge className="h-5 w-5 text-primary shrink-0" />
-            <p>
-              <strong>Zero unapproved purchases:</strong> RoamPulse never automatically books paid
+          <div className="mt-8 rounded-2xl border border-roam-cyan/30 bg-roam-cyan/10 p-5 text-xs text-cyan-100 flex items-center gap-3.5 backdrop-blur-md">
+            <Gauge className="h-6 w-6 text-roam-cyan shrink-0" />
+            <p className="leading-relaxed">
+              <strong className="text-white">Zero unapproved purchases:</strong> RoamPulse never automatically books paid
               flights, hotels, or tickets without your explicit consent.
             </p>
           </div>
@@ -211,10 +221,14 @@ function HowItWorks() {
       </section>
 
       {/* Interactive Recovery Demo */}
-      <div className="mx-auto max-w-6xl px-4 pb-20 space-y-12">
+      <div className="mx-auto max-w-6xl px-4 pb-24 space-y-12">
         <RecoveryDemo />
         <div className="text-center pt-6">
-          <Button asChild size="lg" variant="recover">
+          <Button
+            asChild
+            size="lg"
+            className="rounded-full bg-roam-cyan px-10 py-6 text-lg text-roam-navy font-bold shadow-[0_0_30px_rgba(30,193,203,0.6)] hover:bg-roam-cyan/90 transition-all duration-300"
+          >
             <Link to={planTripTarget}>Plan My Trip Now</Link>
           </Button>
         </div>

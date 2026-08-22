@@ -5,15 +5,18 @@
 @custom-variant dark (&:is(.dark *));
 
 /*
- * RoamPulse design system — "Dynamic Adventure" palette.
- * Deep Teal #005F73 · Sunset Coral #EE9B00 · Slate #1D2D44 · Crisp White #FFFFFF
- * All colors are oklch tokens. Never hardcode colors in components.
+ * RoamPulse High-Tech AI Travel Engine Design System
+ * Primary Navy #1C1C28 · Neon Cyan #1EC1CB · Translucent Navy rgba(28, 28, 40, 0.75)
  */
 
 @theme inline {
   --font-sans: "Manrope", ui-sans-serif, system-ui, sans-serif;
   --font-display: "Sora", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "IBM Plex Mono", ui-monospace, monospace;
+
+  --color-roam-navy: #1C1C28;
+  --color-roam-cyan: #1EC1CB;
+  --color-roam-navy-glass: rgba(28, 28, 40, 0.75);
 
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
@@ -62,97 +65,97 @@
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
 
-  --shadow-panel: 0 1px 2px oklch(0.29 0.04 258 / 0.06), 0 8px 24px oklch(0.29 0.04 258 / 0.08);
-  --shadow-lift: 0 2px 6px oklch(0.29 0.04 258 / 0.08), 0 18px 40px oklch(0.29 0.04 258 / 0.12);
+  --shadow-panel: 0 4px 30px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  --shadow-lift: 0 10px 40px -10px rgba(30, 193, 203, 0.25), 0 20px 50px -15px rgba(0, 0, 0, 0.5);
 }
 
 :root {
-  --radius: 0.5rem;
+  --radius: 0.75rem;
 
-  --background: oklch(0.985 0.004 220);
-  --foreground: oklch(0.29 0.04 258);
+  --background: #1C1C28;
+  --foreground: #F1F5F9;
 
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.29 0.04 258);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.29 0.04 258);
+  --card: rgba(28, 28, 40, 0.75);
+  --card-foreground: #F8FAFC;
+  --popover: #1C1C28;
+  --popover-foreground: #F8FAFC;
 
-  --primary: oklch(0.44 0.072 213);
-  --primary-foreground: oklch(0.99 0.003 220);
+  --primary: #1EC1CB;
+  --primary-foreground: #1C1C28;
 
-  --secondary: oklch(0.945 0.012 220);
-  --secondary-foreground: oklch(0.29 0.04 258);
+  --secondary: rgba(38, 38, 56, 0.7);
+  --secondary-foreground: #F1F5F9;
 
-  --muted: oklch(0.955 0.008 220);
-  --muted-foreground: oklch(0.505 0.024 245);
+  --muted: rgba(35, 35, 52, 0.6);
+  --muted-foreground: #94A3B8;
 
-  --accent: oklch(0.755 0.155 68);
-  --accent-foreground: oklch(0.24 0.035 258);
+  --accent: #1EC1CB;
+  --accent-foreground: #1C1C28;
 
-  --destructive: oklch(0.556 0.204 27);
-  --destructive-foreground: oklch(0.99 0.003 220);
+  --destructive: #EF4444;
+  --destructive-foreground: #FFFFFF;
 
-  --success: oklch(0.55 0.11 165);
-  --success-foreground: oklch(0.99 0.003 220);
+  --success: #10B981;
+  --success-foreground: #1C1C28;
 
-  --warning: oklch(0.755 0.155 68);
-  --warning-foreground: oklch(0.24 0.035 258);
+  --warning: #F59E0B;
+  --warning-foreground: #1C1C28;
 
-  --slate-ink: oklch(0.29 0.04 258);
+  --slate-ink: #1C1C28;
 
-  --border: oklch(0.9 0.01 230);
-  --input: oklch(0.9 0.01 230);
-  --ring: oklch(0.44 0.072 213);
+  --border: rgba(255, 255, 255, 0.1);
+  --input: rgba(255, 255, 255, 0.12);
+  --ring: #1EC1CB;
 
-  --chart-1: oklch(0.44 0.072 213);
-  --chart-2: oklch(0.755 0.155 68);
-  --chart-3: oklch(0.29 0.04 258);
-  --chart-4: oklch(0.6 0.09 195);
-  --chart-5: oklch(0.62 0.13 30);
+  --chart-1: #1EC1CB;
+  --chart-2: #38BDF8;
+  --chart-3: #818CF8;
+  --chart-4: #F59E0B;
+  --chart-5: #10B981;
 
-  --sidebar: oklch(0.29 0.04 258);
-  --sidebar-foreground: oklch(0.97 0.005 220);
-  --sidebar-primary: oklch(0.755 0.155 68);
-  --sidebar-primary-foreground: oklch(0.24 0.035 258);
-  --sidebar-accent: oklch(0.34 0.04 255);
-  --sidebar-accent-foreground: oklch(0.97 0.005 220);
-  --sidebar-border: oklch(0.38 0.035 255);
-  --sidebar-ring: oklch(0.755 0.155 68);
+  --sidebar: #1C1C28;
+  --sidebar-foreground: #F8FAFC;
+  --sidebar-primary: #1EC1CB;
+  --sidebar-primary-foreground: #1C1C28;
+  --sidebar-accent: rgba(38, 38, 56, 0.7);
+  --sidebar-accent-foreground: #F8FAFC;
+  --sidebar-border: rgba(255, 255, 255, 0.1);
+  --sidebar-ring: #1EC1CB;
 }
 
 .dark {
-  --background: oklch(0.22 0.032 258);
-  --foreground: oklch(0.97 0.005 220);
-  --card: oklch(0.27 0.036 258);
-  --card-foreground: oklch(0.97 0.005 220);
-  --popover: oklch(0.27 0.036 258);
-  --popover-foreground: oklch(0.97 0.005 220);
-  --primary: oklch(0.66 0.09 205);
-  --primary-foreground: oklch(0.19 0.03 258);
-  --secondary: oklch(0.32 0.036 258);
-  --secondary-foreground: oklch(0.97 0.005 220);
-  --muted: oklch(0.32 0.036 258);
-  --muted-foreground: oklch(0.72 0.02 240);
-  --accent: oklch(0.775 0.15 68);
-  --accent-foreground: oklch(0.2 0.03 258);
-  --destructive: oklch(0.65 0.19 25);
-  --destructive-foreground: oklch(0.99 0.003 220);
-  --success: oklch(0.68 0.12 165);
-  --success-foreground: oklch(0.19 0.03 258);
-  --warning: oklch(0.775 0.15 68);
-  --warning-foreground: oklch(0.2 0.03 258);
-  --slate-ink: oklch(0.97 0.005 220);
-  --border: oklch(0.38 0.035 255);
-  --input: oklch(0.38 0.035 255);
-  --ring: oklch(0.66 0.09 205);
-  --sidebar: oklch(0.19 0.03 258);
-  --sidebar-foreground: oklch(0.97 0.005 220);
-  --sidebar-primary: oklch(0.775 0.15 68);
-  --sidebar-primary-foreground: oklch(0.2 0.03 258);
-  --sidebar-accent: oklch(0.28 0.035 258);
-  --sidebar-accent-foreground: oklch(0.97 0.005 220);
-  --sidebar-border: oklch(0.34 0.035 255);
-  --sidebar-ring: oklch(0.775 0.15 68);
+  --background: #1C1C28;
+  --foreground: #F1F5F9;
+  --card: rgba(28, 28, 40, 0.75);
+  --card-foreground: #F8FAFC;
+  --popover: #1C1C28;
+  --popover-foreground: #F8FAFC;
+  --primary: #1EC1CB;
+  --primary-foreground: #1C1C28;
+  --secondary: rgba(38, 38, 56, 0.7);
+  --secondary-foreground: #F1F5F9;
+  --muted: rgba(35, 35, 52, 0.6);
+  --muted-foreground: #94A3B8;
+  --accent: #1EC1CB;
+  --accent-foreground: #1C1C28;
+  --destructive: #EF4444;
+  --destructive-foreground: #FFFFFF;
+  --success: #10B981;
+  --success-foreground: #1C1C28;
+  --warning: #F59E0B;
+  --warning-foreground: #1C1C28;
+  --slate-ink: #1C1C28;
+  --border: rgba(255, 255, 255, 0.1);
+  --input: rgba(255, 255, 255, 0.12);
+  --ring: #1EC1CB;
+  --sidebar: #1C1C28;
+  --sidebar-foreground: #F8FAFC;
+  --sidebar-primary: #1EC1CB;
+  --sidebar-primary-foreground: #1C1C28;
+  --sidebar-accent: rgba(38, 38, 56, 0.7);
+  --sidebar-accent-foreground: #F8FAFC;
+  --sidebar-border: rgba(255, 255, 255, 0.1);
+  --sidebar-ring: #1EC1CB;
 }
 
 @layer base {
@@ -161,8 +164,8 @@
   }
 
   body {
-    background-color: var(--color-background);
-    color: var(--color-foreground);
+    background-color: #1C1C28;
+    color: #F1F5F9;
     font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
     overflow-x: hidden;
@@ -177,32 +180,59 @@
   }
 
   :focus-visible {
-    outline: 2px solid var(--color-ring);
+    outline: 2px solid #1EC1CB;
     outline-offset: 2px;
   }
 }
 
+@utility glass-card-3d {
+  background-color: rgba(28, 28, 40, 0.75);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: inset 0 1px 1px 0 rgba(255, 255, 255, 0.1), 0 10px 30px -10px rgba(0, 0, 0, 0.5);
+  transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+
+  &:hover {
+    border-color: rgba(30, 193, 203, 0.4);
+    box-shadow: 0 0 25px -5px rgba(30, 193, 203, 0.3), inset 0 1px 1px 0 rgba(255, 255, 255, 0.2);
+  }
+}
+
+@utility glass-panel {
+  background-color: rgba(28, 28, 40, 0.75);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+@utility cyan-glow-text {
+  background: linear-gradient(135deg, #FFFFFF 0%, #1EC1CB 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
 @utility grid-paper {
   background-image:
-    linear-gradient(to right, oklch(0.29 0.04 258 / 0.05) 1px, transparent 1px),
-    linear-gradient(to bottom, oklch(0.29 0.04 258 / 0.05) 1px, transparent 1px);
+    linear-gradient(to right, rgba(30, 193, 203, 0.05) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(30, 193, 203, 0.05) 1px, transparent 1px);
   background-size: 28px 28px;
 }
 
 @utility surface-ink {
-  background-color: var(--slate-ink);
-  color: oklch(0.97 0.005 220);
+  background-color: #1C1C28;
+  color: #F8FAFC;
 }
 
 @keyframes pulse-ring {
   0% {
-    box-shadow: 0 0 0 0 oklch(0.55 0.11 165 / 0.5);
+    box-shadow: 0 0 0 0 rgba(30, 193, 203, 0.6);
   }
   70% {
-    box-shadow: 0 0 0 8px oklch(0.55 0.11 165 / 0);
+    box-shadow: 0 0 0 10px rgba(30, 193, 203, 0);
   }
   100% {
-    box-shadow: 0 0 0 0 oklch(0.55 0.11 165 / 0);
+    box-shadow: 0 0 0 0 rgba(30, 193, 203, 0);
   }
 }
 
@@ -236,102 +266,85 @@
   }
 }
 
-/* Homepage hero scrim: darker on the left where the headline sits, lighter to the right. */
+/* Scrim overlays updated for high-tech deep navy canvas */
 @utility hero-scrim {
   background:
+    radial-gradient(
+      circle at 75% 30%,
+      rgba(30, 193, 203, 0.15) 0%,
+      transparent 55%
+    ),
     linear-gradient(
       100deg,
-      color-mix(in oklab, var(--slate-ink) 88%, transparent) 0%,
-      color-mix(in oklab, var(--slate-ink) 70%, transparent) 38%,
-      color-mix(in oklab, var(--primary) 40%, transparent) 68%,
-      color-mix(in oklab, var(--slate-ink) 20%, transparent) 100%
-    ),
-    linear-gradient(
-      to bottom,
-      color-mix(in oklab, var(--slate-ink) 55%, transparent) 0%,
-      transparent 35%,
-      color-mix(in oklab, var(--slate-ink) 45%, transparent) 100%
+      rgba(28, 28, 40, 0.95) 0%,
+      rgba(28, 28, 40, 0.85) 45%,
+      rgba(28, 28, 40, 0.5) 100%
     );
 }
 
-/* Subpage hero scrim: centered & balanced for page headers with deep teal and slate blend */
 @utility hero-scrim-subtle {
   background:
+    radial-gradient(
+      circle at 50% 20%,
+      rgba(30, 193, 203, 0.12) 0%,
+      transparent 60%
+    ),
     linear-gradient(
       to bottom,
-      color-mix(in oklab, var(--slate-ink) 82%, transparent) 0%,
-      color-mix(
-          in oklab,
-          var(--slate-ink) 65%,
-          color-mix(in oklab, var(--primary) 35%, transparent)
-        )
-        50%,
-      color-mix(in oklab, var(--slate-ink) 88%, transparent) 100%
-    ),
-    radial-gradient(
-      circle at 20% 30%,
-      color-mix(in oklab, var(--primary) 30%, transparent) 0%,
-      transparent 70%
+      rgba(28, 28, 40, 0.9) 0%,
+      rgba(28, 28, 40, 0.95) 100%
     );
 }
 
-/* Mobile scrim: vertical instead of horizontal so the scene stays visible. */
 @utility hero-scrim-mobile {
   background: linear-gradient(
     to bottom,
-    color-mix(in oklab, var(--slate-ink) 75%, transparent) 0%,
-    color-mix(in oklab, var(--slate-ink) 60%, transparent) 45%,
-    color-mix(in oklab, var(--slate-ink) 88%, transparent) 100%
+    rgba(28, 28, 40, 0.9) 0%,
+    rgba(28, 28, 40, 0.95) 100%
   );
 }
 
-/* Auth split-screen hero overlay */
 @utility auth-scrim {
   background: linear-gradient(
     to bottom,
-    color-mix(in oklab, var(--slate-ink) 78%, transparent) 0%,
-    color-mix(in oklab, var(--slate-ink) 60%, color-mix(in oklab, var(--primary) 40%, transparent))
-      50%,
-    color-mix(in oklab, var(--slate-ink) 92%, transparent) 100%
+    rgba(28, 28, 40, 0.92) 0%,
+    rgba(28, 28, 40, 0.98) 100%
   );
 }
 
-/* Level 2: Public marketing content atmosphere with subtle multi-point radial gradients */
 @utility bg-travel-atmosphere {
-  background-color: var(--color-background);
+  background-color: #1C1C28;
   background-image:
     radial-gradient(
-      at 12% 15%,
-      color-mix(in oklab, var(--primary) 6%, transparent) 0px,
-      transparent 48%
+      at 15% 15%,
+      rgba(30, 193, 203, 0.08) 0px,
+      transparent 50%
     ),
     radial-gradient(
-      at 88% 30%,
-      color-mix(in oklab, var(--accent) 4%, transparent) 0px,
-      transparent 40%
+      at 85% 35%,
+      rgba(30, 193, 203, 0.06) 0px,
+      transparent 45%
     ),
     radial-gradient(
       at 50% 85%,
-      color-mix(in oklab, var(--primary) 5%, transparent) 0px,
+      rgba(30, 193, 203, 0.07) 0px,
       transparent 55%
     );
 }
 
-/* Level 2: Subtle alternating surface */
 @utility bg-travel-subtle {
-  background-color: color-mix(in oklab, var(--primary) 3.5%, var(--color-card));
+  background-color: #1C1C28;
   background-image: radial-gradient(
     at 50% 0%,
-    color-mix(in oklab, var(--primary) 6%, transparent) 0px,
+    rgba(30, 193, 203, 0.08) 0px,
     transparent 60%
   );
 }
 
-/* Level 3: Authenticated Application / Dashboard atmosphere */
 @utility bg-app-atmosphere {
   position: relative;
   isolation: isolate;
-  background-color: var(--color-background);
+  background-color: #1C1C28;
 
   &::before {
     content: "";
@@ -341,8 +354,8 @@
     background-image:
       linear-gradient(
         to bottom,
-        color-mix(in oklab, var(--color-background) 45%, transparent),
-        color-mix(in oklab, var(--color-background) 58%, transparent)
+        rgba(28, 28, 40, 0.75),
+        rgba(28, 28, 40, 0.95)
       ),
       url("/dashboard-bg.jpg");
     background-size: cover;
@@ -351,3 +364,4 @@
     pointer-events: none;
   }
 }
+

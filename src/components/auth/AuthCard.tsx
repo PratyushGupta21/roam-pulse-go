@@ -35,7 +35,7 @@ export function AuthCard({
   return (
     <div className="min-h-screen bg-travel-atmosphere flex flex-col justify-center">
       <div className="mx-auto w-full max-w-5xl px-4 py-8 sm:py-12">
-        <div className="overflow-hidden rounded-2xl border border-border bg-card shadow-panel grid lg:grid-cols-12 min-h-[600px]">
+      <div style={{ minHeight: "600px" }} className="grid overflow-hidden rounded-2xl border border-border bg-card shadow-panel lg:grid-cols-12">
           {/* Left Column: Cinematic Travel Image + Scrim */}
           <div className="relative isolate flex flex-col justify-between overflow-hidden p-8 sm:p-10 lg:col-span-5 text-white">
             <img
@@ -99,6 +99,13 @@ export function AuthCard({
           {/* Right Column: Clean Form Surface */}
           <div className="flex flex-col justify-between p-6 sm:p-10 lg:col-span-7 bg-card">
             <div>
+              <div className="mb-6 flex justify-center lg:hidden">
+                <img
+                  src="/logo.png"
+                  alt="RoamPulse Logo"
+                  className="h-12 w-12 rounded-2xl border border-white/10 object-cover shadow-[0_0_20px_rgba(30,193,203,0.35)]"
+                />
+              </div>
               <div className="flex items-center justify-between">
                 <div>
                   <h1 className="font-display text-2xl font-bold tracking-tight text-foreground">

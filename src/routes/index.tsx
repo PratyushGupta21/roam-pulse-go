@@ -1,7 +1,9 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { z } from "zod";
+import { motion } from "framer-motion";
 import {
   Bell,
+  CheckCircle2,
   Clock,
   CloudRain,
   Compass,
@@ -159,7 +161,20 @@ function Home() {
   return (
     <MarketingLayout transparentHeader>
       {/* Hero */}
-      <section className="relative isolate -mt-16 flex min-h-[650px] items-center overflow-hidden border-b border-border lg:min-h-[88vh]">
+      <section
+        style={{ minHeight: "680px" }}
+        className="relative isolate -mt-16 flex items-center overflow-hidden border-b border-white/10 bg-roam-navy lg:min-h-[90vh]"
+      >
+        {/* Dynamic ambient radial light leaks */}
+        <div
+          style={{ height: "500px", width: "500px" }}
+          className="pointer-events-none absolute left-1/4 top-16 -z-10 rounded-full bg-roam-cyan/15 blur-3xl"
+        />
+        <div
+          style={{ height: "400px", width: "400px" }}
+          className="pointer-events-none absolute bottom-10 right-10 -z-10 rounded-full bg-roam-cyan/10 blur-3xl"
+        />
+
         <img
           src={pageBackgrounds.home.imageSrc}
           alt={pageBackgrounds.home.alt}
@@ -167,17 +182,17 @@ function Home() {
           height={1088}
           fetchPriority="high"
           decoding="async"
-          className="absolute inset-0 -z-20 h-full w-full object-cover object-[62%_38%] md:object-center"
+          className="absolute inset-0 -z-20 h-full w-full object-cover object-[62%_38%] opacity-35 mix-blend-luminosity md:object-center"
         />
         <div className="hero-scrim absolute inset-0 -z-10 hidden md:block" aria-hidden="true" />
         <div className="hero-scrim-mobile absolute inset-0 -z-10 md:hidden" aria-hidden="true" />
 
-        <div className="mx-auto grid w-full max-w-6xl gap-10 px-4 pb-16 pt-28 lg:grid-cols-2 lg:items-center lg:pb-24 lg:pt-32">
+        <div className="mx-auto grid w-full max-w-6xl gap-10 px-4 pb-16 pt-28 lg:grid-cols-2 lg:items-center lg:pb-24 lg:pt-36">
           <div>
             {destination ? (
-              <div className="mb-5 rounded-2xl border border-cyan-400/40 bg-slate-950/80 p-4 text-cyan-200 backdrop-blur-md shadow-xl animate-in fade-in slide-in-from-top-3">
+              <div className="mb-5 rounded-2xl border border-roam-cyan/50 bg-roam-navy/90 p-4 text-cyan-200 backdrop-blur-xl shadow-[0_0_25px_rgba(30,193,203,0.3)] animate-in fade-in slide-in-from-top-3">
                 <div className="flex items-center gap-2 font-semibold text-white text-base">
-                  <Sparkles className="h-5 w-5 text-cyan-400 animate-pulse" />
+                  <Sparkles className="h-5 w-5 text-roam-cyan animate-pulse" />
                   <span>Explorer Spot Identified!</span>
                 </div>
                 <p className="mt-1 text-sm text-cyan-100/90">
@@ -187,19 +202,26 @@ function Home() {
               </div>
             ) : null}
 
-            <span className="inline-flex items-center gap-2 rounded-full border border-white/25 bg-white/10 px-3 py-1 text-xs font-medium text-white backdrop-blur">
+            <span className="inline-flex items-center gap-2 rounded-full border border-roam-cyan/40 bg-roam-cyan/10 px-4 py-1.5 text-xs font-semibold text-roam-cyan backdrop-blur-md shadow-[0_0_15px_rgba(30,193,203,0.2)]">
               <span
-                className="live-dot inline-block h-2 w-2 rounded-full bg-success"
+                className="live-dot inline-block h-2 w-2 rounded-full bg-roam-cyan"
                 aria-hidden="true"
               />
-              Real-time trip monitoring
+              Real-time telemetry monitoring
             </span>
-            <h1 className="mt-5 font-display text-4xl font-semibold leading-tight text-white drop-shadow-sm sm:text-5xl">
-              Your Trip Changes. <span className="text-accent">RoamPulse Adapts.</span>
+            <h1 className="mt-6 font-display text-4xl font-extrabold leading-tight text-white drop-shadow-md sm:text-5xl lg:text-6xl">
+              Your Trip Changes.{" "}
+              <span className="bg-clip-text bg-linear-to-r from-cyan-300 via-roam-cyan to-teal-400 text-transparent drop-shadow-[0_0_25px_rgba(30,193,203,0.5)]">
+                RoamPulse Adapts.
+              </span>
             </h1>
-            <p className="mt-5 max-w-xl text-lg text-white/85">{DESCRIPTION}</p>
-            <div className="mt-8 flex flex-wrap gap-3">
-              <Button asChild size="lg" variant="recover">
+            <p className="mt-6 max-w-xl text-lg leading-relaxed text-slate-300">{DESCRIPTION}</p>
+            <div className="mt-9 flex flex-wrap gap-4">
+              <Button
+                asChild
+                size="lg"
+                className="rounded-full bg-roam-cyan px-8 font-bold text-roam-navy shadow-[0_0_25px_rgba(30,193,203,0.5)] transition-all duration-300 hover:bg-roam-cyan/90 hover:shadow-[0_0_35px_rgba(30,193,203,0.8)]"
+              >
                 {user ? (
                   <Link
                     to="/trips/new"
@@ -221,13 +243,13 @@ function Home() {
                 asChild
                 size="lg"
                 variant="outline"
-                className="border-white/40 bg-white/10 text-white backdrop-blur hover:bg-white/20 hover:text-white"
+                className="rounded-full border-white/20 bg-white/5 text-white backdrop-blur-md hover:border-roam-cyan/50 hover:bg-white/10 hover:text-white transition-all duration-300"
               >
                 <Link to="/how-it-works">See How It Works</Link>
               </Button>
             </div>
-            <p className="mt-4 text-sm text-white/70">
-              Free plan available · no booking fees · you always authorise spending.
+            <p className="mt-5 text-sm text-slate-400">
+              Free plan available · zero booking fees · full spending control.
             </p>
           </div>
           <HeroTimeline />
@@ -235,147 +257,271 @@ function Home() {
       </section>
 
       {/* Problem */}
-      <section className="mx-auto max-w-6xl px-4 py-16">
-        <h2 className="font-display text-2xl font-semibold sm:text-3xl">
-          Travel breaks in predictable ways
-        </h2>
-        <p className="mt-3 max-w-2xl text-muted-foreground">
-          Every traveller runs the same manual recovery loop. RoamPulse automates it.
-        </p>
-        <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {PROBLEMS.map((item) => (
-            <article key={item.title} className="rounded-xl border border-border bg-card p-5">
-              <item.icon className="h-5 w-5 text-accent" aria-hidden="true" />
-              <h3 className="mt-3 font-semibold">{item.title}</h3>
-              <p className="mt-1 text-sm text-muted-foreground">{item.body}</p>
-            </article>
+      <section className="mx-auto max-w-6xl px-4 py-20">
+        <div className="max-w-2xl space-y-3">
+          <span className="font-mono text-xs font-bold text-rose-400 uppercase tracking-wider px-3 py-1 rounded-full bg-rose-500/10 border border-rose-500/30">
+            The Problem
+          </span>
+          <h2 className="font-display text-3xl font-bold tracking-tight text-white sm:text-4xl">
+            Why traditional travel plans break
+          </h2>
+          <p className="text-slate-400 text-sm leading-relaxed">
+            Static itineraries expect a perfect world. Reality has delays, rainstorms, and price spikes.
+          </p>
+        </div>
+
+        <div className="mt-12 grid gap-6 md:grid-cols-3">
+          {PROBLEMS.map((p) => (
+            <motion.article
+              key={p.title}
+              whileHover={{ y: -6, scale: 1.015, rotateX: 2, rotateY: -2 }}
+              transition={{ duration: 0.3 }}
+              className="glass-card-3d rounded-2xl border border-white/10 bg-roam-navy/75 p-6 shadow-xl backdrop-blur-xl"
+            >
+              <div className="inline-flex rounded-xl border border-rose-500/30 bg-rose-500/10 p-3 text-rose-400">
+                <p.icon className="h-6 w-6" aria-hidden="true" />
+              </div>
+              <h3 className="mt-4 font-display text-lg font-bold text-white">{p.title}</h3>
+              <p className="mt-2 text-sm text-slate-300 leading-relaxed">{p.body}</p>
+            </motion.article>
           ))}
         </div>
       </section>
 
       {/* Solution */}
-      <section className="border-y border-border bg-card">
-        <div className="mx-auto max-w-6xl px-4 py-16">
-          <h2 className="font-display text-2xl font-semibold sm:text-3xl">
-            One continuous loop, five jobs
-          </h2>
-          <ol className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-            {SOLUTION.map((item) => (
-              <li key={item.title} className="rounded-xl border border-border bg-background p-5">
-                <item.icon className="h-5 w-5 text-primary" aria-hidden="true" />
-                <h3 className="mt-3 font-semibold">{item.title}</h3>
-                <p className="mt-1 text-sm text-muted-foreground">{item.body}</p>
-              </li>
+      <section className="border-y border-white/10 bg-roam-navy/60 backdrop-blur-md">
+        <div className="mx-auto max-w-6xl px-4 py-20">
+          <div className="max-w-2xl space-y-3">
+            <span className="font-mono text-xs font-bold text-roam-cyan uppercase tracking-wider px-3 py-1 rounded-full bg-roam-cyan/10 border border-roam-cyan/30">
+              The Solution
+            </span>
+            <h2 className="font-display text-3xl font-bold tracking-tight text-white sm:text-4xl">
+              An itinerary that repairs itself
+            </h2>
+            <p className="text-slate-400 text-sm leading-relaxed">
+              RoamPulse watches your flights, weather, and budget in real time to rebuild your trip instantly.
+            </p>
+          </div>
+
+          <div className="mt-12 grid gap-6 md:grid-cols-5">
+            {SOLUTION.map((s) => (
+              <motion.article
+                key={s.title}
+                whileHover={{ y: -6, scale: 1.015, rotateX: 2, rotateY: -2 }}
+                transition={{ duration: 0.3 }}
+                className="glass-card-3d rounded-2xl border border-white/10 bg-roam-navy/80 p-6 shadow-xl backdrop-blur-xl"
+              >
+                <div className="inline-flex rounded-xl border border-roam-cyan/30 bg-roam-cyan/10 p-3 text-roam-cyan shadow-[0_0_12px_rgba(30,193,203,0.2)]">
+                  <s.icon className="h-6 w-6" aria-hidden="true" />
+                </div>
+                <h3 className="mt-4 font-display text-base font-bold text-white">{s.title}</h3>
+                <p className="mt-2 text-sm text-slate-300 leading-relaxed">{s.body}</p>
+              </motion.article>
             ))}
-          </ol>
+          </div>
         </div>
       </section>
 
-      <div className="mx-auto max-w-6xl space-y-10 px-4 py-16">
+      {/* Live Recovery Demo Component */}
+      <section className="mx-auto max-w-6xl px-4 py-20 space-y-12">
         <RecoveryDemo />
         <PriceCompare />
-      </div>
-
-      {/* Features */}
-      <section className="border-y border-border bg-card">
-        <div className="mx-auto max-w-6xl px-4 py-16">
-          <h2 className="font-display text-2xl font-semibold sm:text-3xl">
-            Everything the recovery loop needs
-          </h2>
-          <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            {FEATURES.map((f) => (
-              <article key={f.title} className="rounded-xl border border-border bg-background p-5">
-                <f.icon className="h-5 w-5 text-primary" aria-hidden="true" />
-                <h3 className="mt-3 font-semibold">{f.title}</h3>
-                <p className="mt-1 text-sm text-muted-foreground">{f.body}</p>
-              </article>
-            ))}
-          </div>
-        </div>
       </section>
 
-      {/* How it works */}
-      <section className="mx-auto max-w-6xl px-4 py-16">
-        <h2 className="font-display text-2xl font-semibold sm:text-3xl">How it works</h2>
-        <ol className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {STEPS.map((s) => (
-            <li key={s.n} className="rounded-xl border border-border bg-card p-5">
-              <span className="font-mono text-sm text-accent">{s.n}</span>
-              <h3 className="mt-2 font-semibold">{s.title}</h3>
-              <p className="mt-1 text-sm text-muted-foreground">{s.body}</p>
-            </li>
-          ))}
-        </ol>
-      </section>
-
-      {/* Automation modes */}
-      <section className="border-y border-border bg-card">
-        <div className="mx-auto max-w-6xl px-4 py-16">
-          <h2 className="font-display text-2xl font-semibold sm:text-3xl">
-            You choose how much autonomy to give
-          </h2>
-          <div className="mt-8 grid gap-4 md:grid-cols-3">
-            {MODES.map((m) => (
-              <article key={m.title} className="rounded-xl border border-border bg-background p-6">
-                <m.icon className="h-5 w-5 text-primary" aria-hidden="true" />
-                <h3 className="mt-3 font-display text-lg font-semibold">{m.title}</h3>
-                <p className="mt-1 text-sm text-muted-foreground">{m.body}</p>
-              </article>
-            ))}
-          </div>
-          <p className="mt-6 text-sm text-muted-foreground">
-            RoamPulse never purchases anything automatically, in any mode.
-          </p>
-        </div>
-      </section>
-
-      {/* Pricing teaser */}
-      <section className="mx-auto max-w-6xl px-4 py-16">
-        <h2 className="font-display text-2xl font-semibold sm:text-3xl">Simple pricing</h2>
-        <div className="mt-8 grid gap-4 md:grid-cols-2">
-          <article className="rounded-xl border border-border bg-card p-6">
-            <h3 className="font-display text-lg font-semibold">Free</h3>
-            <p className="mt-1 text-3xl font-semibold">₹0</p>
-            <ul className="mt-4 space-y-2 text-sm text-muted-foreground">
-              <li>Basic trip planning</li>
-              <li>AI itinerary generation</li>
-              <li>Limited monitoring</li>
-            </ul>
-            <Button asChild className="mt-6 w-full">
-              <Link to="/signup">Start free</Link>
-            </Button>
-          </article>
-          <article className="rounded-xl border-2 border-primary bg-card p-6">
-            <h3 className="font-display text-lg font-semibold">Premium</h3>
-            <p className="mt-1 text-3xl font-semibold">
-              ₹749<span className="text-base font-normal text-muted-foreground">/month</span>
+      {/* Features Grid */}
+      <section className="border-y border-white/10 bg-roam-navy/60 backdrop-blur-md">
+        <div className="mx-auto max-w-6xl px-4 py-20">
+          <div className="max-w-2xl space-y-3">
+            <span className="font-mono text-xs font-bold text-roam-cyan uppercase tracking-wider px-3 py-1 rounded-full bg-roam-cyan/10 border border-roam-cyan/30">
+              Core Capabilities
+            </span>
+            <h2 className="font-display text-3xl font-bold tracking-tight text-white sm:text-4xl">
+              Engineered for seamless journeys
+            </h2>
+            <p className="text-slate-400 text-sm leading-relaxed">
+              Every tool you need to stay on schedule and under budget when traveling.
             </p>
-            <ul className="mt-4 space-y-2 text-sm text-muted-foreground">
-              <li>Real-time flight tracking</li>
-              <li>Advanced disruption alerts &amp; recovery</li>
-              <li>Autonomous recovery controls</li>
-              <li>Advanced price monitoring</li>
-            </ul>
-            <Button asChild className="mt-6 w-full" variant="recover">
-              <Link to="/pricing">Compare plans</Link>
-            </Button>
-          </article>
+          </div>
+
+          <div className="mt-12 grid gap-6 md:grid-cols-4">
+            {FEATURES.map((f) => (
+              <motion.article
+                key={f.title}
+                whileHover={{ y: -6, scale: 1.015, rotateX: 2, rotateY: -2 }}
+                transition={{ duration: 0.3 }}
+                className="glass-card-3d rounded-2xl border border-white/10 bg-roam-navy/80 p-6 shadow-xl backdrop-blur-xl"
+              >
+                <div className="inline-flex rounded-xl border border-roam-cyan/30 bg-roam-cyan/10 p-3 text-roam-cyan shadow-[0_0_12px_rgba(30,193,203,0.2)]">
+                  <f.icon className="h-6 w-6" aria-hidden="true" />
+                </div>
+                <h3 className="mt-4 font-display text-lg font-bold text-white">{f.title}</h3>
+                <p className="mt-2 text-sm text-slate-300 leading-relaxed">{f.body}</p>
+              </motion.article>
+            ))}
+          </div>
         </div>
       </section>
 
-      {/* Final CTA */}
-      <section className="surface-ink">
-        <div className="mx-auto flex max-w-4xl flex-col items-center gap-6 px-4 py-20 text-center">
-          <Bell className="h-7 w-7 text-accent" aria-hidden="true" />
-          <h2 className="font-display text-3xl font-semibold sm:text-4xl">
-            Don't Let One Delay Ruin Your Trip.
+      {/* How it works 4 steps */}
+      <section className="mx-auto max-w-6xl px-4 py-20">
+        <div className="max-w-2xl space-y-3">
+          <span className="font-mono text-xs font-bold text-roam-cyan uppercase tracking-wider px-3 py-1 rounded-full bg-roam-cyan/10 border border-roam-cyan/30">
+            Step-by-step
+          </span>
+          <h2 className="font-display text-3xl font-bold tracking-tight text-white sm:text-4xl">
+            How RoamPulse works in practice
           </h2>
-          <p className="max-w-xl opacity-80">
-            Build your trip once. RoamPulse keeps it alive while you travel.
+          <p className="text-slate-400 text-sm leading-relaxed">
+            From initial prompt to continuous live recovery.
           </p>
-          <Button asChild size="lg" variant="recover">
-            <Link to={planTripTarget}>Plan My Trip</Link>
-          </Button>
+        </div>
+
+        <div className="mt-12 grid gap-6 md:grid-cols-4">
+          {STEPS.map((step) => (
+            <motion.article
+              key={step.n}
+              whileHover={{ y: -6, scale: 1.015, rotateX: 2, rotateY: -2 }}
+              transition={{ duration: 0.3 }}
+              className="glass-card-3d rounded-2xl border border-white/10 bg-roam-navy/80 p-6 shadow-xl backdrop-blur-xl"
+            >
+              <span className="font-mono text-xs font-bold text-roam-cyan px-3 py-1 rounded-full bg-roam-cyan/10 border border-roam-cyan/30">
+                {step.n}
+              </span>
+              <h3 className="mt-4 font-display text-xl font-bold text-white">{step.title}</h3>
+              <p className="mt-2 text-sm text-slate-300 leading-relaxed">{step.body}</p>
+            </motion.article>
+          ))}
+        </div>
+      </section>
+
+      {/* Autonomy Mode Teaser */}
+      <section className="border-y border-white/10 bg-roam-navy/60 backdrop-blur-md">
+        <div className="mx-auto max-w-6xl px-4 py-20">
+          <div className="max-w-2xl space-y-3">
+            <span className="font-mono text-xs font-bold text-roam-cyan uppercase tracking-wider px-3 py-1 rounded-full bg-roam-cyan/10 border border-roam-cyan/30">
+              Autonomy Controls
+            </span>
+            <h2 className="font-display text-3xl font-bold tracking-tight text-white sm:text-4xl">
+              Choose your automation level
+            </h2>
+            <p className="text-slate-400 text-sm leading-relaxed">
+              RoamPulse never spends money without authorization. You set the rules.
+            </p>
+          </div>
+
+          <div className="mt-12 grid gap-6 md:grid-cols-3">
+            {MODES.map((mode) => (
+              <motion.article
+                key={mode.title}
+                whileHover={{ y: -6, scale: 1.015, rotateX: 2, rotateY: -2 }}
+                transition={{ duration: 0.3 }}
+                className="glass-card-3d rounded-2xl border border-white/10 bg-roam-navy/80 p-7 shadow-xl backdrop-blur-xl hover:border-roam-cyan/50"
+              >
+                <div className="inline-flex rounded-xl border border-roam-cyan/30 bg-roam-cyan/10 p-3.5 text-roam-cyan shadow-[0_0_15px_rgba(30,193,203,0.3)]">
+                  <mode.icon className="h-6 w-6" aria-hidden="true" />
+                </div>
+                <h3 className="mt-4 font-display text-xl font-bold text-white">{mode.title}</h3>
+                <p className="mt-2 text-sm text-slate-300 leading-relaxed">{mode.body}</p>
+              </motion.article>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Pricing Teaser */}
+      <section className="mx-auto max-w-6xl px-4 py-20 space-y-12">
+        <div className="text-center max-w-2xl mx-auto space-y-3">
+          <span className="font-mono text-xs font-bold text-roam-cyan uppercase tracking-wider px-3 py-1 rounded-full bg-roam-cyan/10 border border-roam-cyan/30">
+            Simple Pricing
+          </span>
+          <h2 className="font-display text-3xl font-bold tracking-tight text-white sm:text-4xl">
+            Plans for every traveler
+          </h2>
+          <p className="text-slate-400 text-sm">
+            Start for free, upgrade when you need live telemetry monitoring.
+          </p>
+        </div>
+
+        <div className="grid gap-8 md:grid-cols-2 max-w-4xl mx-auto">
+          {/* Free Tier */}
+          <motion.div
+            whileHover={{ y: -6, scale: 1.015 }}
+            transition={{ duration: 0.3 }}
+            className="glass-card-3d rounded-3xl border border-white/10 bg-roam-navy/80 p-8 shadow-2xl backdrop-blur-xl"
+          >
+            <h3 className="font-display text-2xl font-bold text-white">Free Explorer</h3>
+            <p className="mt-1 text-sm text-slate-400">Perfect for planning single trips</p>
+            <p className="mt-6 text-4xl font-extrabold text-white">₹0</p>
+            <ul className="mt-6 space-y-3 text-sm text-slate-300">
+              <li className="flex items-center gap-2">
+                <CheckCircle2 className="h-4 w-4 text-roam-cyan" /> Basic trip planning
+              </li>
+              <li className="flex items-center gap-2">
+                <CheckCircle2 className="h-4 w-4 text-roam-cyan" /> AI itinerary generation
+              </li>
+              <li className="flex items-center gap-2">
+                <CheckCircle2 className="h-4 w-4 text-roam-cyan" /> Limited monitoring
+              </li>
+            </ul>
+            <Button asChild variant="outline" className="mt-8 w-full rounded-xl border-white/20 text-white hover:bg-white/10">
+              <Link to="/signup">Get Started Free</Link>
+            </Button>
+          </motion.div>
+
+          {/* Pro Tier */}
+          <motion.div
+            whileHover={{ y: -6, scale: 1.015 }}
+            transition={{ duration: 0.3 }}
+            className="glass-card-3d relative rounded-3xl border-2 border-roam-cyan bg-roam-navy/90 p-8 shadow-[0_0_35px_-5px_rgba(30,193,203,0.4)] backdrop-blur-xl"
+          >
+            <span className="absolute -top-3.5 right-6 rounded-full bg-roam-cyan px-3.5 py-1 text-xs font-bold uppercase tracking-wider text-roam-navy shadow-[0_0_12px_rgba(30,193,203,0.6)]">
+              Most Popular
+            </span>
+            <h3 className="font-display text-2xl font-bold text-white">Pro Telemetry</h3>
+            <p className="mt-1 text-sm text-slate-300">24/7 continuous monitoring & recovery</p>
+            <p className="mt-6 text-4xl font-extrabold text-roam-cyan">
+              ₹749 <span className="text-sm font-normal text-slate-300">/ trip</span>
+            </p>
+            <ul className="mt-6 space-y-3 text-sm text-slate-200">
+              <li className="flex items-center gap-2">
+                <CheckCircle2 className="h-4 w-4 text-roam-cyan" /> Unlimited AI trip generation
+              </li>
+              <li className="flex items-center gap-2">
+                <CheckCircle2 className="h-4 w-4 text-roam-cyan" /> 24/7 Sentinel Flight & Radar monitoring
+              </li>
+              <li className="flex items-center gap-2">
+                <CheckCircle2 className="h-4 w-4 text-roam-cyan" /> Automated recovery re-routing
+              </li>
+              <li className="flex items-center gap-2">
+                <CheckCircle2 className="h-4 w-4 text-roam-cyan" /> Live provider price alerts
+              </li>
+            </ul>
+            <Button asChild className="mt-8 w-full rounded-xl bg-roam-cyan py-3 font-bold text-roam-navy shadow-[0_0_20px_rgba(30,193,203,0.5)] hover:bg-roam-cyan/90">
+              <Link to="/pricing">Upgrade to Pro</Link>
+            </Button>
+          </motion.div>
+        </div>
+      </section>
+
+      {/* CTA Footer */}
+      <section className="relative overflow-hidden border-t border-white/10 bg-roam-navy/90 py-24">
+        <div className="pointer-events-none absolute inset-0 -z-10 h-full w-full bg-[radial-gradient(ellipse_at_center,rgba(30,193,203,0.15),transparent_70%)]" />
+        <div className="mx-auto max-w-4xl px-4 text-center space-y-6">
+          <h2 className="font-display text-4xl font-extrabold text-white sm:text-5xl">
+            Ready for stress-free travel?
+          </h2>
+          <p className="text-lg text-slate-300 max-w-2xl mx-auto">
+            Build your first adaptive itinerary in under 60 seconds with RoamPulse.
+          </p>
+          <div className="pt-4">
+            <Button
+              asChild
+              size="lg"
+              className="rounded-full bg-roam-cyan px-10 py-6 text-lg font-bold text-roam-navy shadow-[0_0_30px_rgba(30,193,203,0.6)] transition-all duration-300 hover:bg-roam-cyan/90 hover:shadow-[0_0_40px_rgba(30,193,203,0.9)]"
+            >
+              <Link to={user ? "/trips/new" : "/signup"}>Start Planning Now</Link>
+            </Button>
+          </div>
         </div>
       </section>
     </MarketingLayout>
